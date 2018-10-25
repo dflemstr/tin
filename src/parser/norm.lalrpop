@@ -1,5 +1,3 @@
-use std::borrow;
-
 use ast;
 use parser;
 
@@ -7,31 +5,9 @@ use std::str::FromStr;
 
 grammar;
 
-pub Norm: ast::Norm<'input> = {
-    Definition* => ast::Norm { definitions: <>.into_iter().collect() },
-}
-
-pub Comment: () = {
-    r"/\*.*\*/"=> ()
-}
-
-pub Definition: (ast::Identifier<'input>, ast::Expression<'input>) = {
-    Comment? <Identifier> "=" <Expression> ";" => (<>),
-}
-
-pub Expression: ast::Expression<'input> = {
-    Identifier => ast::Expression::Identifier(<>),
-    Number => ast::Expression::Number(<>),
-    String => ast::Expression::String(<>),
-    Tuple => ast::Expression::Tuple(<>),
-    Record => ast::Expression::Record(<>),
-    Lambda => ast::Expression::Lambda(<>),
-    Select => ast::Expression::Select(<>),
-    Apply => ast::Expression::Apply(<>),
-}
-
-pub Identifier: ast::Identifier<'input> = {
-    r"\p{XID_Start}\p{XID_Continue}*" => ast::Identifier(<>.into()),
+extern {
+    type Location = usize;
+    type Error = parser::Error;
 }
 
 #[inline]
@@ -52,15 +28,47 @@ Semi<A>: Vec<A> = {
     },
 }
 
-pub Tuple: ast::Tuple<'input> = {
+#[inline]
+SemiRequired<A>: Vec<A> = {
+    <(<A> ";")*> => <>,
+}
+
+pub Norm: ast::Norm = {
+    SemiRequired<(Comment? <Definition>)> => ast::Norm { definitions: <> },
+}
+
+pub Comment: () = {
+    r"/\*(\*[^/]|[^*])*\*/"=> ()
+}
+
+pub Definition: (ast::Identifier, ast::Expression) = {
+    <Identifier> "=" <Expression> => (<>),
+}
+
+pub Expression: ast::Expression = {
+    Identifier => ast::Expression::Identifier(<>),
+    Number => ast::Expression::Number(<>),
+    String => ast::Expression::String(<>),
+    Tuple => ast::Expression::Tuple(<>),
+    Record => ast::Expression::Record(<>),
+    Lambda => ast::Expression::Lambda(<>),
+    Select => ast::Expression::Select(<>),
+    Apply => ast::Expression::Apply(<>),
+}
+
+pub Identifier: ast::Identifier = {
+    r"\p{XID_Start}\p{XID_Continue}*" => ast::Identifier(<>.into()),
+}
+
+pub Tuple: ast::Tuple = {
     "(" <Comma<Expression>> ")" => ast::Tuple { fields: <> },
 }
 
-pub Record: ast::Record<'input> = {
-    "{" <Comma<Field>> "}" => ast::Record { fields: <>.into_iter().collect() },
+pub Record: ast::Record = {
+    "{" <Comma<Field>> "}" => ast::Record { fields: <> },
 }
 
-pub Field: (ast::Identifier<'input>, ast::Expression<'input>) = {
+pub Field: (ast::Identifier, ast::Expression) = {
      <Identifier> ":" <Expression> => (<>)
 }
 
@@ -68,27 +76,27 @@ pub Number: f64 = {
     r"-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?" => f64::from_str(<>).unwrap(),
 }
 
-pub String: borrow::Cow<'input, str> = {
-    r#""(?:[^"\\]|\\(?:["\\/bfnrt]|u\{[a-fA-F0-9]{1,6}\}))*""# => parser::parse_escaped_string(<>),
+pub String: String = {
+    r#""(?:[^"\\]|\\(?:["\\/bfnrt]|u\{[a-fA-F0-9]{1,6}\}))*""# => parser::parse_escaped_string(<>).into_owned(),
 }
 
-pub Lambda: ast::Lambda<'input> = {
-    "|" <parameters:Comma<Parameter>> "|" "{" <statements:Semi<Statement>> "}" => ast::Lambda { <> },
+pub Lambda: ast::Lambda = {
+    "|" <parameters:Comma<(Comment? <Parameter>)>> "|" "{" <statements:Semi<(Comment? <Statement>)>> "}" => ast::Lambda { <> },
 }
 
-pub Statement: ast::Statement<'input> = {
+pub Statement: ast::Statement = {
     <d:Definition> => ast::Statement::Definition(d.0, d.1),
-    Comment? <Expression> => ast::Statement::Expression(<>),
+    <Expression> => ast::Statement::Expression(<>),
 }
 
-pub Select: ast::Select<'input> = {
+pub Select: ast::Select = {
     <e:Expression> "." <f:Identifier> => ast::Select { expression: Box::new(e), field: f },
 }
 
-pub Apply: ast::Apply<'input> = {
+pub Apply: ast::Apply = {
     <e:Expression> "(" <p:Comma<Expression>> ")" => ast::Apply { function: Box::new(e), parameters: p },
 }
 
-pub Parameter: ast::Parameter<'input> = {
+pub Parameter: ast::Parameter = {
     <name:Identifier> <signature:(":" <Expression>)?> => ast::Parameter { <> },
 }

@@ -1,7 +1,103 @@
-lalrpop_mod!(#[allow(dead_code)] norm);
-
 use std::borrow;
 use std::char;
+use std::fmt;
+
+use lalrpop_util;
+
+use ast;
+
+lalrpop_mod!(
+    #[allow(dead_code)]
+    #[allow(clippy)]
+    #[allow(unused)]
+    norm,
+    "/parser/norm.rs"
+);
+
+#[derive(Debug, Fail, PartialEq)]
+pub enum Error {
+    #[fail(display = "invalid token at {}", _0)]
+    InvalidToken { location: usize },
+    #[fail(display = "unrecognized token {:?}, expected {:?}", _0, _1)]
+    UnrecognizedToken {
+        token: Option<(usize, String, usize)>,
+        expected: Vec<String>,
+    },
+    #[fail(display = "got extra token {:?}", _0)]
+    ExtraToken { token: (usize, String, usize) },
+}
+
+pub trait Parse: Sized {
+    fn parse(source: &str) -> Result<Self, Error>;
+}
+
+impl Parse for ast::Norm {
+    fn parse(source: &str) -> Result<Self, Error> {
+        norm::NormParser::new().parse(source).map_err(Into::into)
+    }
+}
+
+impl Parse for ast::Identifier {
+    fn parse(source: &str) -> Result<Self, Error> {
+        norm::IdentifierParser::new()
+            .parse(source)
+            .map_err(Into::into)
+    }
+}
+
+impl Parse for ast::Expression {
+    fn parse(source: &str) -> Result<Self, Error> {
+        norm::ExpressionParser::new()
+            .parse(source)
+            .map_err(Into::into)
+    }
+}
+
+impl Parse for ast::Tuple {
+    fn parse(source: &str) -> Result<Self, Error> {
+        norm::TupleParser::new().parse(source).map_err(Into::into)
+    }
+}
+
+impl Parse for ast::Record {
+    fn parse(source: &str) -> Result<Self, Error> {
+        norm::RecordParser::new().parse(source).map_err(Into::into)
+    }
+}
+
+impl Parse for ast::Lambda {
+    fn parse(source: &str) -> Result<Self, Error> {
+        norm::LambdaParser::new().parse(source).map_err(Into::into)
+    }
+}
+
+impl Parse for ast::Statement {
+    fn parse(source: &str) -> Result<Self, Error> {
+        norm::StatementParser::new()
+            .parse(source)
+            .map_err(Into::into)
+    }
+}
+
+impl Parse for ast::Select {
+    fn parse(source: &str) -> Result<Self, Error> {
+        norm::SelectParser::new().parse(source).map_err(Into::into)
+    }
+}
+
+impl Parse for ast::Apply {
+    fn parse(source: &str) -> Result<Self, Error> {
+        norm::ApplyParser::new().parse(source).map_err(Into::into)
+    }
+}
+
+impl Parse for ast::Parameter {
+    fn parse(source: &str) -> Result<Self, Error> {
+        norm::ParameterParser::new()
+            .parse(source)
+            .map_err(Into::into)
+    }
+}
 
 fn parse_escaped_string(input: &str) -> borrow::Cow<str> {
     let input = &input[1..input.len() - 1];
@@ -89,16 +185,35 @@ fn parse_escaped_string(input: &str) -> borrow::Cow<str> {
     }
 }
 
+impl<T> From<lalrpop_util::ParseError<usize, T, Error>> for Error
+where
+    T: fmt::Display,
+{
+    fn from(error: lalrpop_util::ParseError<usize, T, Error>) -> Self {
+        match error {
+            lalrpop_util::ParseError::InvalidToken { location } => Error::InvalidToken { location },
+            lalrpop_util::ParseError::UnrecognizedToken { token, expected } => {
+                let token = token.map(|(s, t, e)| (s, format!("{}", t), e));
+                Error::UnrecognizedToken { token, expected }
+            }
+            lalrpop_util::ParseError::ExtraToken { token } => {
+                let token = (token.0, format!("{}", token.1), token.2);
+                Error::ExtraToken { token }
+            }
+            lalrpop_util::ParseError::User { error } => error,
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use std::borrow;
-
     use super::norm;
     use ast;
 
     #[test]
     fn e2e() {
-        let actual = norm::NormParser::new().parse(r#"
+        let actual = norm::NormParser::new().parse(
+            r#"
 /* A record describing a person */
 Person = { name: String, age: Int };
 
@@ -112,7 +227,8 @@ main = || {
   /* Print a debug representation of the old person */
   print(makeOld({ name: "David", age: 27 }))
 };
-"#);
+"#,
+        );
         assert!(actual.is_ok());
     }
 
@@ -237,23 +353,21 @@ main = || {
 
     #[test]
     fn string() {
-        let expected = Ok(borrow::Cow::Borrowed("abc"));
+        let expected = Ok("abc".to_owned());
         let actual = norm::StringParser::new().parse(r#""abc""#);
         assert_eq!(expected, actual);
     }
 
     #[test]
     fn string_unicode() {
-        let expected = Ok(borrow::Cow::Borrowed("なんでも"));
+        let expected = Ok("なんでも".to_owned());
         let actual = norm::StringParser::new().parse(r#""なんでも""#);
         assert_eq!(expected, actual);
     }
 
     #[test]
     fn string_escape() {
-        let expected = Ok(borrow::Cow::Owned(
-            "\"\\/\u{0008}\u{000C}\n\r\t\u{1234}".to_owned(),
-        ));
+        let expected = Ok("\"\\/\u{0008}\u{000C}\n\r\t\u{1234}".to_owned());
         let actual = norm::StringParser::new().parse(r#""\"\\/\b\f\n\r\t\u{1234}""#);
         assert_eq!(expected, actual);
     }
@@ -317,7 +431,7 @@ main = || {
                     ast::Expression::String("c".into()),
                 ),
             ].into_iter()
-                .collect(),
+            .collect(),
         });
         let actual = norm::RecordParser::new().parse(r#"{a: 1, b: "c"}"#);
         assert_eq!(expected, actual);
@@ -333,7 +447,7 @@ main = || {
                     ast::Expression::String("c".into()),
                 ),
             ].into_iter()
-                .collect(),
+            .collect(),
         });
         let actual = norm::RecordParser::new().parse(r#"{a: 1, b: "c",}"#);
         assert_eq!(expected, actual);
@@ -401,6 +515,92 @@ main = || {
     }
 
     #[test]
+    fn lambda_with_definition() {
+        let expected = Ok(ast::Lambda {
+            parameters: vec![
+                ast::Parameter {
+                    name: ast::Identifier("a".to_owned()),
+                    signature: None,
+                },
+                ast::Parameter {
+                    name: ast::Identifier("b".to_owned()),
+                    signature: None,
+                },
+            ],
+            statements: vec![
+                ast::Statement::Definition(
+                    ast::Identifier("c".to_owned()),
+                    ast::Expression::Lambda(ast::Lambda {
+                        parameters: vec![ast::Parameter {
+                            name: ast::Identifier("b".to_owned()),
+                            signature: None,
+                        }],
+                        statements: vec![ast::Statement::Expression(ast::Expression::Apply(ast::Apply {
+                            function: Box::new(ast::Expression::Identifier(ast::Identifier(
+                                "a".to_owned(),
+                            ))),
+                            parameters: vec![ast::Expression::Identifier(ast::Identifier(
+                                "b".to_owned(),
+                            ))],
+                        }))],
+                    }),
+                ),
+                ast::Statement::Expression(ast::Expression::Apply(ast::Apply {
+                    function: Box::new(ast::Expression::Identifier(ast::Identifier(
+                        "c".to_owned(),
+                    ))),
+                    parameters: vec![ast::Expression::Identifier(ast::Identifier("b".to_owned()))],
+                })),
+            ],
+        });
+        let actual = norm::LambdaParser::new().parse(r#"|a, b| { c = |b| { a(b) }; c(b) }"#);
+        assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn lambda_with_definition_comment() {
+        let expected = Ok(ast::Lambda {
+            parameters: vec![
+                ast::Parameter {
+                    name: ast::Identifier("a".to_owned()),
+                    signature: None,
+                },
+                ast::Parameter {
+                    name: ast::Identifier("b".to_owned()),
+                    signature: None,
+                },
+            ],
+            statements: vec![
+                ast::Statement::Definition(
+                    ast::Identifier("c".to_owned()),
+                    ast::Expression::Lambda(ast::Lambda {
+                        parameters: vec![ast::Parameter {
+                            name: ast::Identifier("b".to_owned()),
+                            signature: None,
+                        }],
+                        statements: vec![ast::Statement::Expression(ast::Expression::Apply(ast::Apply {
+                            function: Box::new(ast::Expression::Identifier(ast::Identifier(
+                                "a".to_owned(),
+                            ))),
+                            parameters: vec![ast::Expression::Identifier(ast::Identifier(
+                                "b".to_owned(),
+                            ))],
+                        }))],
+                    }),
+                ),
+                ast::Statement::Expression(ast::Expression::Apply(ast::Apply {
+                    function: Box::new(ast::Expression::Identifier(ast::Identifier(
+                        "c".to_owned(),
+                    ))),
+                    parameters: vec![ast::Expression::Identifier(ast::Identifier("b".to_owned()))],
+                })),
+            ],
+        });
+        let actual = norm::LambdaParser::new().parse(r#"|a, b| { /* define c */ c = |b| { a(b) }; /* call c */ c(b) }"#);
+        assert_eq!(expected, actual);
+    }
+
+    #[test]
     fn lambda_signature() {
         let expected = Ok(ast::Lambda {
             parameters: vec![
@@ -438,18 +638,14 @@ main = || {
                 },
             ],
             statements: vec![
-                ast::Statement::Expression(ast::Expression::Apply(
-                    ast::Apply {
-                        function: Box::new(ast::Expression::Identifier(ast::Identifier("a".into()))),
-                        parameters: vec![ast::Expression::Identifier(ast::Identifier("b".into()))],
-                    },
-                )),
-                ast::Statement::Expression(ast::Expression::Apply(
-                    ast::Apply {
-                        function: Box::new(ast::Expression::Identifier(ast::Identifier("a".into()))),
-                        parameters: vec![ast::Expression::Identifier(ast::Identifier("b".into()))],
-                    },
-                )),
+                ast::Statement::Expression(ast::Expression::Apply(ast::Apply {
+                    function: Box::new(ast::Expression::Identifier(ast::Identifier("a".into()))),
+                    parameters: vec![ast::Expression::Identifier(ast::Identifier("b".into()))],
+                })),
+                ast::Statement::Expression(ast::Expression::Apply(ast::Apply {
+                    function: Box::new(ast::Expression::Identifier(ast::Identifier("a".into()))),
+                    parameters: vec![ast::Expression::Identifier(ast::Identifier("b".into()))],
+                })),
             ],
         });
         let actual = norm::LambdaParser::new().parse(r#"|a, b| { a(b); a(b) }"#);
@@ -465,5 +661,4 @@ main = || {
         let actual = norm::ApplyParser::new().parse(r#"a(b)"#);
         assert_eq!(expected, actual);
     }
-
 }
