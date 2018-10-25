@@ -1,4 +1,4 @@
-#![warn(warnings, unused)]
+#![allow(warnings, unused)]
 use std::collections;
 use std::fmt;
 

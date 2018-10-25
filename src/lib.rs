@@ -67,7 +67,7 @@ extern crate lalrpop_util;
 extern crate failure;
 extern crate itertools;
 
-mod ast;
+pub mod ast;
 pub mod error;
 pub mod interpreter;
 mod ir;

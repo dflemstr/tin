@@ -1,0 +1,20 @@
+[package]
+name = "norm-fuzz"
+version = "0.0.0"
+publish = false
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies.norm]
+path = ".."
+
+[dependencies.libfuzzer-sys]
+git = "https://github.com/rust-fuzz/libfuzzer-sys.git"
+
+[workspace]
+members = ["."]
+
+[[bin]]
+name = "parse"
+path = "fuzzers/parse.rs"
