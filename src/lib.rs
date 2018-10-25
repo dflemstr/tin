@@ -42,7 +42,7 @@
 //! norm.run(program).unwrap();
 //!
 //! let result = norm.eval("main()").unwrap();
-//! assert_eq!(norm::value::Value::String("David".to_owned()), result);
+//! assert_eq!(norm::Value::from("David"), result);
 //! ```
 #![deny(nonstandard_style, warnings, unused)]
 #![deny(
@@ -94,7 +94,7 @@ impl Norm {
     /// ```
     /// let mut norm = norm::Norm::new();
     /// let result = norm.eval("|| { a = { x: 2, y: 3 }; a.y }()").unwrap();
-    /// assert_eq!(norm::Value::Number(3.0), result);
+    /// assert_eq!(norm::Value::from(3.0), result);
     /// ```
     pub fn eval(&mut self, expression: &str) -> Result<Value> {
         use parser::Parse;

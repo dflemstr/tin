@@ -81,7 +81,8 @@ pub String: String = {
 }
 
 pub Lambda: ast::Lambda = {
-    "|" <parameters:Comma<(Comment? <Parameter>)>> "|" "{" <statements:Semi<(Comment? <Statement>)>> "}" => ast::Lambda { <> },
+    "|" <params:Comma<(Comment? <Parameter>)>> "|" <sig:(":" <Expression>)?> "{" <stmts:Semi<(Comment? <Statement>)>> "}" =>
+        ast::Lambda { parameters: params, signature: sig.map(Box::new), statements: stmts },
 }
 
 pub Statement: ast::Statement = {

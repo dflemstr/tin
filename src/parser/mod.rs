@@ -503,6 +503,7 @@ main = || {
                     signature: None,
                 },
             ],
+            signature: None,
             statements: vec![ast::Statement::Expression(ast::Expression::Apply(
                 ast::Apply {
                     function: Box::new(ast::Expression::Identifier(ast::Identifier("a".into()))),
@@ -527,6 +528,7 @@ main = || {
                     signature: None,
                 },
             ],
+            signature: None,
             statements: vec![
                 ast::Statement::Definition(
                     ast::Identifier("c".to_owned()),
@@ -535,6 +537,7 @@ main = || {
                             name: ast::Identifier("b".to_owned()),
                             signature: None,
                         }],
+                        signature: None,
                         statements: vec![ast::Statement::Expression(ast::Expression::Apply(ast::Apply {
                             function: Box::new(ast::Expression::Identifier(ast::Identifier(
                                 "a".to_owned(),
@@ -570,6 +573,7 @@ main = || {
                     signature: None,
                 },
             ],
+            signature: None,
             statements: vec![
                 ast::Statement::Definition(
                     ast::Identifier("c".to_owned()),
@@ -578,6 +582,7 @@ main = || {
                             name: ast::Identifier("b".to_owned()),
                             signature: None,
                         }],
+                        signature: None,
                         statements: vec![ast::Statement::Expression(ast::Expression::Apply(ast::Apply {
                             function: Box::new(ast::Expression::Identifier(ast::Identifier(
                                 "a".to_owned(),
@@ -613,6 +618,7 @@ main = || {
                     signature: Some(ast::Expression::Identifier(ast::Identifier("Int".into()))),
                 },
             ],
+            signature: None,
             statements: vec![ast::Statement::Expression(ast::Expression::Apply(
                 ast::Apply {
                     function: Box::new(ast::Expression::Identifier(ast::Identifier("a".into()))),
@@ -637,6 +643,7 @@ main = || {
                     signature: None,
                 },
             ],
+            signature: None,
             statements: vec![
                 ast::Statement::Expression(ast::Expression::Apply(ast::Apply {
                     function: Box::new(ast::Expression::Identifier(ast::Identifier("a".into()))),

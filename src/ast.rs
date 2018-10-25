@@ -46,6 +46,7 @@ pub struct Record {
 #[derive(Clone, Debug, PartialEq)]
 pub struct Lambda {
     pub parameters: Vec<Parameter>,
+    pub signature: Option<Box<Expression>>,
     pub statements: Vec<Statement>,
 }
 
