@@ -69,10 +69,10 @@ extern crate itertools;
 
 mod ast;
 pub mod error;
-mod interpreter;
+pub mod interpreter;
 mod ir;
 mod jit;
-mod parser;
+pub mod parser;
 pub mod value;
 
 pub use error::Error;

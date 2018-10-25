@@ -1,3 +1,4 @@
+//! A parser for Norm code.
 use std::borrow;
 use std::char;
 use std::fmt;
@@ -13,20 +14,34 @@ lalrpop_mod!(
     "/parser/norm.rs"
 );
 
+/// An error that occurs while parsing Norm.
 #[derive(Debug, Fail, PartialEq)]
 pub enum Error {
+    /// There was an invalid token in the code.
     #[fail(display = "invalid token at {}", _0)]
-    InvalidToken { location: usize },
+    InvalidToken {
+        /// The location (byte index) of the invalid token.
+        location: usize },
+    /// There was an unexpected token in the code.
     #[fail(display = "unrecognized token {:?}, expected {:?}", _0, _1)]
     UnrecognizedToken {
+        /// The start (byte index), seen token, and end (byte index), or `None` if we are at the end
+        /// of the file.
         token: Option<(usize, String, usize)>,
+        /// Tokens that would have been valid at this point.
         expected: Vec<String>,
     },
+    /// There was an extra token at the end of the file.
     #[fail(display = "got extra token {:?}", _0)]
-    ExtraToken { token: (usize, String, usize) },
+    ExtraToken {
+        /// The start (byte index), seen token, and end (byte index).
+        token: (usize, String, usize)
+    },
 }
 
+/// Something that can be parsed.
 pub trait Parse: Sized {
+    /// Parses the supplied string into a value.
     fn parse(source: &str) -> Result<Self, Error>;
 }
 

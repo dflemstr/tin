@@ -1,31 +1,41 @@
+//! An interpreter for Norm code.
 use std::collections;
 use std::result;
 
 use ast;
 use value;
 
+/// An error that occurs during the interpretation process.
 #[derive(Debug, Fail, PartialEq)]
 pub enum Error {
+    /// The specified variable is not defined.
     #[fail(display = "undefined reference to {}", _0)]
     UndefinedReference(value::Identifier),
+    /// The specified field on a record is not defined.
     #[fail(display = "undefined field {}", _0)]
     UndefinedField(value::Identifier),
+    /// We tried to access a field on something that is not a record.
     #[fail(display = "not a record")]
     NotARecord,
+    /// We tried to call something that is not a function.
     #[fail(display = "not a function")]
     NotAFunction,
+    /// We tried to call something with the wrong number of arguments.
     #[fail(
         display = "wrong number of arguments; expected {} but got {}",
         _0,
         _1
     )]
     WrongNumberOfArguments(usize, usize),
+    /// The last statement of a function was not an expression.
     #[fail(display = "function did not end with an expression")]
     FunctionDidNotEndWithAnExpression,
 }
 
+/// A convenience `Result` wrapper for [`Error`].
 type Result<A> = result::Result<A, Error>;
 
+/// An interpreter instance.
 #[derive(Debug)]
 pub struct Interpreter {
     scope: collections::HashMap<value::Identifier, value::Value>,
@@ -38,11 +48,13 @@ struct FreeVariablesVisitor {
 }
 
 impl Interpreter {
+    /// Creates a new empty interpreter instance.
     pub fn new() -> Interpreter {
         let scope = collections::HashMap::new();
         Interpreter { scope }
     }
 
+    /// Runs the interpreter by defining all of the contents of the supplied module.
     pub fn run(&mut self, ast: ast::Module) -> Result<()> {
         for (key, value) in ast.definitions {
             let name = value::Identifier::new(key.0);
@@ -52,6 +64,7 @@ impl Interpreter {
         Ok(())
     }
 
+    /// Runs the interpreter by evaluating the supplied expression.
     pub fn eval(&mut self, ast: ast::Expression) -> Result<value::Value> {
         match ast {
             ast::Expression::Tuple(tuple) => Ok(self.eval_tuple(tuple)?),
