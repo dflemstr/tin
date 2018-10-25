@@ -4,7 +4,7 @@ use std::result;
 use ast;
 use value;
 
-#[derive(Debug, Fail)]
+#[derive(Debug, Fail, PartialEq)]
 pub enum Error {
     #[fail(display = "undefined reference to {}", _0)]
     UndefinedReference(value::Identifier),
@@ -43,7 +43,7 @@ impl Interpreter {
         Interpreter { scope }
     }
 
-    pub fn run(&mut self, ast: ast::Norm) -> Result<()> {
+    pub fn run(&mut self, ast: ast::Module) -> Result<()> {
         for (key, value) in ast.definitions {
             let name = value::Identifier::new(key.0);
             let result = self.eval(value)?;
@@ -212,14 +212,14 @@ impl ast::Visitor for FreeVariablesVisitor {
         }
     }
 
-    fn push_scope(&mut self) {
+    fn push_lambda(&mut self) {
         self.scope_stack.push(collections::HashSet::new());
     }
 
-    fn pop_scope(&mut self) {
+    fn pop_lambda(&mut self) {
         self.scope_stack
             .pop()
-            .expect("more pop_scope() than push_scope() calls");
+            .expect("more pop_lambda() than push_lambda() calls");
     }
 }
 
@@ -233,7 +233,7 @@ mod tests {
     fn e2e() {
         use parser::Parse;
 
-        let program = ast::Norm::parse(
+        let program = ast::Module::parse(
             r#"
 Int = 0;
 String = "";
@@ -260,15 +260,97 @@ getPersonAge = || {
         let mut interpreter = Interpreter::new();
         interpreter.run(program).unwrap();
         let result = interpreter
-            .eval(ast::Expression::parse("getPersonName()").unwrap())
-            .unwrap();
+            .eval(ast::Expression::parse("getPersonName()").unwrap());
 
-        assert_eq!(value::Value::String("David".to_owned()), result);
+        assert_eq!(Ok(value::Value::String("David".to_owned())), result);
 
         let result = interpreter
-            .eval(ast::Expression::parse("getPersonAge()").unwrap())
-            .unwrap();
+            .eval(ast::Expression::parse("getPersonAge()").unwrap());
 
-        assert_eq!(value::Value::Number(27.0), result);
+        assert_eq!(Ok(value::Value::Number(27.0)), result);
+    }
+
+    #[test]
+    fn scoped_lambda_var() {
+        use parser::Parse;
+
+        let program = ast::Module::parse(
+            r#"
+main = || {
+  foo = |person| { 0 };
+  person.name
+};
+        "#,
+        ).unwrap();
+
+        let mut interpreter = Interpreter::new();
+        interpreter.run(program).unwrap();
+        let result = interpreter
+            .eval(ast::Expression::parse("main()").unwrap());
+
+        assert_eq!(Err(Error::UndefinedReference("person".into())), result);
+    }
+
+    #[test]
+    fn unknown_reference() {
+        use parser::Parse;
+
+        let program = ast::Module::parse(
+            r#"
+main = || {
+  person
+};
+        "#,
+        ).unwrap();
+
+        let mut interpreter = Interpreter::new();
+        interpreter.run(program).unwrap();
+        let result = interpreter
+            .eval(ast::Expression::parse("main()").unwrap());
+
+        assert_eq!(Err(Error::UndefinedReference("person".into())), result);
+    }
+
+    #[test]
+    fn use_before_defined() {
+        use parser::Parse;
+
+        let program = ast::Module::parse(
+            r#"
+main = || {
+  person.name;
+  person = 0;
+  person
+};
+        "#,
+        ).unwrap();
+
+        let mut interpreter = Interpreter::new();
+        interpreter.run(program).unwrap();
+        let result = interpreter
+            .eval(ast::Expression::parse("main()").unwrap());
+
+        assert_eq!(Err(Error::UndefinedReference("person".into())), result);
+    }
+
+    #[test]
+    fn unknown_field() {
+        use parser::Parse;
+
+        let program = ast::Module::parse(
+            r#"
+main = || {
+  person = { foo: 0 };
+  person.name
+};
+        "#,
+        ).unwrap();
+
+        let mut interpreter = Interpreter::new();
+        interpreter.run(program).unwrap();
+        let result = interpreter
+            .eval(ast::Expression::parse("main()").unwrap());
+
+        assert_eq!(Err(Error::UndefinedField("name".into())), result);
     }
 }

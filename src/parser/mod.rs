@@ -7,7 +7,6 @@ use lalrpop_util;
 use ast;
 
 lalrpop_mod!(
-    #[allow(dead_code)]
     #[allow(clippy)]
     #[allow(unused)]
     norm,
@@ -31,9 +30,9 @@ pub trait Parse: Sized {
     fn parse(source: &str) -> Result<Self, Error>;
 }
 
-impl Parse for ast::Norm {
+impl Parse for ast::Module {
     fn parse(source: &str) -> Result<Self, Error> {
-        norm::NormParser::new().parse(source).map_err(Into::into)
+        norm::ModuleParser::new().parse(source).map_err(Into::into)
     }
 }
 
@@ -212,7 +211,7 @@ mod tests {
 
     #[test]
     fn e2e() {
-        let actual = norm::NormParser::new().parse(
+        let actual = norm::ModuleParser::new().parse(
             r#"
 /* A record describing a person */
 Person = { name: String, age: Int };

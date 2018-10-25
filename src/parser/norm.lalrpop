@@ -33,11 +33,11 @@ SemiRequired<A>: Vec<A> = {
     <(<A> ";")*> => <>,
 }
 
-pub Norm: ast::Norm = {
-    SemiRequired<(Comment? <Definition>)> => ast::Norm { definitions: <> },
+pub Module: ast::Module = {
+    SemiRequired<(Comment? <Definition>)> => ast::Module { definitions: <> },
 }
 
-pub Comment: () = {
+Comment: () = {
     r"/\*(\*[^/]|[^*])*\*/"=> ()
 }
 

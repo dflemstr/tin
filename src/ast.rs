@@ -7,14 +7,16 @@ pub trait AstNode: parser::Parse + Sized {
 }
 
 pub trait Visitor {
-    fn define_ident(&mut self, ident: &Identifier);
-    fn reference_ident(&mut self, ident: &Identifier);
-    fn push_scope(&mut self);
-    fn pop_scope(&mut self);
+    fn define_ident(&mut self, _ident: &Identifier) {}
+    fn reference_ident(&mut self, _ident: &Identifier) {}
+    fn push_lambda(&mut self) {}
+    fn push_definition(&mut self, _ident: &Identifier) {}
+    fn pop_lambda(&mut self) {}
+    fn pop_definition(&mut self) {}
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub struct Norm {
+pub struct Module {
     pub definitions: Vec<(Identifier, Expression)>,
 }
 
@@ -74,18 +76,20 @@ pub struct Parameter {
     pub signature: Option<Expression>,
 }
 
-impl AstNode for Norm {
+impl AstNode for Module {
     fn visit<V>(&self, visitor: &mut V)
     where
         V: Visitor,
     {
-        for (key, _) in &self.definitions {
-            visitor.define_ident(key);
+        for (ident, _) in &self.definitions {
+            visitor.define_ident(ident);
         }
 
-        for (key, val) in &self.definitions {
-            key.visit(visitor);
+        for (ident, val) in &self.definitions {
+            ident.visit(visitor);
+            visitor.push_definition(ident);
             val.visit(visitor);
+            visitor.pop_definition();
         }
     }
 }
@@ -139,9 +143,7 @@ impl AstNode for Tuple {
         V: Visitor,
     {
         for field in &self.fields {
-            visitor.push_scope();
             field.visit(visitor);
-            visitor.pop_scope();
         }
     }
 }
@@ -153,9 +155,7 @@ impl AstNode for Record {
     {
         for (key, val) in &self.fields {
             key.visit(visitor);
-            visitor.push_scope();
             val.visit(visitor);
-            visitor.pop_scope();
         }
     }
 }
@@ -165,14 +165,14 @@ impl AstNode for Lambda {
     where
         V: Visitor,
     {
-        visitor.push_scope();
+        visitor.push_lambda();
         for param in &self.parameters {
             visitor.define_ident(&param.name);
         }
         for statement in &self.statements {
             statement.visit(visitor);
         }
-        visitor.pop_scope();
+        visitor.pop_lambda();
     }
 }
 
@@ -185,7 +185,9 @@ impl AstNode for Statement {
             Statement::Definition(ref ident, ref expr) => {
                 visitor.define_ident(ident);
                 ident.visit(visitor);
+                visitor.push_definition(ident);
                 expr.visit(visitor);
+                visitor.pop_definition();
             }
             Statement::Expression(ref expr) => {
                 expr.visit(visitor);

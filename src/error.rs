@@ -5,7 +5,7 @@ use interpreter;
 use parser;
 
 /// An error that occurs while interacting with Norm.
-#[derive(Debug, Fail)]
+#[derive(Debug, Fail, PartialEq)]
 pub enum Error {
     /// Parsing the source code failed.
     #[fail(display = "parser error")]

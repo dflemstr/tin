@@ -57,6 +57,10 @@
     unused_qualifications
 )]
 
+extern crate bimap;
+extern crate cranelift;
+extern crate cranelift_module;
+extern crate cranelift_simplejit;
 #[macro_use]
 extern crate lalrpop_util;
 #[macro_use]
@@ -66,6 +70,8 @@ extern crate itertools;
 mod ast;
 pub mod error;
 mod interpreter;
+mod ir;
+mod jit;
 mod parser;
 pub mod value;
 
@@ -107,10 +113,10 @@ impl Norm {
     ///
     /// The string is expected to only contain definitions.  It is not possible to evaluate an
     /// expression and get its results.
-    pub fn run(&mut self, program: &str) -> Result<()> {
+    pub fn run(&mut self, module: &str) -> Result<()> {
         use parser::Parse;
-        let program = ast::Norm::parse(program)?;
-        self.interpreter.run(program)?;
+        let module = ast::Module::parse(module)?;
+        self.interpreter.run(module)?;
         Ok(())
     }
 }
