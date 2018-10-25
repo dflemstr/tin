@@ -56,6 +56,7 @@
     unused_import_braces,
     unused_qualifications
 )]
+#![cfg_attr(feature = "cargo-clippy", deny(clippy::all, clippy::pedantic))]
 
 extern crate bimap;
 extern crate cranelift;
