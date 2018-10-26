@@ -58,7 +58,6 @@
 )]
 #![cfg_attr(feature = "cargo-clippy", deny(clippy::all, clippy::pedantic))]
 
-extern crate bimap;
 extern crate cranelift;
 extern crate cranelift_module;
 extern crate cranelift_simplejit;

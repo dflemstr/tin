@@ -43,8 +43,8 @@ pub struct Interpreter {
 
 #[derive(Clone, Debug)]
 struct FreeVariablesVisitor {
-    scope_stack: Vec<collections::HashSet<ast::Identifier>>,
-    free_variables: collections::HashSet<ast::Identifier>,
+    scope_stack: Vec<collections::HashSet<String>>,
+    free_variables: collections::HashSet<String>,
 }
 
 impl Interpreter {
@@ -57,7 +57,7 @@ impl Interpreter {
     /// Runs the interpreter by defining all of the contents of the supplied module.
     pub fn run<C>(&mut self, ast: ast::Module<C>) -> Result<()> {
         for (key, value) in ast.definitions {
-            let name = value::Identifier::new(key.0);
+            let name = value::Identifier::new(key.value);
             let result = self.eval(value)?;
             self.scope.insert(name, result);
         }
@@ -89,13 +89,13 @@ impl Interpreter {
     fn eval_record<C>(&mut self, ast: ast::Record<C>) -> Result<value::Value> {
         let mut fields = collections::HashMap::with_capacity(ast.fields.len());
         for (key, value) in ast.fields {
-            fields.insert(value::Identifier::new(key.0), self.eval(value)?);
+            fields.insert(value::Identifier::new(key.value), self.eval(value)?);
         }
         Ok(value::Value::Record(value::Record { fields }))
     }
 
-    fn eval_identifier(&mut self, ast: ast::Identifier) -> Result<value::Value> {
-        let ident = value::Identifier::new(ast.0);
+    fn eval_identifier<C>(&mut self, ast: ast::Identifier<C>) -> Result<value::Value> {
+        let ident = value::Identifier::new(ast.value);
         self.scope
             .get(&ident)
             .map(|v| (*v).clone())
@@ -109,7 +109,7 @@ impl Interpreter {
 
         let mut captured = collections::HashMap::with_capacity(visitor.free_variables.len());
         for free_variable in visitor.free_variables {
-            let identifier = value::Identifier::new(free_variable.0);
+            let identifier = value::Identifier::new(free_variable);
             if let Some(value) = self.scope.get(&identifier) {
                 captured.insert(identifier, value.clone());
             } else {
@@ -127,7 +127,7 @@ impl Interpreter {
 
     fn eval_select<C>(&mut self, ast: ast::Select<C>) -> Result<value::Value> {
         let value = self.eval(*ast.expression)?;
-        let field_name = value::Identifier::new(ast.field.0);
+        let field_name = value::Identifier::new(ast.field.value);
 
         match value {
             value::Value::Record(record) => {
@@ -172,7 +172,7 @@ impl Interpreter {
                     .zip_eq(parameter_values.into_iter())
                 {
                     self.scope
-                        .insert(value::Identifier::new(key.name.0.clone()), val);
+                        .insert(value::Identifier::new(key.name.value.clone()), val);
                 }
 
                 let mut last_result = None;
@@ -193,7 +193,7 @@ impl Interpreter {
             ast::Statement::Expression(expression) => Ok(Some(self.eval(expression)?)),
             ast::Statement::Definition(ident, expr) => {
                 let result = self.eval(expr)?;
-                self.scope.insert(value::Identifier::new(ident.0), result);
+                self.scope.insert(value::Identifier::new(ident.value), result);
                 Ok(None)
             }
         }
@@ -212,16 +212,16 @@ impl FreeVariablesVisitor {
 }
 
 impl<C> ast::Visitor<C> for FreeVariablesVisitor {
-    fn define_ident(&mut self, ident: &ast::Identifier) {
+    fn define_ident(&mut self, ident: &ast::Identifier<C>) {
         self.scope_stack
             .last_mut()
             .expect("scope_stack was empty")
-            .insert(ident.clone());
+            .insert(ident.value.clone());
     }
 
-    fn reference_ident(&mut self, ident: &ast::Identifier) {
-        if !self.scope_stack.iter().any(|scope| scope.contains(ident)) {
-            self.free_variables.insert(ident.clone());
+    fn reference_ident(&mut self, ident: &ast::Identifier<C>) {
+        if !self.scope_stack.iter().any(|scope| scope.contains(&ident.value)) {
+            self.free_variables.insert(ident.value.clone());
         }
     }
 

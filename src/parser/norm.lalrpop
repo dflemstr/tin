@@ -42,7 +42,7 @@ Comment: () = {
     r"/\*(\*[^/]|[^*])*\*/"=> ()
 }
 
-pub Definition: (ast::Identifier, ast::Expression<parser::Context>) = {
+pub Definition: (ast::Identifier<parser::Context>, ast::Expression<parser::Context>) = {
     <Identifier> "=" <Expression> => (<>),
 }
 
@@ -57,8 +57,9 @@ pub Expression: ast::Expression<parser::Context> = {
     Apply => ast::Expression::Apply(<>),
 }
 
-pub Identifier: ast::Identifier = {
-    r"\p{XID_Start}\p{XID_Continue}*" => ast::Identifier(<>.into()),
+pub Identifier: ast::Identifier<parser::Context> = {
+    <lo:@L> <id:r"\p{XID_Start}\p{XID_Continue}*"> <hi:@R> =>
+        ast::Identifier { context: parser::Context::from_span(lo, hi), value: id.into() },
 }
 
 pub Tuple: ast::Tuple<parser::Context> = {
@@ -71,7 +72,7 @@ pub Record: ast::Record<parser::Context> = {
         ast::Record { context: parser::Context::from_span(lo, hi), fields: fs },
 }
 
-pub Field: (ast::Identifier, ast::Expression<parser::Context>) = {
+pub Field: (ast::Identifier<parser::Context>, ast::Expression<parser::Context>) = {
      <Identifier> ":" <Expression> => (<>),
 }
 

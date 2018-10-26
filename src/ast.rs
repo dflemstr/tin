@@ -16,10 +16,14 @@ pub trait Visitor<C> {
     fn visit_after_module(&mut self, _module: &Module<C>) {}
 
     /// Called when an identifier is about to be defined.
-    fn define_ident(&mut self, _ident: &Identifier) {}
+    fn define_ident(&mut self, _ident: &Identifier<C>) {}
     /// Called when an identifier was referenced.
-    fn reference_ident(&mut self, _ident: &Identifier) {}
+    fn reference_ident(&mut self, _ident: &Identifier<C>) {}
 
+    /// Called before visiting a module.
+    fn visit_before_identifier(&mut self, _identifier: &Identifier<C>) {}
+    /// Called after visiting a module.
+    fn visit_after_identifier(&mut self, _identifier: &Identifier<C>) {}
     /// Called before visiting a module.
     fn visit_before_expression(&mut self, _expression: &Expression<C>) {}
     /// Called after visiting a module.
@@ -64,7 +68,7 @@ pub trait Visitor<C> {
     /// Called when entering a new lexical scope.
     fn push_scope(&mut self) {}
     /// Called when entering the initialization of an identifier definition.
-    fn push_definition(&mut self, _ident: &Identifier) {}
+    fn push_definition(&mut self, _ident: &Identifier<C>) {}
     /// Called when exiting a lexical scope.
     fn pop_scope(&mut self) {}
     /// Called when exiting the initialization of an identifier definition.
@@ -77,14 +81,17 @@ pub struct Module<C> {
     /// This node's AST context.
     pub context: C,
     /// Definitions that are part of this module, in declaration order.
-    pub definitions: Vec<(Identifier, Expression<C>)>,
+    pub definitions: Vec<(Identifier<C>, Expression<C>)>,
 }
 
 /// An identifier.
-#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
-pub struct Identifier(
+#[derive(Clone, Debug, PartialEq)]
+pub struct Identifier<C> {
+    /// This node's AST context.
+    pub context: C,
     /// The raw string backing the identifier.
-    pub String);
+    pub value: String
+}
 
 /// Any valid expression.
 #[derive(Clone, Debug, PartialEq)]
@@ -98,7 +105,7 @@ pub enum Expression<C> {
     /// A record literal.
     Record(Record<C>),
     /// A reference to an identifier.
-    Identifier(Identifier),
+    Identifier(Identifier<C>),
     /// A lambda literal.
     Lambda(Lambda<C>),
     /// A record field selection.
@@ -140,7 +147,7 @@ pub struct Record<C> {
     /// This node's AST context.
     pub context: C,
     /// The fields of the record, in declaration order.
-    pub fields: Vec<(Identifier, Expression<C>)>,
+    pub fields: Vec<(Identifier<C>, Expression<C>)>,
 }
 
 /// A lambda expression.
@@ -160,7 +167,7 @@ pub struct Lambda<C> {
 #[derive(Clone, Debug, PartialEq)]
 pub enum Statement<C> {
     /// A statement that defines a new identifier.
-    Definition(Identifier, Expression<C>),
+    Definition(Identifier<C>, Expression<C>),
     /// A statement that is an expression (for return values or side effects).
     Expression(Expression<C>),
 }
@@ -173,7 +180,7 @@ pub struct Select<C> {
     /// The expression to select from; should evaluate to a record.
     pub expression: Box<Expression<C>>,
     /// The field to select.
-    pub field: Identifier,
+    pub field: Identifier<C>,
 }
 
 /// A function application expression.
@@ -194,7 +201,7 @@ pub struct Parameter<C> {
     /// This node's AST context.
     pub context: C,
     /// The name of the parameter.
-    pub name: Identifier,
+    pub name: Identifier<C>,
     /// The signature of the parameter, if any.
     pub signature: Option<Expression<C>>,
 }
@@ -203,7 +210,7 @@ impl<C> Module<C> {
     /// Transforms the AST context of this node and all its child nodes.
     pub fn map_context<F, C2>(self, mapping: &mut F) -> Module<C2> where F: FnMut(C) -> C2 {
         let context = mapping(self.context);
-        let definitions = self.definitions.into_iter().map(|(i, e)| (i, e.map_context(mapping))).collect();
+        let definitions = self.definitions.into_iter().map(|(i, e)| (i.map_context(mapping), e.map_context(mapping))).collect();
 
         Module { context, definitions }
     }
@@ -229,12 +236,23 @@ impl<C> AstNode<C> for Module<C> {
     }
 }
 
-impl<C> AstNode<C> for Identifier {
-    fn visit<V>(&self, _visitor: &mut V)
+impl<C> Identifier<C> {
+    /// Transforms the AST context of this node and all its child nodes.
+    pub fn map_context<F, C2>(self, mapping: &mut F) -> Identifier<C2> where F: FnMut(C) -> C2 {
+        let context = mapping(self.context);
+        let value = self.value;
+
+        Identifier { context, value }
+    }
+}
+
+impl<C> AstNode<C> for Identifier<C> {
+    fn visit<V>(&self, visitor: &mut V)
         where
             V: Visitor<C>,
     {
-        // Nothing interesting to do here yet
+        visitor.visit_before_identifier(self);
+        visitor.visit_after_identifier(self);
     }
 }
 
@@ -246,7 +264,7 @@ impl<C> Expression<C> {
             Expression::String(e) => Expression::String(e.map_context(mapping)),
             Expression::Tuple(e) => Expression::Tuple(e.map_context(mapping)),
             Expression::Record(e) => Expression::Record(e.map_context(mapping)),
-            Expression::Identifier(e) => Expression::Identifier(e),
+            Expression::Identifier(e) => Expression::Identifier(e.map_context(mapping)),
             Expression::Lambda(e) => Expression::Lambda(e.map_context(mapping)),
             Expression::Select(e) => Expression::Select(e.map_context(mapping)),
             Expression::Apply(e) => Expression::Apply(e.map_context(mapping)),
@@ -354,7 +372,7 @@ impl<C> Record<C> {
     /// Transforms the AST context of this node and all its child nodes.
     pub fn map_context<F, C2>(self, mapping: &mut F) -> Record<C2> where F: FnMut(C) -> C2 {
         let context = mapping(self.context);
-        let fields = self.fields.into_iter().map(|(i, f)| (i, f.map_context(mapping))).collect();
+        let fields = self.fields.into_iter().map(|(i, f)| (i.map_context(mapping), f.map_context(mapping))).collect();
         Record { context, fields }
     }
 }
@@ -407,7 +425,7 @@ impl<C> Statement<C> {
     pub fn map_context<F, C2>(self, mapping: &mut F) -> Statement<C2> where F: FnMut(C) -> C2 {
         match self {
             Statement::Expression(e) => Statement::Expression(e.map_context(mapping)),
-            Statement::Definition(i, e) => Statement::Definition(i, e.map_context(mapping)),
+            Statement::Definition(i, e) => Statement::Definition(i.map_context(mapping), e.map_context(mapping)),
         }
     }
 }
@@ -439,7 +457,7 @@ impl<C> Select<C> {
     pub fn map_context<F, C2>(self, mapping: &mut F) -> Select<C2> where F: FnMut(C) -> C2 {
         let context = mapping(self.context);
         let expression = Box::new(self.expression.map_context(mapping));
-        let field = self.field;
+        let field = self.field.map_context(mapping);
         Select { context, expression, field }
     }
 }
@@ -485,7 +503,7 @@ impl<C> Parameter<C> {
     /// Transforms the AST context of this node and all its child nodes.
     pub fn map_context<F, C2>(self, mapping: &mut F) -> Parameter<C2> where F: FnMut(C) -> C2 {
         let context = mapping(self.context);
-        let name = self.name;
+        let name = self.name.map_context(mapping);
         let signature = self.signature.map(|e| e.map_context(mapping));
         Parameter { context, name, signature }
     }

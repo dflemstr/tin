@@ -2,8 +2,6 @@
 use std::collections;
 use std::fmt;
 
-use bimap;
-
 use ast;
 
 pub trait IrNode: Sized {}
@@ -19,7 +17,7 @@ pub struct Id(u64);
 #[derive(Debug)]
 pub struct Module {
     pub next_id: u64,
-    pub symbols: bimap::BiMap<Id, Symbol>,
+    pub symbols: collections::HashMap<Id, Symbol>,
     pub types: collections::HashMap<Id, Type>,
     pub kinds: collections::HashMap<Id, Kind>,
     pub consts: collections::HashMap<Id, Const>,
@@ -62,9 +60,8 @@ pub struct Data {}
 #[derive(Debug)]
 struct SymbolVisitor<'a> {
     stack: Vec<SymbolPart>,
-    symbol_id: u64,
     scope_id: u64,
-    symbols: &'a mut bimap::BiMap<Id, Symbol>,
+    symbols: &'a mut collections::HashMap<Id, Symbol>,
 }
 
 #[derive(Debug)]
@@ -74,7 +71,7 @@ struct KindVisitor<'a> {
 
 impl Module {
     fn new(next_id: u64) -> Module {
-        let symbols = bimap::BiMap::new();
+        let symbols = collections::HashMap::new();
         let types = collections::HashMap::new();
         let kinds = collections::HashMap::new();
         let consts = collections::HashMap::new();
@@ -116,26 +113,24 @@ impl fmt::Debug for SymbolPart {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
             SymbolPart::Name(ref name) => write!(f, "{}", name),
-            SymbolPart::Scope(ref lambda) => write!(f, "#l{}", lambda),
+            SymbolPart::Scope(ref scope) => write!(f, "{}", scope),
         }
     }
 }
 
 impl<'a> SymbolVisitor<'a> {
-    fn new(symbols: &'a mut bimap::BiMap<Id, Symbol>) -> SymbolVisitor<'a> {
+    fn new(symbols: &'a mut collections::HashMap<Id, Symbol>) -> SymbolVisitor<'a> {
         let stack = Vec::new();
-        let symbol_id = 0;
         let lambda_id = 0;
-        SymbolVisitor { stack, symbol_id, scope_id: lambda_id, symbols }
+        SymbolVisitor { stack, scope_id: lambda_id, symbols }
     }
 }
 
-impl<'a, C> ast::Visitor<C> for SymbolVisitor<'a> {
-    fn define_ident(&mut self, ident: &ast::Identifier) {
+impl<'a> ast::Visitor<AstContext> for SymbolVisitor<'a> {
+    fn define_ident(&mut self, ident: &ast::Identifier<AstContext>) {
         let mut parts = self.stack.clone();
-        parts.push(SymbolPart::Name(ident.0.clone()));
-        self.symbols.insert(Id(self.symbol_id), Symbol { parts });
-        self.symbol_id += 1;
+        parts.push(SymbolPart::Name(ident.value.clone()));
+        self.symbols.insert(ident.context.id, Symbol { parts });
     }
 
     fn push_scope(&mut self) {
@@ -143,8 +138,8 @@ impl<'a, C> ast::Visitor<C> for SymbolVisitor<'a> {
         self.scope_id += 1;
     }
 
-    fn push_definition(&mut self, ident: &ast::Identifier) {
-        self.stack.push(SymbolPart::Name(ident.0.clone()));
+    fn push_definition(&mut self, ident: &ast::Identifier<AstContext>) {
+        self.stack.push(SymbolPart::Name(ident.value.clone()));
     }
 
     fn pop_scope(&mut self) {
