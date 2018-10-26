@@ -33,19 +33,20 @@ SemiRequired<A>: Vec<A> = {
     <(<A> ";")*> => <>,
 }
 
-pub Module: ast::Module = {
-    SemiRequired<(Comment? <Definition>)> => ast::Module { definitions: <> },
+pub Module: ast::Module<parser::Context> = {
+    <lo:@L> <ds:SemiRequired<(Comment? <Definition>)>> <hi:@R> =>
+        ast::Module { context: parser::Context::from_span(lo, hi), definitions: ds },
 }
 
 Comment: () = {
     r"/\*(\*[^/]|[^*])*\*/"=> ()
 }
 
-pub Definition: (ast::Identifier, ast::Expression) = {
+pub Definition: (ast::Identifier, ast::Expression<parser::Context>) = {
     <Identifier> "=" <Expression> => (<>),
 }
 
-pub Expression: ast::Expression = {
+pub Expression: ast::Expression<parser::Context> = {
     Identifier => ast::Expression::Identifier(<>),
     Number => ast::Expression::Number(<>),
     String => ast::Expression::String(<>),
@@ -60,44 +61,51 @@ pub Identifier: ast::Identifier = {
     r"\p{XID_Start}\p{XID_Continue}*" => ast::Identifier(<>.into()),
 }
 
-pub Tuple: ast::Tuple = {
-    "(" <Comma<Expression>> ")" => ast::Tuple { fields: <> },
+pub Tuple: ast::Tuple<parser::Context> = {
+    <lo:@L> "(" <fs:Comma<Expression>> ")" <hi:@R> =>
+        ast::Tuple { context: parser::Context::from_span(lo, hi), fields: fs },
 }
 
-pub Record: ast::Record = {
-    "{" <Comma<Field>> "}" => ast::Record { fields: <> },
+pub Record: ast::Record<parser::Context> = {
+    <lo:@L> "{" <fs:Comma<Field>> "}" <hi:@R> =>
+        ast::Record { context: parser::Context::from_span(lo, hi), fields: fs },
 }
 
-pub Field: (ast::Identifier, ast::Expression) = {
-     <Identifier> ":" <Expression> => (<>)
+pub Field: (ast::Identifier, ast::Expression<parser::Context>) = {
+     <Identifier> ":" <Expression> => (<>),
 }
 
-pub Number: f64 = {
-    r"-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?" => f64::from_str(<>).unwrap(),
+pub Number: ast::NumberLiteral<parser::Context> = {
+    <lo:@L> <v:r"-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?"> <hi:@R> =>
+        ast::NumberLiteral { context: parser::Context::from_span(lo, hi), value: f64::from_str(v).unwrap() },
 }
 
-pub String: String = {
-    r#""(?:[^"\\]|\\(?:["\\/bfnrt]|u\{[a-fA-F0-9]{1,6}\}))*""# => parser::parse_escaped_string(<>).into_owned(),
+pub String: ast::StringLiteral<parser::Context> = {
+    <lo:@L> <v:r#""(?:[^"\\]|\\(?:["\\/bfnrt]|u\{[a-fA-F0-9]{1,6}\}))*""#> <hi:@R> =>
+        ast::StringLiteral { context: parser::Context::from_span(lo, hi), value: parser::parse_escaped_string(v).into_owned() },
 }
 
-pub Lambda: ast::Lambda = {
-    "|" <params:Comma<(Comment? <Parameter>)>> "|" <sig:(":" <Expression>)?> "{" <stmts:Semi<(Comment? <Statement>)>> "}" =>
-        ast::Lambda { parameters: params, signature: sig.map(Box::new), statements: stmts },
+pub Lambda: ast::Lambda<parser::Context> = {
+    <lo:@L> "|" <params:Comma<(Comment? <Parameter>)>> "|" <sig:(":" <Expression>)?> "{" <stmts:Semi<(Comment? <Statement>)>> "}" <hi:@R> =>
+        ast::Lambda { context: parser::Context::from_span(lo, hi), parameters: params, signature: sig.map(Box::new), statements: stmts },
 }
 
-pub Statement: ast::Statement = {
+pub Statement: ast::Statement<parser::Context> = {
     <d:Definition> => ast::Statement::Definition(d.0, d.1),
     <Expression> => ast::Statement::Expression(<>),
 }
 
-pub Select: ast::Select = {
-    <e:Expression> "." <f:Identifier> => ast::Select { expression: Box::new(e), field: f },
+pub Select: ast::Select<parser::Context> = {
+    <lo:@L> <e:Expression> "." <f:Identifier> <hi:@R> =>
+        ast::Select { context: parser::Context::from_span(lo, hi), expression: Box::new(e), field: f },
 }
 
-pub Apply: ast::Apply = {
-    <e:Expression> "(" <p:Comma<Expression>> ")" => ast::Apply { function: Box::new(e), parameters: p },
+pub Apply: ast::Apply<parser::Context> = {
+    <lo:@L> <e:Expression> "(" <p:Comma<Expression>> ")" <hi:@R> =>
+        ast::Apply { context: parser::Context::from_span(lo, hi), function: Box::new(e), parameters: p },
 }
 
-pub Parameter: ast::Parameter = {
-    <name:Identifier> <signature:(":" <Expression>)?> => ast::Parameter { <> },
+pub Parameter: ast::Parameter<parser::Context> = {
+    <lo:@L> <name:Identifier> <signature:(":" <Expression>)?> <hi:@R> =>
+        ast::Parameter { context: parser::Context::from_span(lo, hi), name, signature },
 }

@@ -9,10 +9,27 @@ use ast;
 
 lalrpop_mod!(
     #[allow(clippy)]
+    #[allow(missing_debug_implementations)]
     #[allow(unused)]
     norm,
     "/parser/norm.rs"
 );
+
+/// The context of a parsed AST node.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Context {
+    /// The source code span that this AST was parsed from.
+    pub span: Span,
+}
+
+/// A source code span.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Span {
+    /// The starting (byte) position of the span.
+    pub start: usize,
+    /// The ending (byte) position of the span.
+    pub end: usize,
+}
 
 /// An error that occurs while parsing Norm.
 #[derive(Debug, Fail, PartialEq)]
@@ -21,7 +38,8 @@ pub enum Error {
     #[fail(display = "invalid token at {}", _0)]
     InvalidToken {
         /// The location (byte index) of the invalid token.
-        location: usize },
+        location: usize
+    },
     /// There was an unexpected token in the code.
     #[fail(display = "unrecognized token {:?}, expected {:?}", _0, _1)]
     UnrecognizedToken {
@@ -41,77 +59,59 @@ pub enum Error {
 
 /// Something that can be parsed.
 pub trait Parse: Sized {
+    /// The type of parser created by `new_parser`.
+    type Parser: Parser<Self>;
+    /// Creates a re-usable parser that can be used for bulk parse operations.
+    fn new_parser() -> Self::Parser;
+
     /// Parses the supplied string into a value.
-    fn parse(source: &str) -> Result<Self, Error>;
-}
-
-impl Parse for ast::Module {
     fn parse(source: &str) -> Result<Self, Error> {
-        norm::ModuleParser::new().parse(source).map_err(Into::into)
+        Self::new_parser().parse(source)
     }
 }
 
-impl Parse for ast::Identifier {
-    fn parse(source: &str) -> Result<Self, Error> {
-        norm::IdentifierParser::new()
-            .parse(source)
-            .map_err(Into::into)
+/// A re-usable parser for a specific type.
+pub trait Parser<A> {
+    /// Parses the supplied string into a value.
+    fn parse(&mut self, source: &str) -> Result<A, Error>;
+}
+
+impl Context {
+    /// Creates a new context from span start and end points.
+    pub fn from_span(start: usize, end: usize) -> Context {
+        let span = Span { start, end };
+        Context { span }
     }
 }
 
-impl Parse for ast::Expression {
-    fn parse(source: &str) -> Result<Self, Error> {
-        norm::ExpressionParser::new()
-            .parse(source)
-            .map_err(Into::into)
-    }
+macro_rules! parser_impl {
+    ($parser:ident, $result:ty) => {
+        impl Parse for $result {
+            type Parser = ::parser::norm::$parser;
+
+            fn new_parser() -> Self::Parser {
+                ::parser::norm::$parser::new()
+            }
+        }
+
+        impl Parser<$result> for ::parser::norm::$parser {
+            fn parse(&mut self, source: &str) -> Result<$result, Error> {
+                ::parser::norm::$parser::parse(self, source).map_err(Into::into)
+            }
+        }
+    };
 }
 
-impl Parse for ast::Tuple {
-    fn parse(source: &str) -> Result<Self, Error> {
-        norm::TupleParser::new().parse(source).map_err(Into::into)
-    }
-}
-
-impl Parse for ast::Record {
-    fn parse(source: &str) -> Result<Self, Error> {
-        norm::RecordParser::new().parse(source).map_err(Into::into)
-    }
-}
-
-impl Parse for ast::Lambda {
-    fn parse(source: &str) -> Result<Self, Error> {
-        norm::LambdaParser::new().parse(source).map_err(Into::into)
-    }
-}
-
-impl Parse for ast::Statement {
-    fn parse(source: &str) -> Result<Self, Error> {
-        norm::StatementParser::new()
-            .parse(source)
-            .map_err(Into::into)
-    }
-}
-
-impl Parse for ast::Select {
-    fn parse(source: &str) -> Result<Self, Error> {
-        norm::SelectParser::new().parse(source).map_err(Into::into)
-    }
-}
-
-impl Parse for ast::Apply {
-    fn parse(source: &str) -> Result<Self, Error> {
-        norm::ApplyParser::new().parse(source).map_err(Into::into)
-    }
-}
-
-impl Parse for ast::Parameter {
-    fn parse(source: &str) -> Result<Self, Error> {
-        norm::ParameterParser::new()
-            .parse(source)
-            .map_err(Into::into)
-    }
-}
+parser_impl!(ModuleParser, ast::Module<Context>);
+parser_impl!(IdentifierParser, ast::Identifier);
+parser_impl!(ExpressionParser, ast::Expression<Context>);
+parser_impl!(TupleParser, ast::Tuple<Context>);
+parser_impl!(RecordParser, ast::Record<Context>);
+parser_impl!(LambdaParser, ast::Lambda<Context>);
+parser_impl!(StatementParser, ast::Statement<Context>);
+parser_impl!(SelectParser, ast::Select<Context>);
+parser_impl!(ApplyParser, ast::Apply<Context>);
+parser_impl!(ParameterParser, ast::Parameter<Context>);
 
 fn parse_escaped_string(input: &str) -> borrow::Cow<str> {
     let input = &input[1..input.len() - 1];
@@ -200,8 +200,8 @@ fn parse_escaped_string(input: &str) -> borrow::Cow<str> {
 }
 
 impl<T> From<lalrpop_util::ParseError<usize, T, Error>> for Error
-where
-    T: fmt::Display,
+    where
+        T: fmt::Display,
 {
     fn from(error: lalrpop_util::ParseError<usize, T, Error>) -> Self {
         match error {
@@ -262,257 +262,269 @@ main = || {
 
     #[test]
     fn number() {
-        let expected = Ok(ast::Expression::Number(1.0));
-        let actual = norm::ExpressionParser::new().parse(r#"1"#);
+        let expected = Ok(ast::Expression::Number(ast::NumberLiteral { context: (), value: 1.0 }));
+        let actual = norm::ExpressionParser::new().parse(r#"1"#).map(|r| r.map_context(&mut |_| ()));
         assert_eq!(expected, actual);
     }
 
     #[test]
     fn number_negative() {
-        let expected = Ok(ast::Expression::Number(-1.0));
-        let actual = norm::ExpressionParser::new().parse(r#"-1"#);
+        let expected = Ok(ast::Expression::Number(ast::NumberLiteral { context: (), value: -1.0 }));
+        let actual = norm::ExpressionParser::new().parse(r#"-1"#).map(|r| r.map_context(&mut |_| ()));
         assert_eq!(expected, actual);
     }
 
     #[test]
     fn number_zero() {
-        let expected = Ok(ast::Expression::Number(0.0));
-        let actual = norm::ExpressionParser::new().parse(r#"0"#);
+        let expected = Ok(ast::Expression::Number(ast::NumberLiteral { context: (), value: 0.0 }));
+        let actual = norm::ExpressionParser::new().parse(r#"0"#).map(|r| r.map_context(&mut |_| ()));
         assert_eq!(expected, actual);
     }
 
     #[test]
     fn number_zero_negative() {
-        let expected = Ok(ast::Expression::Number(-0.0));
-        let actual = norm::ExpressionParser::new().parse(r#"-0"#);
+        let expected = Ok(ast::Expression::Number(ast::NumberLiteral { context: (), value: -0.0 }));
+        let actual = norm::ExpressionParser::new().parse(r#"-0"#).map(|r| r.map_context(&mut |_| ()));
         assert_eq!(expected, actual);
     }
 
     #[test]
     fn number_fraction() {
-        let expected = Ok(ast::Expression::Number(1.5));
-        let actual = norm::ExpressionParser::new().parse(r#"1.5"#);
+        let expected = Ok(ast::Expression::Number(ast::NumberLiteral { context: (), value: 1.5 }));
+        let actual = norm::ExpressionParser::new().parse(r#"1.5"#).map(|r| r.map_context(&mut |_| ()));
         assert_eq!(expected, actual);
     }
 
     #[test]
     fn number_fraction_negative() {
-        let expected = Ok(ast::Expression::Number(-1.5));
-        let actual = norm::ExpressionParser::new().parse(r#"-1.5"#);
+        let expected = Ok(ast::Expression::Number(ast::NumberLiteral { context: (), value: -1.5 }));
+        let actual = norm::ExpressionParser::new().parse(r#"-1.5"#).map(|r| r.map_context(&mut |_| ()));
         assert_eq!(expected, actual);
     }
 
     #[test]
     fn number_scientific() {
-        let expected = Ok(ast::Expression::Number(1500.0));
-        let actual = norm::ExpressionParser::new().parse(r#"1.5000e3"#);
+        let expected = Ok(ast::Expression::Number(ast::NumberLiteral { context: (), value: 1500.0 }));
+        let actual = norm::ExpressionParser::new().parse(r#"1.5000e3"#).map(|r| r.map_context(&mut |_| ()));
         assert_eq!(expected, actual);
     }
 
     #[test]
     fn number_scientific_negative() {
-        let expected = Ok(ast::Expression::Number(-1500.0));
-        let actual = norm::ExpressionParser::new().parse(r#"-1.5000e3"#);
+        let expected = Ok(ast::Expression::Number(ast::NumberLiteral { context: (), value: -1500.0 }));
+        let actual = norm::ExpressionParser::new().parse(r#"-1.5000e3"#).map(|r| r.map_context(&mut |_| ()));
         assert_eq!(expected, actual);
     }
 
     #[test]
     fn number_scientific_uppercase() {
-        let expected = Ok(ast::Expression::Number(1500.0));
-        let actual = norm::ExpressionParser::new().parse(r#"1.5000E3"#);
+        let expected = Ok(ast::Expression::Number(ast::NumberLiteral { context: (), value: 1500.0 }));
+        let actual = norm::ExpressionParser::new().parse(r#"1.5000E3"#).map(|r| r.map_context(&mut |_| ()));
         assert_eq!(expected, actual);
     }
 
     #[test]
     fn number_scientific_uppercase_negative() {
-        let expected = Ok(ast::Expression::Number(-1500.0));
-        let actual = norm::ExpressionParser::new().parse(r#"-1.5000E3"#);
+        let expected = Ok(ast::Expression::Number(ast::NumberLiteral { context: (), value: -1500.0 }));
+        let actual = norm::ExpressionParser::new().parse(r#"-1.5000E3"#).map(|r| r.map_context(&mut |_| ()));
         assert_eq!(expected, actual);
     }
 
     #[test]
     fn number_scientific_small() {
-        let expected = Ok(ast::Expression::Number(0.0015));
-        let actual = norm::ExpressionParser::new().parse(r#"1.5000e-3"#);
+        let expected = Ok(ast::Expression::Number(ast::NumberLiteral { context: (), value: 0.0015 }));
+        let actual = norm::ExpressionParser::new().parse(r#"1.5000e-3"#).map(|r| r.map_context(&mut |_| ()));
         assert_eq!(expected, actual);
     }
 
     #[test]
     fn number_scientific_padded_exponent() {
-        let expected = Ok(ast::Expression::Number(1500.0));
-        let actual = norm::ExpressionParser::new().parse(r#"1.5000e0003"#);
+        let expected = Ok(ast::Expression::Number(ast::NumberLiteral { context: (), value: 1500.0 }));
+        let actual = norm::ExpressionParser::new().parse(r#"1.5000e0003"#).map(|r| r.map_context(&mut |_| ()));
         assert_eq!(expected, actual);
     }
 
     #[test]
     fn number_scientific_explicit() {
-        let expected = Ok(ast::Expression::Number(1500.0));
-        let actual = norm::ExpressionParser::new().parse(r#"1.5000e+3"#);
+        let expected = Ok(ast::Expression::Number(ast::NumberLiteral { context: (), value: 1500.0 }));
+        let actual = norm::ExpressionParser::new().parse(r#"1.5000e+3"#).map(|r| r.map_context(&mut |_| ()));
         assert_eq!(expected, actual);
     }
 
     #[test]
     fn number_scientific_zero_exponent() {
-        let expected = Ok(ast::Expression::Number(1.5));
-        let actual = norm::ExpressionParser::new().parse(r#"1.5000e0"#);
+        let expected = Ok(ast::Expression::Number(ast::NumberLiteral { context: (), value: 1.5 }));
+        let actual = norm::ExpressionParser::new().parse(r#"1.5000e0"#).map(|r| r.map_context(&mut |_| ()));
         assert_eq!(expected, actual);
     }
 
     #[test]
     fn number_scientific_explicit_zero_exponent() {
-        let expected = Ok(ast::Expression::Number(1.5));
-        let actual = norm::ExpressionParser::new().parse(r#"1.5000e+0"#);
+        let expected = Ok(ast::Expression::Number(ast::NumberLiteral { context: (), value: 1.5 }));
+        let actual = norm::ExpressionParser::new().parse(r#"1.5000e+0"#).map(|r| r.map_context(&mut |_| ()));
         assert_eq!(expected, actual);
     }
 
     #[test]
     fn string() {
-        let expected = Ok("abc".to_owned());
-        let actual = norm::StringParser::new().parse(r#""abc""#);
+        let expected = Ok(ast::StringLiteral { context: (), value: "abc".to_owned() });
+        let actual = norm::StringParser::new().parse(r#""abc""#).map(|r| r.map_context(&mut |_| ()));
         assert_eq!(expected, actual);
     }
 
     #[test]
     fn string_unicode() {
-        let expected = Ok("なんでも".to_owned());
-        let actual = norm::StringParser::new().parse(r#""なんでも""#);
+        let expected = Ok(ast::StringLiteral { context: (), value: "なんでも".to_owned() });
+        let actual = norm::StringParser::new().parse(r#""なんでも""#).map(|r| r.map_context(&mut |_| ()));
         assert_eq!(expected, actual);
     }
 
     #[test]
     fn string_escape() {
-        let expected = Ok("\"\\/\u{0008}\u{000C}\n\r\t\u{1234}".to_owned());
-        let actual = norm::StringParser::new().parse(r#""\"\\/\b\f\n\r\t\u{1234}""#);
+        let expected = Ok(ast::StringLiteral { context: (), value: "\"\\/\u{0008}\u{000C}\n\r\t\u{1234}".to_owned() });
+        let actual = norm::StringParser::new().parse(r#""\"\\/\b\f\n\r\t\u{1234}""#).map(|r| r.map_context(&mut |_| ()));
         assert_eq!(expected, actual);
     }
 
     #[test]
     fn tuple() {
         let expected = Ok(ast::Tuple {
-            fields: vec![ast::Expression::Number(1.0), ast::Expression::Number(2.0)],
+            context: (),
+            fields: vec![ast::Expression::Number(ast::NumberLiteral { context: (), value: 1.0 }), ast::Expression::Number(ast::NumberLiteral { context: (), value: 2.0 })],
         });
-        let actual = norm::TupleParser::new().parse(r#"(1, 2)"#);
+        let actual = norm::TupleParser::new().parse(r#"(1, 2)"#).map(|r| r.map_context(&mut |_| ()));
         assert_eq!(expected, actual);
     }
 
     #[test]
     fn tuple_trailing_comma() {
         let expected = Ok(ast::Tuple {
-            fields: vec![ast::Expression::Number(1.0), ast::Expression::Number(2.0)],
+            context: (),
+            fields: vec![ast::Expression::Number(ast::NumberLiteral { context: (), value: 1.0 }), ast::Expression::Number(ast::NumberLiteral { context: (), value: 2.0 })],
         });
-        let actual = norm::TupleParser::new().parse(r#"(1, 2,)"#);
+        let actual = norm::TupleParser::new().parse(r#"(1, 2,)"#).map(|r| r.map_context(&mut |_| ()));
         assert_eq!(expected, actual);
     }
 
     #[test]
     fn tuple_single() {
         let expected = Ok(ast::Tuple {
-            fields: vec![ast::Expression::Number(1.0)],
+            context: (),
+            fields: vec![ast::Expression::Number(ast::NumberLiteral { context: (), value: 1.0 })],
         });
-        let actual = norm::TupleParser::new().parse(r#"(1)"#);
+        let actual = norm::TupleParser::new().parse(r#"(1)"#).map(|r| r.map_context(&mut |_| ()));
         assert_eq!(expected, actual);
     }
 
     #[test]
     fn tuple_single_trailing_comma() {
         let expected = Ok(ast::Tuple {
-            fields: vec![ast::Expression::Number(1.0)],
+            context: (),
+            fields: vec![ast::Expression::Number(ast::NumberLiteral { context: (), value: 1.0 })],
         });
-        let actual = norm::TupleParser::new().parse(r#"(1,)"#);
+        let actual = norm::TupleParser::new().parse(r#"(1,)"#).map(|r| r.map_context(&mut |_| ()));
         assert_eq!(expected, actual);
     }
 
     #[test]
     fn tuple_empty() {
-        let expected = Ok(ast::Tuple { fields: vec![] });
-        let actual = norm::TupleParser::new().parse(r#"()"#);
+        let expected = Ok(ast::Tuple { context: (), fields: vec![] });
+        let actual = norm::TupleParser::new().parse(r#"()"#).map(|r| r.map_context(&mut |_| ()));
         assert_eq!(expected, actual);
     }
 
     #[test]
     fn tuple_empty_no_comma() {
-        let actual = norm::TupleParser::new().parse(r#"(,)"#);
+        let actual = norm::TupleParser::new().parse(r#"(,)"#).map(|r| r.map_context(&mut |_| ()));
         assert!(actual.is_err());
     }
 
     #[test]
     fn record() {
         let expected = Ok(ast::Record {
+            context: (),
             fields: vec![
-                (ast::Identifier("a".into()), ast::Expression::Number(1.0)),
+                (ast::Identifier("a".into()), ast::Expression::Number(ast::NumberLiteral { context: (), value: 1.0 })),
                 (
                     ast::Identifier("b".into()),
-                    ast::Expression::String("c".into()),
+                    ast::Expression::String(ast::StringLiteral { context: (), value: "c".into() }),
                 ),
             ].into_iter()
-            .collect(),
+                .collect(),
         });
-        let actual = norm::RecordParser::new().parse(r#"{a: 1, b: "c"}"#);
+        let actual = norm::RecordParser::new().parse(r#"{a: 1, b: "c"}"#).map(|r| r.map_context(&mut |_| ()));
         assert_eq!(expected, actual);
     }
 
     #[test]
     fn record_trailing_comma() {
         let expected = Ok(ast::Record {
+            context: (),
             fields: vec![
-                (ast::Identifier("a".into()), ast::Expression::Number(1.0)),
+                (ast::Identifier("a".into()), ast::Expression::Number(ast::NumberLiteral { context: (), value: 1.0 })),
                 (
                     ast::Identifier("b".into()),
-                    ast::Expression::String("c".into()),
+                    ast::Expression::String(ast::StringLiteral { context: (), value: "c".into() }),
                 ),
             ].into_iter()
-            .collect(),
+                .collect(),
         });
-        let actual = norm::RecordParser::new().parse(r#"{a: 1, b: "c",}"#);
+        let actual = norm::RecordParser::new().parse(r#"{a: 1, b: "c",}"#).map(|r| r.map_context(&mut |_| ()));
         assert_eq!(expected, actual);
     }
 
     #[test]
     fn record_single() {
         let expected = Ok(ast::Record {
-            fields: vec![(ast::Identifier("a".into()), ast::Expression::Number(1.0))]
+            context: (),
+            fields: vec![(ast::Identifier("a".into()), ast::Expression::Number(ast::NumberLiteral { context: (), value: 1.0 }))]
                 .into_iter()
                 .collect(),
         });
-        let actual = norm::RecordParser::new().parse(r#"{a: 1}"#);
+        let actual = norm::RecordParser::new().parse(r#"{a: 1}"#).map(|r| r.map_context(&mut |_| ()));
         assert_eq!(expected, actual);
     }
 
     #[test]
     fn record_single_trailing_comma() {
         let expected = Ok(ast::Record {
-            fields: vec![(ast::Identifier("a".into()), ast::Expression::Number(1.0))]
+            context: (),
+            fields: vec![(ast::Identifier("a".into()), ast::Expression::Number(ast::NumberLiteral { context: (), value: 1.0 }))]
                 .into_iter()
                 .collect(),
         });
-        let actual = norm::RecordParser::new().parse(r#"{a: 1,}"#);
+        let actual = norm::RecordParser::new().parse(r#"{a: 1,}"#).map(|r| r.map_context(&mut |_| ()));
         assert_eq!(expected, actual);
     }
 
     #[test]
     fn record_empty() {
         let expected = Ok(ast::Record {
+            context: (),
             fields: vec![].into_iter().collect(),
         });
-        let actual = norm::RecordParser::new().parse(r#"{}"#);
+        let actual = norm::RecordParser::new().parse(r#"{}"#).map(|r| r.map_context(&mut |_| ()));
         assert_eq!(expected, actual);
     }
 
     #[test]
     fn record_empty_no_trailing_comma() {
-        let actual = norm::RecordParser::new().parse(r#"{,}"#);
+        let actual = norm::RecordParser::new().parse(r#"{,}"#).map(|r| r.map_context(&mut |_| ()));
         assert!(actual.is_err());
     }
 
     #[test]
     fn lambda() {
         let expected = Ok(ast::Lambda {
+            context: (),
             parameters: vec![
                 ast::Parameter {
+                    context: (),
                     name: ast::Identifier("a".into()),
                     signature: None,
                 },
                 ast::Parameter {
+                    context: (),
                     name: ast::Identifier("b".into()),
                     signature: None,
                 },
@@ -520,24 +532,28 @@ main = || {
             signature: None,
             statements: vec![ast::Statement::Expression(ast::Expression::Apply(
                 ast::Apply {
+                    context: (),
                     function: Box::new(ast::Expression::Identifier(ast::Identifier("a".into()))),
                     parameters: vec![ast::Expression::Identifier(ast::Identifier("b".into()))],
                 },
             ))],
         });
-        let actual = norm::LambdaParser::new().parse(r#"|a, b| { a(b) }"#);
+        let actual = norm::LambdaParser::new().parse(r#"|a, b| { a(b) }"#).map(|r| r.map_context(&mut |_| ()));
         assert_eq!(expected, actual);
     }
 
     #[test]
     fn lambda_with_definition() {
         let expected = Ok(ast::Lambda {
+            context: (),
             parameters: vec![
                 ast::Parameter {
+                    context: (),
                     name: ast::Identifier("a".to_owned()),
                     signature: None,
                 },
                 ast::Parameter {
+                    context: (),
                     name: ast::Identifier("b".to_owned()),
                     signature: None,
                 },
@@ -547,12 +563,15 @@ main = || {
                 ast::Statement::Definition(
                     ast::Identifier("c".to_owned()),
                     ast::Expression::Lambda(ast::Lambda {
+                        context: (),
                         parameters: vec![ast::Parameter {
+                            context: (),
                             name: ast::Identifier("b".to_owned()),
                             signature: None,
                         }],
                         signature: None,
                         statements: vec![ast::Statement::Expression(ast::Expression::Apply(ast::Apply {
+                            context: (),
                             function: Box::new(ast::Expression::Identifier(ast::Identifier(
                                 "a".to_owned(),
                             ))),
@@ -563,6 +582,7 @@ main = || {
                     }),
                 ),
                 ast::Statement::Expression(ast::Expression::Apply(ast::Apply {
+                    context: (),
                     function: Box::new(ast::Expression::Identifier(ast::Identifier(
                         "c".to_owned(),
                     ))),
@@ -570,19 +590,22 @@ main = || {
                 })),
             ],
         });
-        let actual = norm::LambdaParser::new().parse(r#"|a, b| { c = |b| { a(b) }; c(b) }"#);
+        let actual = norm::LambdaParser::new().parse(r#"|a, b| { c = |b| { a(b) }; c(b) }"#).map(|r| r.map_context(&mut |_| ()));
         assert_eq!(expected, actual);
     }
 
     #[test]
     fn lambda_with_definition_comment() {
         let expected = Ok(ast::Lambda {
+            context: (),
             parameters: vec![
                 ast::Parameter {
+                    context: (),
                     name: ast::Identifier("a".to_owned()),
                     signature: None,
                 },
                 ast::Parameter {
+                    context: (),
                     name: ast::Identifier("b".to_owned()),
                     signature: None,
                 },
@@ -592,12 +615,15 @@ main = || {
                 ast::Statement::Definition(
                     ast::Identifier("c".to_owned()),
                     ast::Expression::Lambda(ast::Lambda {
+                        context: (),
                         parameters: vec![ast::Parameter {
+                            context: (),
                             name: ast::Identifier("b".to_owned()),
                             signature: None,
                         }],
                         signature: None,
                         statements: vec![ast::Statement::Expression(ast::Expression::Apply(ast::Apply {
+                            context: (),
                             function: Box::new(ast::Expression::Identifier(ast::Identifier(
                                 "a".to_owned(),
                             ))),
@@ -608,6 +634,7 @@ main = || {
                     }),
                 ),
                 ast::Statement::Expression(ast::Expression::Apply(ast::Apply {
+                    context: (),
                     function: Box::new(ast::Expression::Identifier(ast::Identifier(
                         "c".to_owned(),
                     ))),
@@ -615,19 +642,22 @@ main = || {
                 })),
             ],
         });
-        let actual = norm::LambdaParser::new().parse(r#"|a, b| { /* define c */ c = |b| { a(b) }; /* call c */ c(b) }"#);
+        let actual = norm::LambdaParser::new().parse(r#"|a, b| { /* define c */ c = |b| { a(b) }; /* call c */ c(b) }"#).map(|r| r.map_context(&mut |_| ()));
         assert_eq!(expected, actual);
     }
 
     #[test]
     fn lambda_signature() {
         let expected = Ok(ast::Lambda {
+            context: (),
             parameters: vec![
                 ast::Parameter {
+                    context: (),
                     name: ast::Identifier("a".into()),
                     signature: Some(ast::Expression::Identifier(ast::Identifier("Int".into()))),
                 },
                 ast::Parameter {
+                    context: (),
                     name: ast::Identifier("b".into()),
                     signature: Some(ast::Expression::Identifier(ast::Identifier("Int".into()))),
                 },
@@ -635,24 +665,28 @@ main = || {
             signature: None,
             statements: vec![ast::Statement::Expression(ast::Expression::Apply(
                 ast::Apply {
+                    context: (),
                     function: Box::new(ast::Expression::Identifier(ast::Identifier("a".into()))),
                     parameters: vec![ast::Expression::Identifier(ast::Identifier("b".into()))],
                 },
             ))],
         });
-        let actual = norm::LambdaParser::new().parse(r#"|a: Int, b: Int| { a(b) }"#);
+        let actual = norm::LambdaParser::new().parse(r#"|a: Int, b: Int| { a(b) }"#).map(|r| r.map_context(&mut |_| ()));
         assert_eq!(expected, actual);
     }
 
     #[test]
     fn lambda_many_statements() {
         let expected = Ok(ast::Lambda {
+            context: (),
             parameters: vec![
                 ast::Parameter {
+                    context: (),
                     name: ast::Identifier("a".into()),
                     signature: None,
                 },
                 ast::Parameter {
+                    context: (),
                     name: ast::Identifier("b".into()),
                     signature: None,
                 },
@@ -660,26 +694,29 @@ main = || {
             signature: None,
             statements: vec![
                 ast::Statement::Expression(ast::Expression::Apply(ast::Apply {
+                    context: (),
                     function: Box::new(ast::Expression::Identifier(ast::Identifier("a".into()))),
                     parameters: vec![ast::Expression::Identifier(ast::Identifier("b".into()))],
                 })),
                 ast::Statement::Expression(ast::Expression::Apply(ast::Apply {
+                    context: (),
                     function: Box::new(ast::Expression::Identifier(ast::Identifier("a".into()))),
                     parameters: vec![ast::Expression::Identifier(ast::Identifier("b".into()))],
                 })),
             ],
         });
-        let actual = norm::LambdaParser::new().parse(r#"|a, b| { a(b); a(b) }"#);
+        let actual = norm::LambdaParser::new().parse(r#"|a, b| { a(b); a(b) }"#).map(|r| r.map_context(&mut |_| ()));
         assert_eq!(expected, actual);
     }
 
     #[test]
     fn apply() {
         let expected = Ok(ast::Apply {
+            context: (),
             function: Box::new(ast::Expression::Identifier(ast::Identifier("a".into()))),
             parameters: vec![ast::Expression::Identifier(ast::Identifier("b".into()))],
         });
-        let actual = norm::ApplyParser::new().parse(r#"a(b)"#);
+        let actual = norm::ApplyParser::new().parse(r#"a(b)"#).map(|r| r.map_context(&mut |_| ()));
         assert_eq!(expected, actual);
     }
 }

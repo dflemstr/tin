@@ -1,12 +1,11 @@
 //! Abstract syntax tree definitions for Norm.
-use parser;
 
 /// A Norm AST node.
-pub trait AstNode: parser::Parse + Sized {
+pub trait AstNode: Sized {
     /// Traverses this node and its children with the specified visitor.
     fn visit<V>(&self, visitor: &mut V)
-    where
-        V: Visitor;
+        where
+            V: Visitor;
 }
 
 /// A visitor for AST nodes.
@@ -27,104 +26,146 @@ pub trait Visitor {
 
 /// A complete Norm module.
 #[derive(Clone, Debug, PartialEq)]
-pub struct Module {
+pub struct Module<C> {
+    /// This node's AST context.
+    pub context: C,
     /// Definitions that are part of this module, in declaration order.
-    pub definitions: Vec<(Identifier, Expression)>,
+    pub definitions: Vec<(Identifier, Expression<C>)>,
 }
 
 /// An identifier.
 #[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct Identifier(
-/// The raw string backing the identifier.
-pub String);
+    /// The raw string backing the identifier.
+    pub String);
 
 /// Any valid expression.
 #[derive(Clone, Debug, PartialEq)]
-pub enum Expression {
+pub enum Expression<C> {
     /// A numeric literal.
-    Number(f64),
+    Number(NumberLiteral<C>),
     /// A string literal.
-    String(String),
+    String(StringLiteral<C>),
     /// A tuple literal.
-    Tuple(Tuple),
+    Tuple(Tuple<C>),
     /// A record literal.
-    Record(Record),
+    Record(Record<C>),
     /// A reference to an identifier.
     Identifier(Identifier),
     /// A lambda literal.
-    Lambda(Lambda),
+    Lambda(Lambda<C>),
     /// A record field selection.
-    Select(Select),
+    Select(Select<C>),
     /// A function application.
-    Apply(Apply),
+    Apply(Apply<C>),
+}
+
+/// A numeric literal.
+#[derive(Clone, Debug, PartialEq)]
+pub struct NumberLiteral<C> {
+    /// This node's AST context.
+    pub context: C,
+    /// The value of the literal.
+    pub value: f64,
+}
+
+/// A string literal.
+#[derive(Clone, Debug, PartialEq)]
+pub struct StringLiteral<C> {
+    /// This node's AST context.
+    pub context: C,
+    /// The value of the literal.
+    pub value: String,
 }
 
 /// A tuple expression.
 #[derive(Clone, Debug, PartialEq)]
-pub struct Tuple {
+pub struct Tuple<C> {
+    /// This node's AST context.
+    pub context: C,
     /// The fields of the tuple, in declaration order.
-    pub fields: Vec<Expression>,
+    pub fields: Vec<Expression<C>>,
 }
 
 /// A record expression.
 #[derive(Clone, Debug, PartialEq)]
-pub struct Record {
+pub struct Record<C> {
+    /// This node's AST context.
+    pub context: C,
     /// The fields of the record, in declaration order.
-    pub fields: Vec<(Identifier, Expression)>,
+    pub fields: Vec<(Identifier, Expression<C>)>,
 }
 
 /// A lambda expression.
 #[derive(Clone, Debug, PartialEq)]
-pub struct Lambda {
+pub struct Lambda<C> {
+    /// This node's AST context.
+    pub context: C,
     /// The parameters of the lambda.
-    pub parameters: Vec<Parameter>,
+    pub parameters: Vec<Parameter<C>>,
     /// The signature of the result of the lambda.
-    pub signature: Option<Box<Expression>>,
+    pub signature: Option<Box<Expression<C>>>,
     /// The statements that constitute the lambda body.
-    pub statements: Vec<Statement>,
+    pub statements: Vec<Statement<C>>,
 }
 
 /// A valid statement.
 #[derive(Clone, Debug, PartialEq)]
-pub enum Statement {
+pub enum Statement<C> {
     /// A statement that defines a new identifier.
-    Definition(Identifier, Expression),
+    Definition(Identifier, Expression<C>),
     /// A statement that is an expression (for return values or side effects).
-    Expression(Expression),
+    Expression(Expression<C>),
 }
 
 /// A field selection expression.
 #[derive(Clone, Debug, PartialEq)]
-pub struct Select {
+pub struct Select<C> {
+    /// This node's AST context.
+    pub context: C,
     /// The expression to select from; should evaluate to a record.
-    pub expression: Box<Expression>,
+    pub expression: Box<Expression<C>>,
     /// The field to select.
     pub field: Identifier,
 }
 
 /// A function application expression.
 #[derive(Clone, Debug, PartialEq)]
-pub struct Apply {
+pub struct Apply<C> {
+    /// This node's AST context.
+    pub context: C,
     /// The expression to apply; should evaluate to a function.
-    pub function: Box<Expression>,
+    pub function: Box<Expression<C>>,
     /// The parameters to pass in to the function; should match the function's accepted number of
     /// arguments.
-    pub parameters: Vec<Expression>,
+    pub parameters: Vec<Expression<C>>,
 }
 
 /// A lambda parameter declaration.
 #[derive(Clone, Debug, PartialEq)]
-pub struct Parameter {
+pub struct Parameter<C> {
+    /// This node's AST context.
+    pub context: C,
     /// The name of the parameter.
     pub name: Identifier,
     /// The signature of the parameter, if any.
-    pub signature: Option<Expression>,
+    pub signature: Option<Expression<C>>,
 }
 
-impl AstNode for Module {
+impl<C> Module<C> {
+    /// Transforms the AST context of this node and all its child nodes.
+    pub fn map_context<F, C2>(self, mapping: &mut F) -> Module<C2> where F: FnMut(C) -> C2 {
+        let context = mapping(self.context);
+        let definitions = self.definitions.into_iter().map(|(i, e)| (i, e.map_context(mapping))).collect();
+
+        Module { context, definitions }
+    }
+}
+
+impl<C> AstNode for Module<C> {
     fn visit<V>(&self, visitor: &mut V)
-    where
-        V: Visitor,
+        where
+            V: Visitor,
     {
         for (ident, _) in &self.definitions {
             visitor.define_ident(ident);
@@ -141,24 +182,40 @@ impl AstNode for Module {
 
 impl AstNode for Identifier {
     fn visit<V>(&self, _visitor: &mut V)
-    where
-        V: Visitor,
+        where
+            V: Visitor,
     {
         // Nothing interesting to do here yet
     }
 }
 
-impl AstNode for Expression {
+impl<C> Expression<C> {
+    /// Transforms the AST context of this node and all its child nodes.
+    pub fn map_context<F, C2>(self, mapping: &mut F) -> Expression<C2> where F: FnMut(C) -> C2 {
+        match self {
+            Expression::Number(e) => Expression::Number(e.map_context(mapping)),
+            Expression::String(e) => Expression::String(e.map_context(mapping)),
+            Expression::Tuple(e) => Expression::Tuple(e.map_context(mapping)),
+            Expression::Record(e) => Expression::Record(e.map_context(mapping)),
+            Expression::Identifier(e) => Expression::Identifier(e),
+            Expression::Lambda(e) => Expression::Lambda(e.map_context(mapping)),
+            Expression::Select(e) => Expression::Select(e.map_context(mapping)),
+            Expression::Apply(e) => Expression::Apply(e.map_context(mapping)),
+        }
+    }
+}
+
+impl<C> AstNode for Expression<C> {
     fn visit<V>(&self, visitor: &mut V)
-    where
-        V: Visitor,
+        where
+            V: Visitor,
     {
         match *self {
-            Expression::Number(_) => {
-                // Nothing interesting to do here yet
+            Expression::Number(ref number) => {
+                number.visit(visitor);
             }
-            Expression::String(_) => {
-                // Nothing interesting to do here yet
+            Expression::String(ref string) => {
+                string.visit(visitor);
             }
             Expression::Tuple(ref tuple) => {
                 tuple.visit(visitor);
@@ -182,10 +239,55 @@ impl AstNode for Expression {
     }
 }
 
-impl AstNode for Tuple {
+impl<C> NumberLiteral<C> {
+    /// Transforms the AST context of this node and all its child nodes.
+    pub fn map_context<F, C2>(self, mapping: &mut F) -> NumberLiteral<C2> where F: FnMut(C) -> C2 {
+        let context = mapping(self.context);
+        let value = self.value;
+        NumberLiteral { context, value }
+    }
+}
+
+impl<C> AstNode for NumberLiteral<C> {
+    fn visit<V>(&self, _visitor: &mut V)
+        where
+            V: Visitor,
+    {
+        // Nothing interesting to do here yet
+    }
+}
+
+impl<C> StringLiteral<C> {
+    /// Transforms the AST context of this node and all its child nodes.
+    pub fn map_context<F, C2>(self, mapping: &mut F) -> StringLiteral<C2> where F: FnMut(C) -> C2 {
+        let context = mapping(self.context);
+        let value = self.value;
+        StringLiteral { context, value }
+    }
+}
+
+impl<C> AstNode for StringLiteral<C> {
+    fn visit<V>(&self, _visitor: &mut V)
+        where
+            V: Visitor,
+    {
+        // Nothing interesting to do here yet
+    }
+}
+
+impl<C> Tuple<C> {
+    /// Transforms the AST context of this node and all its child nodes.
+    pub fn map_context<F, C2>(self, mapping: &mut F) -> Tuple<C2> where F: FnMut(C) -> C2 {
+        let context = mapping(self.context);
+        let fields = self.fields.into_iter().map(|f| f.map_context(mapping)).collect();
+        Tuple { context, fields }
+    }
+}
+
+impl<C> AstNode for Tuple<C> {
     fn visit<V>(&self, visitor: &mut V)
-    where
-        V: Visitor,
+        where
+            V: Visitor,
     {
         for field in &self.fields {
             field.visit(visitor);
@@ -193,10 +295,19 @@ impl AstNode for Tuple {
     }
 }
 
-impl AstNode for Record {
+impl<C> Record<C> {
+    /// Transforms the AST context of this node and all its child nodes.
+    pub fn map_context<F, C2>(self, mapping: &mut F) -> Record<C2> where F: FnMut(C) -> C2 {
+        let context = mapping(self.context);
+        let fields = self.fields.into_iter().map(|(i, f)| (i, f.map_context(mapping))).collect();
+        Record { context, fields }
+    }
+}
+
+impl<C> AstNode for Record<C> {
     fn visit<V>(&self, visitor: &mut V)
-    where
-        V: Visitor,
+        where
+            V: Visitor,
     {
         for (key, val) in &self.fields {
             key.visit(visitor);
@@ -205,10 +316,21 @@ impl AstNode for Record {
     }
 }
 
-impl AstNode for Lambda {
+impl<C> Lambda<C> {
+    /// Transforms the AST context of this node and all its child nodes.
+    pub fn map_context<F, C2>(self, mapping: &mut F) -> Lambda<C2> where F: FnMut(C) -> C2 {
+        let context = mapping(self.context);
+        let parameters = self.parameters.into_iter().map(|p| p.map_context(mapping)).collect();
+        let signature = self.signature.map(|s| Box::new(s.map_context(mapping)));
+        let statements = self.statements.into_iter().map(|s| s.map_context(mapping)).collect();
+        Lambda { context, parameters, signature, statements }
+    }
+}
+
+impl<C> AstNode for Lambda<C> {
     fn visit<V>(&self, visitor: &mut V)
-    where
-        V: Visitor,
+        where
+            V: Visitor,
     {
         visitor.push_lambda();
         for param in &self.parameters {
@@ -221,10 +343,20 @@ impl AstNode for Lambda {
     }
 }
 
-impl AstNode for Statement {
+impl<C> Statement<C> {
+    /// Transforms the AST context of this node and all its child nodes.
+    pub fn map_context<F, C2>(self, mapping: &mut F) -> Statement<C2> where F: FnMut(C) -> C2 {
+        match self {
+            Statement::Expression(e) => Statement::Expression(e.map_context(mapping)),
+            Statement::Definition(i, e) => Statement::Definition(i, e.map_context(mapping)),
+        }
+    }
+}
+
+impl<C> AstNode for Statement<C> {
     fn visit<V>(&self, visitor: &mut V)
-    where
-        V: Visitor,
+        where
+            V: Visitor,
     {
         match *self {
             Statement::Definition(ref ident, ref expr) => {
@@ -241,20 +373,40 @@ impl AstNode for Statement {
     }
 }
 
-impl AstNode for Select {
+impl<C> Select<C> {
+    /// Transforms the AST context of this node and all its child nodes.
+    pub fn map_context<F, C2>(self, mapping: &mut F) -> Select<C2> where F: FnMut(C) -> C2 {
+        let context = mapping(self.context);
+        let expression = Box::new(self.expression.map_context(mapping));
+        let field = self.field;
+        Select { context, expression, field }
+    }
+}
+
+impl<C> AstNode for Select<C> {
     fn visit<V>(&self, visitor: &mut V)
-    where
-        V: Visitor,
+        where
+            V: Visitor,
     {
         self.expression.visit(visitor);
         self.field.visit(visitor);
     }
 }
 
-impl AstNode for Apply {
+impl<C> Apply<C> {
+    /// Transforms the AST context of this node and all its child nodes.
+    pub fn map_context<F, C2>(self, mapping: &mut F) -> Apply<C2> where F: FnMut(C) -> C2 {
+        let context = mapping(self.context);
+        let function = Box::new(self.function.map_context(mapping));
+        let parameters = self.parameters.into_iter().map(|e| e.map_context(mapping)).collect();
+        Apply { context, function, parameters }
+    }
+}
+
+impl<C> AstNode for Apply<C> {
     fn visit<V>(&self, visitor: &mut V)
-    where
-        V: Visitor,
+        where
+            V: Visitor,
     {
         self.function.visit(visitor);
 
@@ -264,10 +416,20 @@ impl AstNode for Apply {
     }
 }
 
-impl AstNode for Parameter {
+impl<C> Parameter<C> {
+    /// Transforms the AST context of this node and all its child nodes.
+    pub fn map_context<F, C2>(self, mapping: &mut F) -> Parameter<C2> where F: FnMut(C) -> C2 {
+        let context = mapping(self.context);
+        let name = self.name;
+        let signature = self.signature.map(|e| e.map_context(mapping));
+        Parameter { context, name, signature }
+    }
+}
+
+impl<C> AstNode for Parameter<C> {
     fn visit<V>(&self, visitor: &mut V)
-    where
-        V: Visitor,
+        where
+            V: Visitor,
     {
         self.name.visit(visitor);
         if let Some(ref signature) = self.signature {

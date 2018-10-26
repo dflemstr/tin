@@ -55,7 +55,7 @@ impl Interpreter {
     }
 
     /// Runs the interpreter by defining all of the contents of the supplied module.
-    pub fn run(&mut self, ast: ast::Module) -> Result<()> {
+    pub fn run<C>(&mut self, ast: ast::Module<C>) -> Result<()> {
         for (key, value) in ast.definitions {
             let name = value::Identifier::new(key.0);
             let result = self.eval(value)?;
@@ -65,20 +65,20 @@ impl Interpreter {
     }
 
     /// Runs the interpreter by evaluating the supplied expression.
-    pub fn eval(&mut self, ast: ast::Expression) -> Result<value::Value> {
+    pub fn eval<C>(&mut self, ast: ast::Expression<C>) -> Result<value::Value> {
         match ast {
             ast::Expression::Tuple(tuple) => Ok(self.eval_tuple(tuple)?),
             ast::Expression::Record(record) => Ok(self.eval_record(record)?),
             ast::Expression::Identifier(identifier) => self.eval_identifier(identifier),
-            ast::Expression::Number(number) => Ok(value::Value::Number(number)),
-            ast::Expression::String(string) => Ok(value::Value::String(string)),
+            ast::Expression::Number(number) => Ok(value::Value::Number(number.value)),
+            ast::Expression::String(string) => Ok(value::Value::String(string.value)),
             ast::Expression::Lambda(lambda) => self.eval_lambda(lambda),
             ast::Expression::Select(select) => self.eval_select(select),
             ast::Expression::Apply(apply) => self.eval_apply(apply),
         }
     }
 
-    fn eval_tuple(&mut self, ast: ast::Tuple) -> Result<value::Value> {
+    fn eval_tuple<C>(&mut self, ast: ast::Tuple<C>) -> Result<value::Value> {
         let mut fields = Vec::with_capacity(ast.fields.len());
         for value in ast.fields {
             fields.push(self.eval(value)?);
@@ -86,7 +86,7 @@ impl Interpreter {
         Ok(value::Value::Tuple(value::Tuple { fields }))
     }
 
-    fn eval_record(&mut self, ast: ast::Record) -> Result<value::Value> {
+    fn eval_record<C>(&mut self, ast: ast::Record<C>) -> Result<value::Value> {
         let mut fields = collections::HashMap::with_capacity(ast.fields.len());
         for (key, value) in ast.fields {
             fields.insert(value::Identifier::new(key.0), self.eval(value)?);
@@ -102,7 +102,7 @@ impl Interpreter {
             .ok_or_else(|| Error::UndefinedReference(ident))
     }
 
-    fn eval_lambda(&mut self, ast: ast::Lambda) -> Result<value::Value> {
+    fn eval_lambda<C>(&mut self, ast: ast::Lambda<C>) -> Result<value::Value> {
         use ast::AstNode;
         let mut visitor = FreeVariablesVisitor::new();
         ast.visit(&mut visitor);
@@ -119,13 +119,13 @@ impl Interpreter {
 
         let function = value::Closure {
             captured,
-            lambda: ast,
+            lambda: ast.map_context(&mut |_| ()),
         };
 
         Ok(value::Value::Function(function))
     }
 
-    fn eval_select(&mut self, ast: ast::Select) -> Result<value::Value> {
+    fn eval_select<C>(&mut self, ast: ast::Select<C>) -> Result<value::Value> {
         let value = self.eval(*ast.expression)?;
         let field_name = value::Identifier::new(ast.field.0);
 
@@ -141,7 +141,7 @@ impl Interpreter {
         }
     }
 
-    fn eval_apply(&mut self, ast: ast::Apply) -> Result<value::Value> {
+    fn eval_apply<C>(&mut self, ast: ast::Apply<C>) -> Result<value::Value> {
         use itertools::Itertools;
 
         let value = self.eval(*ast.function)?;
@@ -188,7 +188,7 @@ impl Interpreter {
         }
     }
 
-    fn eval_statement(&mut self, ast: ast::Statement) -> Result<Option<value::Value>> {
+    fn eval_statement<C>(&mut self, ast: ast::Statement<C>) -> Result<Option<value::Value>> {
         match ast {
             ast::Statement::Expression(expression) => Ok(Some(self.eval(expression)?)),
             ast::Statement::Definition(ident, expr) => {

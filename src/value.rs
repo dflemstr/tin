@@ -46,7 +46,8 @@ pub struct Record {
 #[derive(Clone, Debug, PartialEq)]
 pub struct Closure {
     pub(crate) captured: collections::HashMap<Identifier, Value>,
-    pub(crate) lambda: ast::Lambda,
+    // TODO: use IR
+    pub(crate) lambda: ast::Lambda<()>,
 }
 
 impl Identifier {

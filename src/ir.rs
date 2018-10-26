@@ -76,7 +76,7 @@ impl Module {
         Module { symbols, types, kinds, consts, functions }
     }
 
-    pub fn build(ast: ast::Module) -> Module {
+    pub fn build<C>(ast: ast::Module<C>) -> Module {
         use ast::AstNode;
 
         let mut result = Module::new();
