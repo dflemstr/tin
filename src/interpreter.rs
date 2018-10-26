@@ -211,7 +211,7 @@ impl FreeVariablesVisitor {
     }
 }
 
-impl ast::Visitor for FreeVariablesVisitor {
+impl<C> ast::Visitor<C> for FreeVariablesVisitor {
     fn define_ident(&mut self, ident: &ast::Identifier) {
         self.scope_stack
             .last_mut()
@@ -225,14 +225,14 @@ impl ast::Visitor for FreeVariablesVisitor {
         }
     }
 
-    fn push_lambda(&mut self) {
+    fn push_scope(&mut self) {
         self.scope_stack.push(collections::HashSet::new());
     }
 
-    fn pop_lambda(&mut self) {
+    fn pop_scope(&mut self) {
         self.scope_stack
             .pop()
-            .expect("more pop_lambda() than push_lambda() calls");
+            .expect("more pop_scope() than push_scope() calls");
     }
 }
 

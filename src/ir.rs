@@ -8,11 +8,17 @@ use ast;
 
 pub trait IrNode: Sized {}
 
-#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[derive(Clone, Copy, Debug)]
+struct AstContext {
+    id: Id,
+}
+
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct Id(u64);
 
 #[derive(Debug)]
 pub struct Module {
+    pub next_id: u64,
     pub symbols: bimap::BiMap<Id, Symbol>,
     pub types: collections::HashMap<Id, Type>,
     pub kinds: collections::HashMap<Id, Kind>,
@@ -28,7 +34,7 @@ pub struct Symbol {
 #[derive(Clone, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub enum SymbolPart {
     Name(String),
-    Lambda(u64),
+    Scope(u64),
 }
 
 #[derive(Debug)]
@@ -57,7 +63,7 @@ pub struct Data {}
 struct SymbolVisitor<'a> {
     stack: Vec<SymbolPart>,
     symbol_id: u64,
-    lambda_id: u64,
+    scope_id: u64,
     symbols: &'a mut bimap::BiMap<Id, Symbol>,
 }
 
@@ -67,19 +73,26 @@ struct KindVisitor<'a> {
 }
 
 impl Module {
-    fn new() -> Module {
+    fn new(next_id: u64) -> Module {
         let symbols = bimap::BiMap::new();
         let types = collections::HashMap::new();
         let kinds = collections::HashMap::new();
         let consts = collections::HashMap::new();
         let functions = collections::HashMap::new();
-        Module { symbols, types, kinds, consts, functions }
+        Module { next_id, symbols, types, kinds, consts, functions }
     }
 
     pub fn build<C>(ast: ast::Module<C>) -> Module {
         use ast::AstNode;
 
-        let mut result = Module::new();
+        let mut next_id = 0u64;
+        let ast = ast.map_context(&mut |c| {
+            let result = AstContext { id: Id(next_id) };
+            next_id += 1;
+            result
+        });
+
+        let mut result = Module::new(next_id);
 
         ast.visit(&mut SymbolVisitor::new(&mut result.symbols));
 
@@ -103,7 +116,7 @@ impl fmt::Debug for SymbolPart {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
             SymbolPart::Name(ref name) => write!(f, "{}", name),
-            SymbolPart::Lambda(ref lambda) => write!(f, "#l{}", lambda),
+            SymbolPart::Scope(ref lambda) => write!(f, "#l{}", lambda),
         }
     }
 }
@@ -113,11 +126,11 @@ impl<'a> SymbolVisitor<'a> {
         let stack = Vec::new();
         let symbol_id = 0;
         let lambda_id = 0;
-        SymbolVisitor { stack, symbol_id, lambda_id, symbols }
+        SymbolVisitor { stack, symbol_id, scope_id: lambda_id, symbols }
     }
 }
 
-impl<'a> ast::Visitor for SymbolVisitor<'a> {
+impl<'a, C> ast::Visitor<C> for SymbolVisitor<'a> {
     fn define_ident(&mut self, ident: &ast::Identifier) {
         let mut parts = self.stack.clone();
         parts.push(SymbolPart::Name(ident.0.clone()));
@@ -125,16 +138,16 @@ impl<'a> ast::Visitor for SymbolVisitor<'a> {
         self.symbol_id += 1;
     }
 
-    fn push_lambda(&mut self) {
-        self.stack.push(SymbolPart::Lambda(self.lambda_id));
-        self.lambda_id += 1;
+    fn push_scope(&mut self) {
+        self.stack.push(SymbolPart::Scope(self.scope_id));
+        self.scope_id += 1;
     }
 
     fn push_definition(&mut self, ident: &ast::Identifier) {
         self.stack.push(SymbolPart::Name(ident.0.clone()));
     }
 
-    fn pop_lambda(&mut self) {
+    fn pop_scope(&mut self) {
         let part = self.stack.pop().expect("mismatched number of push/pop");
     }
 

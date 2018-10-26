@@ -1,25 +1,72 @@
 //! Abstract syntax tree definitions for Norm.
 
 /// A Norm AST node.
-pub trait AstNode: Sized {
+pub trait AstNode<C>: Sized {
     /// Traverses this node and its children with the specified visitor.
     fn visit<V>(&self, visitor: &mut V)
         where
-            V: Visitor;
+            V: Visitor<C>;
 }
 
 /// A visitor for AST nodes.
-pub trait Visitor {
+pub trait Visitor<C> {
+    /// Called before visiting a module.
+    fn visit_before_module(&mut self, _module: &Module<C>) {}
+    /// Called after visiting a module.
+    fn visit_after_module(&mut self, _module: &Module<C>) {}
+
     /// Called when an identifier is about to be defined.
     fn define_ident(&mut self, _ident: &Identifier) {}
     /// Called when an identifier was referenced.
     fn reference_ident(&mut self, _ident: &Identifier) {}
-    /// Called when entering a lambda scope.
-    fn push_lambda(&mut self) {}
+
+    /// Called before visiting a module.
+    fn visit_before_expression(&mut self, _expression: &Expression<C>) {}
+    /// Called after visiting a module.
+    fn visit_after_expression(&mut self, _expression: &Expression<C>) {}
+    /// Called before visiting a module.
+    fn visit_before_number(&mut self, _number: &NumberLiteral<C>) {}
+    /// Called after visiting a module.
+    fn visit_after_number(&mut self, _number: &NumberLiteral<C>) {}
+    /// Called before visiting a module.
+    fn visit_before_string(&mut self, _string: &StringLiteral<C>) {}
+    /// Called after visiting a module.
+    fn visit_after_string(&mut self, _string: &StringLiteral<C>) {}
+    /// Called before visiting a module.
+    fn visit_before_tuple(&mut self, _tuple: &Tuple<C>) {}
+    /// Called after visiting a module.
+    fn visit_after_tuple(&mut self, _tuple: &Tuple<C>) {}
+    /// Called before visiting a module.
+    fn visit_before_record(&mut self, _record: &Record<C>) {}
+    /// Called after visiting a module.
+    fn visit_after_record(&mut self, _record: &Record<C>) {}
+    /// Called before visiting a module.
+    fn visit_before_lambda(&mut self, _lambda: &Lambda<C>) {}
+    /// Called after visiting a module.
+    fn visit_after_lambda(&mut self, _lambda: &Lambda<C>) {}
+    /// Called before visiting a module.
+    fn visit_before_statement(&mut self, _statement: &Statement<C>) {}
+    /// Called after visiting a module.
+    fn visit_after_statement(&mut self, _statement: &Statement<C>) {}
+    /// Called before visiting a module.
+    fn visit_before_select(&mut self, _select: &Select<C>) {}
+    /// Called after visiting a module.
+    fn visit_after_select(&mut self, _select: &Select<C>) {}
+    /// Called before visiting a module.
+    fn visit_before_apply(&mut self, _apply: &Apply<C>) {}
+    /// Called after visiting a module.
+    fn visit_after_apply(&mut self, _apply: &Apply<C>) {}
+    /// Called before visiting a module.
+    fn visit_before_parameter(&mut self, _parameter: &Parameter<C>) {}
+    /// Called after visiting a module.
+    fn visit_after_parameter(&mut self, _parameter: &Parameter<C>) {}
+
+    /// Called when entering a new lexical scope.
+    fn push_scope(&mut self) {}
     /// Called when entering the initialization of an identifier definition.
     fn push_definition(&mut self, _ident: &Identifier) {}
-    /// Called when exiting a lambda scope.
-    fn pop_lambda(&mut self) {}
+    /// Called when exiting a lexical scope.
+    fn pop_scope(&mut self) {}
     /// Called when exiting the initialization of an identifier definition.
     fn pop_definition(&mut self) {}
 }
@@ -162,11 +209,12 @@ impl<C> Module<C> {
     }
 }
 
-impl<C> AstNode for Module<C> {
+impl<C> AstNode<C> for Module<C> {
     fn visit<V>(&self, visitor: &mut V)
         where
-            V: Visitor,
+            V: Visitor<C>,
     {
+        visitor.visit_before_module(self);
         for (ident, _) in &self.definitions {
             visitor.define_ident(ident);
         }
@@ -177,13 +225,14 @@ impl<C> AstNode for Module<C> {
             val.visit(visitor);
             visitor.pop_definition();
         }
+        visitor.visit_after_module(self);
     }
 }
 
-impl AstNode for Identifier {
+impl<C> AstNode<C> for Identifier {
     fn visit<V>(&self, _visitor: &mut V)
         where
-            V: Visitor,
+            V: Visitor<C>,
     {
         // Nothing interesting to do here yet
     }
@@ -205,11 +254,12 @@ impl<C> Expression<C> {
     }
 }
 
-impl<C> AstNode for Expression<C> {
+impl<C> AstNode<C> for Expression<C> {
     fn visit<V>(&self, visitor: &mut V)
         where
-            V: Visitor,
+            V: Visitor<C>,
     {
+        visitor.visit_before_expression(self);
         match *self {
             Expression::Number(ref number) => {
                 number.visit(visitor);
@@ -236,6 +286,7 @@ impl<C> AstNode for Expression<C> {
                 apply.visit(visitor);
             }
         }
+        visitor.visit_after_expression(self);
     }
 }
 
@@ -248,12 +299,13 @@ impl<C> NumberLiteral<C> {
     }
 }
 
-impl<C> AstNode for NumberLiteral<C> {
-    fn visit<V>(&self, _visitor: &mut V)
+impl<C> AstNode<C> for NumberLiteral<C> {
+    fn visit<V>(&self, visitor: &mut V)
         where
-            V: Visitor,
+            V: Visitor<C>,
     {
-        // Nothing interesting to do here yet
+        visitor.visit_before_number(self);
+        visitor.visit_after_number(self);
     }
 }
 
@@ -266,12 +318,13 @@ impl<C> StringLiteral<C> {
     }
 }
 
-impl<C> AstNode for StringLiteral<C> {
-    fn visit<V>(&self, _visitor: &mut V)
+impl<C> AstNode<C> for StringLiteral<C> {
+    fn visit<V>(&self, visitor: &mut V)
         where
-            V: Visitor,
+            V: Visitor<C>,
     {
-        // Nothing interesting to do here yet
+        visitor.visit_before_string(self);
+        visitor.visit_after_string(self);
     }
 }
 
@@ -284,14 +337,16 @@ impl<C> Tuple<C> {
     }
 }
 
-impl<C> AstNode for Tuple<C> {
+impl<C> AstNode<C> for Tuple<C> {
     fn visit<V>(&self, visitor: &mut V)
         where
-            V: Visitor,
+            V: Visitor<C>,
     {
+        visitor.visit_before_tuple(self);
         for field in &self.fields {
             field.visit(visitor);
         }
+        visitor.visit_after_tuple(self);
     }
 }
 
@@ -304,15 +359,17 @@ impl<C> Record<C> {
     }
 }
 
-impl<C> AstNode for Record<C> {
+impl<C> AstNode<C> for Record<C> {
     fn visit<V>(&self, visitor: &mut V)
         where
-            V: Visitor,
+            V: Visitor<C>,
     {
+        visitor.visit_before_record(self);
         for (key, val) in &self.fields {
             key.visit(visitor);
             val.visit(visitor);
         }
+        visitor.visit_after_record(self);
     }
 }
 
@@ -327,19 +384,21 @@ impl<C> Lambda<C> {
     }
 }
 
-impl<C> AstNode for Lambda<C> {
+impl<C> AstNode<C> for Lambda<C> {
     fn visit<V>(&self, visitor: &mut V)
         where
-            V: Visitor,
+            V: Visitor<C>,
     {
-        visitor.push_lambda();
+        visitor.visit_before_lambda(self);
+        visitor.push_scope();
         for param in &self.parameters {
             visitor.define_ident(&param.name);
         }
         for statement in &self.statements {
             statement.visit(visitor);
         }
-        visitor.pop_lambda();
+        visitor.pop_scope();
+        visitor.visit_after_lambda(self);
     }
 }
 
@@ -353,11 +412,12 @@ impl<C> Statement<C> {
     }
 }
 
-impl<C> AstNode for Statement<C> {
+impl<C> AstNode<C> for Statement<C> {
     fn visit<V>(&self, visitor: &mut V)
         where
-            V: Visitor,
+            V: Visitor<C>,
     {
+        visitor.visit_before_statement(self);
         match *self {
             Statement::Definition(ref ident, ref expr) => {
                 visitor.define_ident(ident);
@@ -370,6 +430,7 @@ impl<C> AstNode for Statement<C> {
                 expr.visit(visitor);
             }
         }
+        visitor.visit_after_statement(self);
     }
 }
 
@@ -383,13 +444,15 @@ impl<C> Select<C> {
     }
 }
 
-impl<C> AstNode for Select<C> {
+impl<C> AstNode<C> for Select<C> {
     fn visit<V>(&self, visitor: &mut V)
         where
-            V: Visitor,
+            V: Visitor<C>,
     {
+        visitor.visit_before_select(self);
         self.expression.visit(visitor);
         self.field.visit(visitor);
+        visitor.visit_after_select(self);
     }
 }
 
@@ -403,16 +466,18 @@ impl<C> Apply<C> {
     }
 }
 
-impl<C> AstNode for Apply<C> {
+impl<C> AstNode<C> for Apply<C> {
     fn visit<V>(&self, visitor: &mut V)
         where
-            V: Visitor,
+            V: Visitor<C>,
     {
+        visitor.visit_before_apply(self);
         self.function.visit(visitor);
 
         for parameter in &self.parameters {
             parameter.visit(visitor);
         }
+        visitor.visit_after_apply(self);
     }
 }
 
@@ -426,14 +491,16 @@ impl<C> Parameter<C> {
     }
 }
 
-impl<C> AstNode for Parameter<C> {
+impl<C> AstNode<C> for Parameter<C> {
     fn visit<V>(&self, visitor: &mut V)
         where
-            V: Visitor,
+            V: Visitor<C>,
     {
+        visitor.visit_before_parameter(self);
         self.name.visit(visitor);
         if let Some(ref signature) = self.signature {
             signature.visit(visitor);
         }
+        visitor.visit_after_parameter(self);
     }
 }
