@@ -1,0 +1,8 @@
+[package]
+name = "specs-visitor"
+version = "0.1.0"
+authors = ["David Flemström <david.flemstrom@gmail.com>"]
+
+[dependencies]
+specs = "0.14.0"
+rayon = "1.0.3"

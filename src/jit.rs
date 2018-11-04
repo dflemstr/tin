@@ -26,7 +26,7 @@ impl Jit {
         }
     }
 
-    pub fn compile(&self, module: ir::Module) {
+    pub fn compile(&self, _module: ir::Ir) {
         unimplemented!()
     }
 }

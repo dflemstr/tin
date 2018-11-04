@@ -19,8 +19,8 @@ pub enum Value {
     Tuple(Tuple),
     /// A record value.
     Record(Record),
-    /// A function value.
-    Function(Closure),
+    /// A closure value.
+    Closure(Closure),
 }
 
 /// A tuple value.

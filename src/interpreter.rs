@@ -122,11 +122,11 @@ impl Interpreter {
             lambda: ast.map_context(&mut |_| ()),
         };
 
-        Ok(value::Value::Function(function))
+        Ok(value::Value::Closure(function))
     }
 
     fn eval_select<C>(&mut self, ast: ast::Select<C>) -> Result<value::Value> {
-        let value = self.eval(*ast.expression)?;
+        let value = self.eval(*ast.record)?;
         let field_name = value::Identifier::new(ast.field.value);
 
         match value {
@@ -147,7 +147,7 @@ impl Interpreter {
         let value = self.eval(*ast.function)?;
 
         match value {
-            value::Value::Function(function) => {
+            value::Value::Closure(function) => {
                 let expected = function.lambda.parameters.len();
                 let actual = ast.parameters.len();
                 if expected != actual {
@@ -193,7 +193,8 @@ impl Interpreter {
             ast::Statement::Expression(expression) => Ok(Some(self.eval(expression)?)),
             ast::Statement::Definition(ident, expr) => {
                 let result = self.eval(expr)?;
-                self.scope.insert(value::Identifier::new(ident.value), result);
+                self.scope
+                    .insert(value::Identifier::new(ident.value), result);
                 Ok(None)
             }
         }
@@ -211,8 +212,8 @@ impl FreeVariablesVisitor {
     }
 }
 
-impl<C> ast::Visitor<C> for FreeVariablesVisitor {
-    fn define_ident(&mut self, ident: &ast::Identifier<C>) {
+impl<C> ast::visitor::Visitor<C> for FreeVariablesVisitor {
+    fn define_ident(&mut self, ident: &ast::Identifier<C>, _value_context: &C) {
         self.scope_stack
             .last_mut()
             .expect("scope_stack was empty")
@@ -220,7 +221,11 @@ impl<C> ast::Visitor<C> for FreeVariablesVisitor {
     }
 
     fn reference_ident(&mut self, ident: &ast::Identifier<C>) {
-        if !self.scope_stack.iter().any(|scope| scope.contains(&ident.value)) {
+        if !self
+            .scope_stack
+            .iter()
+            .any(|scope| scope.contains(&ident.value))
+        {
             self.free_variables.insert(ident.value.clone());
         }
     }
@@ -272,13 +277,11 @@ getPersonAge = || {
 
         let mut interpreter = Interpreter::new();
         interpreter.run(program).unwrap();
-        let result = interpreter
-            .eval(ast::Expression::parse("getPersonName()").unwrap());
+        let result = interpreter.eval(ast::Expression::parse("getPersonName()").unwrap());
 
         assert_eq!(Ok(value::Value::String("David".to_owned())), result);
 
-        let result = interpreter
-            .eval(ast::Expression::parse("getPersonAge()").unwrap());
+        let result = interpreter.eval(ast::Expression::parse("getPersonAge()").unwrap());
 
         assert_eq!(Ok(value::Value::Number(27.0)), result);
     }
@@ -297,9 +300,7 @@ main = || {
         ).unwrap();
 
         let mut interpreter = Interpreter::new();
-        interpreter.run(program).unwrap();
-        let result = interpreter
-            .eval(ast::Expression::parse("main()").unwrap());
+        let result = interpreter.run(program);
 
         assert_eq!(Err(Error::UndefinedReference("person".into())), result);
     }
@@ -317,9 +318,7 @@ main = || {
         ).unwrap();
 
         let mut interpreter = Interpreter::new();
-        interpreter.run(program).unwrap();
-        let result = interpreter
-            .eval(ast::Expression::parse("main()").unwrap());
+        let result = interpreter.run(program);
 
         assert_eq!(Err(Error::UndefinedReference("person".into())), result);
     }
@@ -339,9 +338,7 @@ main = || {
         ).unwrap();
 
         let mut interpreter = Interpreter::new();
-        interpreter.run(program).unwrap();
-        let result = interpreter
-            .eval(ast::Expression::parse("main()").unwrap());
+        let result = interpreter.run(program);
 
         assert_eq!(Err(Error::UndefinedReference("person".into())), result);
     }
@@ -361,8 +358,7 @@ main = || {
 
         let mut interpreter = Interpreter::new();
         interpreter.run(program).unwrap();
-        let result = interpreter
-            .eval(ast::Expression::parse("main()").unwrap());
+        let result = interpreter.eval(ast::Expression::parse("main()").unwrap());
 
         assert_eq!(Err(Error::UndefinedField("name".into())), result);
     }

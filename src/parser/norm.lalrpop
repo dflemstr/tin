@@ -35,7 +35,7 @@ SemiRequired<A>: Vec<A> = {
 
 pub Module: ast::Module<parser::Context> = {
     <lo:@L> <ds:SemiRequired<(Comment? <Definition>)>> <hi:@R> =>
-        ast::Module { context: parser::Context::from_span(lo, hi), definitions: ds },
+        ast::Module { context: parser::Context::new(ast::Kind::Module, lo, hi), definitions: ds },
 }
 
 Comment: () = {
@@ -59,17 +59,17 @@ pub Expression: ast::Expression<parser::Context> = {
 
 pub Identifier: ast::Identifier<parser::Context> = {
     <lo:@L> <id:r"\p{XID_Start}\p{XID_Continue}*"> <hi:@R> =>
-        ast::Identifier { context: parser::Context::from_span(lo, hi), value: id.into() },
+        ast::Identifier { context: parser::Context::new(ast::Kind::Identifier, lo, hi), value: id.into() },
 }
 
 pub Tuple: ast::Tuple<parser::Context> = {
     <lo:@L> "(" <fs:Comma<Expression>> ")" <hi:@R> =>
-        ast::Tuple { context: parser::Context::from_span(lo, hi), fields: fs },
+        ast::Tuple { context: parser::Context::new(ast::Kind::Tuple, lo, hi), fields: fs },
 }
 
 pub Record: ast::Record<parser::Context> = {
     <lo:@L> "{" <fs:Comma<Field>> "}" <hi:@R> =>
-        ast::Record { context: parser::Context::from_span(lo, hi), fields: fs },
+        ast::Record { context: parser::Context::new(ast::Kind::Record, lo, hi), fields: fs },
 }
 
 pub Field: (ast::Identifier<parser::Context>, ast::Expression<parser::Context>) = {
@@ -78,17 +78,17 @@ pub Field: (ast::Identifier<parser::Context>, ast::Expression<parser::Context>) 
 
 pub Number: ast::NumberLiteral<parser::Context> = {
     <lo:@L> <v:r"-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?"> <hi:@R> =>
-        ast::NumberLiteral { context: parser::Context::from_span(lo, hi), value: f64::from_str(v).unwrap() },
+        ast::NumberLiteral { context: parser::Context::new(ast::Kind::NumberLiteral, lo, hi), value: f64::from_str(v).unwrap() },
 }
 
 pub String: ast::StringLiteral<parser::Context> = {
     <lo:@L> <v:r#""(?:[^"\\]|\\(?:["\\/bfnrt]|u\{[a-fA-F0-9]{1,6}\}))*""#> <hi:@R> =>
-        ast::StringLiteral { context: parser::Context::from_span(lo, hi), value: parser::parse_escaped_string(v).into_owned() },
+        ast::StringLiteral { context: parser::Context::new(ast::Kind::StringLiteral, lo, hi), value: parser::parse_escaped_string(v).into_owned() },
 }
 
 pub Lambda: ast::Lambda<parser::Context> = {
     <lo:@L> "|" <params:Comma<(Comment? <Parameter>)>> "|" <sig:(":" <Expression>)?> "{" <stmts:Semi<(Comment? <Statement>)>> "}" <hi:@R> =>
-        ast::Lambda { context: parser::Context::from_span(lo, hi), parameters: params, signature: sig.map(Box::new), statements: stmts },
+        ast::Lambda { context: parser::Context::new(ast::Kind::Lambda, lo, hi), parameters: params, signature: sig.map(Box::new), statements: stmts },
 }
 
 pub Statement: ast::Statement<parser::Context> = {
@@ -97,16 +97,16 @@ pub Statement: ast::Statement<parser::Context> = {
 }
 
 pub Select: ast::Select<parser::Context> = {
-    <lo:@L> <e:Expression> "." <f:Identifier> <hi:@R> =>
-        ast::Select { context: parser::Context::from_span(lo, hi), expression: Box::new(e), field: f },
+    <lo:@L> <r:Expression> "." <f:Identifier> <hi:@R> =>
+        ast::Select { context: parser::Context::new(ast::Kind::Select, lo, hi), record: Box::new(r), field: f },
 }
 
 pub Apply: ast::Apply<parser::Context> = {
     <lo:@L> <e:Expression> "(" <p:Comma<Expression>> ")" <hi:@R> =>
-        ast::Apply { context: parser::Context::from_span(lo, hi), function: Box::new(e), parameters: p },
+        ast::Apply { context: parser::Context::new(ast::Kind::Apply, lo, hi), function: Box::new(e), parameters: p },
 }
 
 pub Parameter: ast::Parameter<parser::Context> = {
     <lo:@L> <name:Identifier> <signature:(":" <Expression>)?> <hi:@R> =>
-        ast::Parameter { context: parser::Context::from_span(lo, hi), name, signature },
+        ast::Parameter { context: parser::Context::new(ast::Kind::Parameter, lo, hi), name, signature },
 }

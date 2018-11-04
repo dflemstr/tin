@@ -56,16 +56,25 @@
     unused_import_braces,
     unused_qualifications
 )]
-#![cfg_attr(feature = "cargo-clippy", deny(clippy::all, clippy::pedantic))]
+#![cfg_attr(
+    feature = "cargo-clippy",
+    deny(clippy::all, clippy::pedantic)
+)]
 
 extern crate cranelift;
 extern crate cranelift_module;
 extern crate cranelift_simplejit;
 #[macro_use]
-extern crate lalrpop_util;
-#[macro_use]
 extern crate failure;
 extern crate itertools;
+#[macro_use]
+extern crate lalrpop_util;
+extern crate specs;
+#[macro_use]
+extern crate specs_derive;
+extern crate specs_visitor;
+#[macro_use]
+extern crate specs_visitor_derive;
 
 pub mod ast;
 pub mod error;

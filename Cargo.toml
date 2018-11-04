@@ -4,13 +4,25 @@ version = "0.1.0"
 authors = ["David Flemström <david.flemstrom@gmail.com>"]
 
 [build-dependencies]
-lalrpop = "0.16.0"
+lalrpop = "0.16.1"
 
 [dependencies]
-lalrpop-util = "0.16.0"
+lalrpop-util = "0.16.1"
 regex = "1.0.5"
 failure = "0.1.3"
 itertools = "0.7.8"
 cranelift = "0.22.0"
 cranelift-module = "0.22.0"
 cranelift-simplejit = "0.22.0"
+specs = "0.14.0"
+specs-derive = "0.3.0"
+specs-visitor = { path = "specs-visitor" }
+specs-visitor-derive = { path = "specs-visitor-derive" }
+
+[profile.release]
+debug = true
+lto = true
+codegen-units = 1
+
+[workspace]
+members = ["norm-parser-fuzz-target", "specs-visitor", "specs-visitor-derive"]
