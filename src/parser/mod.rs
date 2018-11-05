@@ -223,11 +223,15 @@ where
 
 #[cfg(test)]
 mod tests {
+    use env_logger;
+
     use super::norm;
     use ast;
 
     #[test]
     fn e2e() {
+        let _ = env_logger::try_init();
+
         let actual = norm::ModuleParser::new().parse(
             r#"
 /* A record describing a person */
@@ -250,6 +254,8 @@ main = || {
 
     #[test]
     fn identifier() {
+        let _ = env_logger::try_init();
+
         let expected = Ok(ast::Identifier {
             context: (),
             value: "whatever".to_owned(),
@@ -262,6 +268,8 @@ main = || {
 
     #[test]
     fn identifier_unicode() {
+        let _ = env_logger::try_init();
+
         let expected = Ok(ast::Identifier {
             context: (),
             value: "なんでも".to_owned(),
@@ -274,6 +282,8 @@ main = || {
 
     #[test]
     fn number() {
+        let _ = env_logger::try_init();
+
         let expected = Ok(ast::Expression::Number(ast::NumberLiteral {
             context: (),
             value: 1.0,
@@ -286,6 +296,8 @@ main = || {
 
     #[test]
     fn number_negative() {
+        let _ = env_logger::try_init();
+
         let expected = Ok(ast::Expression::Number(ast::NumberLiteral {
             context: (),
             value: -1.0,
@@ -298,6 +310,8 @@ main = || {
 
     #[test]
     fn number_zero() {
+        let _ = env_logger::try_init();
+
         let expected = Ok(ast::Expression::Number(ast::NumberLiteral {
             context: (),
             value: 0.0,
@@ -310,6 +324,8 @@ main = || {
 
     #[test]
     fn number_zero_negative() {
+        let _ = env_logger::try_init();
+
         let expected = Ok(ast::Expression::Number(ast::NumberLiteral {
             context: (),
             value: -0.0,
@@ -322,6 +338,8 @@ main = || {
 
     #[test]
     fn number_fraction() {
+        let _ = env_logger::try_init();
+
         let expected = Ok(ast::Expression::Number(ast::NumberLiteral {
             context: (),
             value: 1.5,
@@ -334,6 +352,8 @@ main = || {
 
     #[test]
     fn number_fraction_negative() {
+        let _ = env_logger::try_init();
+
         let expected = Ok(ast::Expression::Number(ast::NumberLiteral {
             context: (),
             value: -1.5,
@@ -346,6 +366,8 @@ main = || {
 
     #[test]
     fn number_scientific() {
+        let _ = env_logger::try_init();
+
         let expected = Ok(ast::Expression::Number(ast::NumberLiteral {
             context: (),
             value: 1500.0,
@@ -358,6 +380,8 @@ main = || {
 
     #[test]
     fn number_scientific_negative() {
+        let _ = env_logger::try_init();
+
         let expected = Ok(ast::Expression::Number(ast::NumberLiteral {
             context: (),
             value: -1500.0,
@@ -370,6 +394,8 @@ main = || {
 
     #[test]
     fn number_scientific_uppercase() {
+        let _ = env_logger::try_init();
+
         let expected = Ok(ast::Expression::Number(ast::NumberLiteral {
             context: (),
             value: 1500.0,
@@ -382,6 +408,8 @@ main = || {
 
     #[test]
     fn number_scientific_uppercase_negative() {
+        let _ = env_logger::try_init();
+
         let expected = Ok(ast::Expression::Number(ast::NumberLiteral {
             context: (),
             value: -1500.0,
@@ -394,6 +422,8 @@ main = || {
 
     #[test]
     fn number_scientific_small() {
+        let _ = env_logger::try_init();
+
         let expected = Ok(ast::Expression::Number(ast::NumberLiteral {
             context: (),
             value: 0.0015,
@@ -406,6 +436,8 @@ main = || {
 
     #[test]
     fn number_scientific_padded_exponent() {
+        let _ = env_logger::try_init();
+
         let expected = Ok(ast::Expression::Number(ast::NumberLiteral {
             context: (),
             value: 1500.0,
@@ -418,6 +450,8 @@ main = || {
 
     #[test]
     fn number_scientific_explicit() {
+        let _ = env_logger::try_init();
+
         let expected = Ok(ast::Expression::Number(ast::NumberLiteral {
             context: (),
             value: 1500.0,
@@ -430,6 +464,8 @@ main = || {
 
     #[test]
     fn number_scientific_zero_exponent() {
+        let _ = env_logger::try_init();
+
         let expected = Ok(ast::Expression::Number(ast::NumberLiteral {
             context: (),
             value: 1.5,
@@ -442,6 +478,8 @@ main = || {
 
     #[test]
     fn number_scientific_explicit_zero_exponent() {
+        let _ = env_logger::try_init();
+
         let expected = Ok(ast::Expression::Number(ast::NumberLiteral {
             context: (),
             value: 1.5,
@@ -454,6 +492,8 @@ main = || {
 
     #[test]
     fn string() {
+        let _ = env_logger::try_init();
+
         let expected = Ok(ast::StringLiteral {
             context: (),
             value: "abc".to_owned(),
@@ -466,6 +506,8 @@ main = || {
 
     #[test]
     fn string_unicode() {
+        let _ = env_logger::try_init();
+
         let expected = Ok(ast::StringLiteral {
             context: (),
             value: "なんでも".to_owned(),
@@ -478,6 +520,8 @@ main = || {
 
     #[test]
     fn string_escape() {
+        let _ = env_logger::try_init();
+
         let expected = Ok(ast::StringLiteral {
             context: (),
             value: "\"\\/\u{0008}\u{000C}\n\r\t\u{1234}".to_owned(),
@@ -490,6 +534,8 @@ main = || {
 
     #[test]
     fn tuple() {
+        let _ = env_logger::try_init();
+
         let expected = Ok(ast::Tuple {
             context: (),
             fields: vec![
@@ -511,6 +557,8 @@ main = || {
 
     #[test]
     fn tuple_trailing_comma() {
+        let _ = env_logger::try_init();
+
         let expected = Ok(ast::Tuple {
             context: (),
             fields: vec![
@@ -532,6 +580,8 @@ main = || {
 
     #[test]
     fn tuple_single() {
+        let _ = env_logger::try_init();
+
         let expected = Ok(ast::Tuple {
             context: (),
             fields: vec![ast::Expression::Number(ast::NumberLiteral {
@@ -547,6 +597,8 @@ main = || {
 
     #[test]
     fn tuple_single_trailing_comma() {
+        let _ = env_logger::try_init();
+
         let expected = Ok(ast::Tuple {
             context: (),
             fields: vec![ast::Expression::Number(ast::NumberLiteral {
@@ -562,6 +614,8 @@ main = || {
 
     #[test]
     fn tuple_empty() {
+        let _ = env_logger::try_init();
+
         let expected = Ok(ast::Tuple {
             context: (),
             fields: vec![],
@@ -574,6 +628,8 @@ main = || {
 
     #[test]
     fn tuple_empty_no_comma() {
+        let _ = env_logger::try_init();
+
         let actual = norm::TupleParser::new()
             .parse(r#"(,)"#)
             .map(|r| r.map_context(&mut |_| ()));
@@ -582,6 +638,8 @@ main = || {
 
     #[test]
     fn record() {
+        let _ = env_logger::try_init();
+
         let expected = Ok(ast::Record {
             context: (),
             fields: vec![
@@ -616,6 +674,8 @@ main = || {
 
     #[test]
     fn record_trailing_comma() {
+        let _ = env_logger::try_init();
+
         let expected = Ok(ast::Record {
             context: (),
             fields: vec![
@@ -650,6 +710,8 @@ main = || {
 
     #[test]
     fn record_single() {
+        let _ = env_logger::try_init();
+
         let expected = Ok(ast::Record {
             context: (),
             fields: vec![(
@@ -672,6 +734,8 @@ main = || {
 
     #[test]
     fn record_single_trailing_comma() {
+        let _ = env_logger::try_init();
+
         let expected = Ok(ast::Record {
             context: (),
             fields: vec![(
@@ -694,6 +758,8 @@ main = || {
 
     #[test]
     fn record_empty() {
+        let _ = env_logger::try_init();
+
         let expected = Ok(ast::Record {
             context: (),
             fields: vec![].into_iter().collect(),
@@ -706,6 +772,8 @@ main = || {
 
     #[test]
     fn record_empty_no_trailing_comma() {
+        let _ = env_logger::try_init();
+
         let actual = norm::RecordParser::new()
             .parse(r#"{,}"#)
             .map(|r| r.map_context(&mut |_| ()));
@@ -714,6 +782,8 @@ main = || {
 
     #[test]
     fn lambda() {
+        let _ = env_logger::try_init();
+
         let expected = Ok(ast::Lambda {
             context: (),
             parameters: vec![
@@ -757,6 +827,8 @@ main = || {
 
     #[test]
     fn lambda_with_definition() {
+        let _ = env_logger::try_init();
+
         let expected = Ok(ast::Lambda {
             context: (),
             parameters: vec![
@@ -831,6 +903,8 @@ main = || {
 
     #[test]
     fn lambda_with_definition_comment() {
+        let _ = env_logger::try_init();
+
         let expected = Ok(ast::Lambda {
             context: (),
             parameters: vec![
@@ -906,6 +980,8 @@ main = || {
 
     #[test]
     fn lambda_signature() {
+        let _ = env_logger::try_init();
+
         let expected = Ok(ast::Lambda {
             context: (),
             parameters: vec![
@@ -955,6 +1031,8 @@ main = || {
 
     #[test]
     fn lambda_many_statements() {
+        let _ = env_logger::try_init();
+
         let expected = Ok(ast::Lambda {
             context: (),
             parameters: vec![
@@ -1009,6 +1087,8 @@ main = || {
 
     #[test]
     fn apply() {
+        let _ = env_logger::try_init();
+
         let expected = Ok(ast::Apply {
             context: (),
             function: Box::new(ast::Expression::Identifier(ast::Identifier {

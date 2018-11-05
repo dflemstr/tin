@@ -1,9 +1,10 @@
 //! Abstract syntax tree definitions for Norm.
+use std::fmt;
 
 pub mod visitor;
 
 /// A Norm AST node.
-pub trait AstNode<C>: Sized {
+pub trait AstNode<C>: fmt::Debug + Sized {
     /// Returns a reference to the context of this node.
     fn context(&self) -> &C;
 
@@ -192,7 +193,10 @@ impl<C> Module<C> {
     }
 }
 
-impl<C> AstNode<C> for Module<C> {
+impl<C> AstNode<C> for Module<C>
+where
+    C: fmt::Debug,
+{
     fn context(&self) -> &C {
         &self.context
     }
@@ -205,19 +209,20 @@ impl<C> AstNode<C> for Module<C> {
     where
         V: visitor::Visitor<C>,
     {
+        trace!("begin visiting {:?}", self);
         visitor.visit_before_module(self);
         visitor.visit_context(&self.context);
         for (ident, val) in &self.definitions {
-            visitor.define_ident(ident, &val.context());
+            visitor.visit_definition(ident, &val.context());
         }
 
         for (ident, val) in &self.definitions {
-            ident.visit(visitor);
             visitor.push_definition(ident);
             val.visit(visitor);
             visitor.pop_definition();
         }
         visitor.visit_after_module(self);
+        trace!("end visiting {:?}", self);
     }
 }
 
@@ -234,7 +239,10 @@ impl<C> Identifier<C> {
     }
 }
 
-impl<C> AstNode<C> for Identifier<C> {
+impl<C> AstNode<C> for Identifier<C>
+where
+    C: fmt::Debug,
+{
     fn context(&self) -> &C {
         &self.context
     }
@@ -247,9 +255,11 @@ impl<C> AstNode<C> for Identifier<C> {
     where
         V: visitor::Visitor<C>,
     {
+        trace!("begin visiting {:?}", self);
         visitor.visit_before_identifier(self);
         visitor.visit_context(&self.context);
         visitor.visit_after_identifier(self);
+        trace!("end visiting {:?}", self);
     }
 }
 
@@ -272,7 +282,10 @@ impl<C> Expression<C> {
     }
 }
 
-impl<C> AstNode<C> for Expression<C> {
+impl<C> AstNode<C> for Expression<C>
+where
+    C: fmt::Debug,
+{
     fn context(&self) -> &C {
         match *self {
             Expression::Number(ref v) => v.context(),
@@ -303,6 +316,7 @@ impl<C> AstNode<C> for Expression<C> {
     where
         V: visitor::Visitor<C>,
     {
+        trace!("begin visiting {:?}", self);
         visitor.visit_before_expression(self);
         match *self {
             Expression::Number(ref number) => {
@@ -319,7 +333,6 @@ impl<C> AstNode<C> for Expression<C> {
             }
             Expression::Identifier(ref ident) => {
                 ident.visit(visitor);
-                visitor.reference_ident(ident);
             }
             Expression::Lambda(ref lambda) => {
                 lambda.visit(visitor);
@@ -332,6 +345,7 @@ impl<C> AstNode<C> for Expression<C> {
             }
         }
         visitor.visit_after_expression(self);
+        trace!("end visiting {:?}", self);
     }
 }
 
@@ -347,7 +361,10 @@ impl<C> NumberLiteral<C> {
     }
 }
 
-impl<C> AstNode<C> for NumberLiteral<C> {
+impl<C> AstNode<C> for NumberLiteral<C>
+where
+    C: fmt::Debug,
+{
     fn context(&self) -> &C {
         &self.context
     }
@@ -360,9 +377,11 @@ impl<C> AstNode<C> for NumberLiteral<C> {
     where
         V: visitor::Visitor<C>,
     {
+        trace!("begin visiting {:?}", self);
         visitor.visit_before_number(self);
         visitor.visit_context(&self.context);
         visitor.visit_after_number(self);
+        trace!("end visiting {:?}", self);
     }
 }
 
@@ -378,7 +397,10 @@ impl<C> StringLiteral<C> {
     }
 }
 
-impl<C> AstNode<C> for StringLiteral<C> {
+impl<C> AstNode<C> for StringLiteral<C>
+where
+    C: fmt::Debug,
+{
     fn context(&self) -> &C {
         &self.context
     }
@@ -391,9 +413,11 @@ impl<C> AstNode<C> for StringLiteral<C> {
     where
         V: visitor::Visitor<C>,
     {
+        trace!("begin visiting {:?}", self);
         visitor.visit_before_string(self);
         visitor.visit_context(&self.context);
         visitor.visit_after_string(self);
+        trace!("end visiting {:?}", self);
     }
 }
 
@@ -413,7 +437,10 @@ impl<C> Tuple<C> {
     }
 }
 
-impl<C> AstNode<C> for Tuple<C> {
+impl<C> AstNode<C> for Tuple<C>
+where
+    C: fmt::Debug,
+{
     fn context(&self) -> &C {
         &self.context
     }
@@ -426,12 +453,14 @@ impl<C> AstNode<C> for Tuple<C> {
     where
         V: visitor::Visitor<C>,
     {
+        trace!("begin visiting {:?}", self);
         visitor.visit_before_tuple(self);
         visitor.visit_context(&self.context);
         for field in &self.fields {
             field.visit(visitor);
         }
         visitor.visit_after_tuple(self);
+        trace!("end visiting {:?}", self);
     }
 }
 
@@ -451,7 +480,10 @@ impl<C> Record<C> {
     }
 }
 
-impl<C> AstNode<C> for Record<C> {
+impl<C> AstNode<C> for Record<C>
+where
+    C: fmt::Debug,
+{
     fn context(&self) -> &C {
         &self.context
     }
@@ -464,6 +496,7 @@ impl<C> AstNode<C> for Record<C> {
     where
         V: visitor::Visitor<C>,
     {
+        trace!("begin visiting {:?}", self);
         visitor.visit_before_record(self);
         visitor.visit_context(&self.context);
         for (key, val) in &self.fields {
@@ -471,6 +504,7 @@ impl<C> AstNode<C> for Record<C> {
             val.visit(visitor);
         }
         visitor.visit_after_record(self);
+        trace!("end visiting {:?}", self);
     }
 }
 
@@ -501,7 +535,10 @@ impl<C> Lambda<C> {
     }
 }
 
-impl<C> AstNode<C> for Lambda<C> {
+impl<C> AstNode<C> for Lambda<C>
+where
+    C: fmt::Debug,
+{
     fn context(&self) -> &C {
         &self.context
     }
@@ -514,18 +551,22 @@ impl<C> AstNode<C> for Lambda<C> {
     where
         V: visitor::Visitor<C>,
     {
+        trace!("begin visiting {:?}", self);
         visitor.visit_before_lambda(self);
         visitor.visit_context(&self.context);
+        if let Some(ref signature) = self.signature {
+            signature.visit(visitor);
+        }
         visitor.push_scope();
         for param in &self.parameters {
             param.visit(visitor);
-            visitor.define_ident(&param.name, &param.context);
         }
         for statement in &self.statements {
             statement.visit(visitor);
         }
         visitor.pop_scope();
         visitor.visit_after_lambda(self);
+        trace!("end visiting {:?}", self);
     }
 }
 
@@ -544,7 +585,10 @@ impl<C> Statement<C> {
     }
 }
 
-impl<C> AstNode<C> for Statement<C> {
+impl<C> AstNode<C> for Statement<C>
+where
+    C: fmt::Debug,
+{
     fn context(&self) -> &C {
         match *self {
             Statement::Definition(_, ref v) => v.context(),
@@ -563,11 +607,11 @@ impl<C> AstNode<C> for Statement<C> {
     where
         V: visitor::Visitor<C>,
     {
+        trace!("begin visiting {:?}", self);
         visitor.visit_before_statement(self);
         match *self {
             Statement::Definition(ref ident, ref expr) => {
-                visitor.define_ident(ident, expr.context());
-                ident.visit(visitor);
+                visitor.visit_definition(ident, expr.context());
                 visitor.push_definition(ident);
                 expr.visit(visitor);
                 visitor.pop_definition();
@@ -577,6 +621,7 @@ impl<C> AstNode<C> for Statement<C> {
             }
         }
         visitor.visit_after_statement(self);
+        trace!("end visiting {:?}", self);
     }
 }
 
@@ -597,7 +642,10 @@ impl<C> Select<C> {
     }
 }
 
-impl<C> AstNode<C> for Select<C> {
+impl<C> AstNode<C> for Select<C>
+where
+    C: fmt::Debug,
+{
     fn context(&self) -> &C {
         &self.context
     }
@@ -610,11 +658,13 @@ impl<C> AstNode<C> for Select<C> {
     where
         V: visitor::Visitor<C>,
     {
+        trace!("begin visiting {:?}", self);
         visitor.visit_before_select(self);
         visitor.visit_context(&self.context);
         self.record.visit(visitor);
         self.field.visit(visitor);
         visitor.visit_after_select(self);
+        trace!("end visiting {:?}", self);
     }
 }
 
@@ -639,7 +689,10 @@ impl<C> Apply<C> {
     }
 }
 
-impl<C> AstNode<C> for Apply<C> {
+impl<C> AstNode<C> for Apply<C>
+where
+    C: fmt::Debug,
+{
     fn context(&self) -> &C {
         &self.context
     }
@@ -652,6 +705,7 @@ impl<C> AstNode<C> for Apply<C> {
     where
         V: visitor::Visitor<C>,
     {
+        trace!("begin visiting {:?}", self);
         visitor.visit_before_apply(self);
         visitor.visit_context(&self.context);
         self.function.visit(visitor);
@@ -660,6 +714,7 @@ impl<C> AstNode<C> for Apply<C> {
             parameter.visit(visitor);
         }
         visitor.visit_after_apply(self);
+        trace!("end visiting {:?}", self);
     }
 }
 
@@ -680,7 +735,10 @@ impl<C> Parameter<C> {
     }
 }
 
-impl<C> AstNode<C> for Parameter<C> {
+impl<C> AstNode<C> for Parameter<C>
+where
+    C: fmt::Debug,
+{
     fn context(&self) -> &C {
         &self.context
     }
@@ -693,12 +751,14 @@ impl<C> AstNode<C> for Parameter<C> {
     where
         V: visitor::Visitor<C>,
     {
+        trace!("begin visiting {:?}", self);
         visitor.visit_before_parameter(self);
         visitor.visit_context(&self.context);
-        self.name.visit(visitor);
+        visitor.visit_definition(&self.name, &self.context);
         if let Some(ref signature) = self.signature {
             signature.visit(visitor);
         }
         visitor.visit_after_parameter(self);
+        trace!("end visiting {:?}", self);
     }
 }

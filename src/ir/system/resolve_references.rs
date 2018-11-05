@@ -46,29 +46,31 @@ impl<'a> ResolveReferencesAstVisitor<'a> {
 }
 
 impl<'a> ast::visitor::Visitor<ir::AstContext> for ResolveReferencesAstVisitor<'a> {
-    fn define_ident(
+    fn visit_definition(
         &mut self,
         ident: &ast::Identifier<ir::AstContext>,
         value_context: &ir::AstContext,
     ) {
+        trace!("defining {:?} as {:?}", ident.value, value_context.entity);
         self.scope.insert(ident.value.clone(), value_context.entity);
     }
 
-    fn reference_ident(&mut self, ident: &ast::Identifier<ir::AstContext>) {
+    fn visit_after_identifier(&mut self, ident: &ast::Identifier<ir::AstContext>) {
+        trace!("trying to resolve ident {:?}", ident.value);
         if let Some(entity) = self.scope.get(&ident.value) {
             let from = ident.context.entity;
             let to = *entity;
-            println!("Replacing entity from {:?} to {:?}", from, to);
+            trace!("replacing entity from {:?} to {:?}", from, to);
             self.storage.insert(from, replacement::Replacement { to });
         } else {
-            println!("Unresolved reference: {}", ident.value);
+            panic!("unresolved reference: {}", ident.value);
         }
     }
 
     fn push_scope(&mut self) {
         let scope = self.scope.clone();
         self.stack.push(scope);
-        println!("push scope");
+        trace!("push scope");
     }
 
     fn pop_scope(&mut self) {
@@ -76,6 +78,6 @@ impl<'a> ast::visitor::Visitor<ir::AstContext> for ResolveReferencesAstVisitor<'
             .stack
             .pop()
             .expect("more pop_scope() than push_scope() calls");
-        println!("pop scope");
+        trace!("pop scope");
     }
 }

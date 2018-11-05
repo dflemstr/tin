@@ -43,38 +43,40 @@ impl<'a> ast::visitor::Visitor<ir::AstContext> for AssignElementAstVisitor<'a> {
             .iter()
             .map(|(i, v)| (i.value.clone(), v.context().entity))
             .collect();
-        self.storage.insert(
-            module.context.entity,
-            element::Element::Module { definitions },
-        );
+        let element = element::Element::Module { definitions };
+
+        trace!("AST node {:?} is element {:?}", module, element);
+        self.storage.insert(module.context.entity, element);
     }
 
     fn visit_after_identifier(&mut self, identifier: &ast::Identifier<ir::AstContext>) {
-        self.storage.insert(
-            identifier.context.entity,
-            element::Element::Reference(identifier.value.clone()),
-        );
+        let element = element::Element::Reference(identifier.value.clone());
+
+        trace!("AST node {:?} is element {:?}", identifier, element);
+        self.storage.insert(identifier.context.entity, element);
     }
 
     fn visit_after_number(&mut self, number: &ast::NumberLiteral<ir::AstContext>) {
-        self.storage.insert(
-            number.context.entity,
-            element::Element::Number(number.value),
-        );
+        let element = element::Element::Number(number.value);
+
+        trace!("AST node {:?} is element {:?}", number, element);
+        self.storage.insert(number.context.entity, element);
     }
 
     fn visit_after_string(&mut self, string: &ast::StringLiteral<ir::AstContext>) {
-        self.storage.insert(
-            string.context.entity,
-            element::Element::String(string.value.clone()),
-        );
+        let element = element::Element::String(string.value.clone());
+
+        trace!("AST node {:?} is element {:?}", string, element);
+        self.storage.insert(string.context.entity, element);
     }
 
     fn visit_after_tuple(&mut self, tuple: &ast::Tuple<ir::AstContext>) {
         use ast::AstNode;
         let fields = tuple.fields.iter().map(|f| f.context().entity).collect();
-        self.storage
-            .insert(tuple.context.entity, element::Element::Tuple { fields });
+        let element = element::Element::Tuple { fields };
+
+        trace!("AST node {:?} is element {:?}", tuple, element);
+        self.storage.insert(tuple.context.entity, element);
     }
 
     fn visit_after_record(&mut self, record: &ast::Record<ir::AstContext>) {
@@ -84,8 +86,10 @@ impl<'a> ast::visitor::Visitor<ir::AstContext> for AssignElementAstVisitor<'a> {
             .iter()
             .map(|(i, e)| (i.value.clone(), e.context().entity))
             .collect();
-        self.storage
-            .insert(record.context.entity, element::Element::Record { fields });
+        let element = element::Element::Record { fields };
+
+        trace!("AST node {:?} is element {:?}", record, element);
+        self.storage.insert(record.context.entity, element);
     }
 
     fn visit_after_lambda(&mut self, lambda: &ast::Lambda<ir::AstContext>) {
@@ -99,16 +103,15 @@ impl<'a> ast::visitor::Visitor<ir::AstContext> for AssignElementAstVisitor<'a> {
             .map(|p| p.context().entity)
             .collect();
         let signature = lambda.signature.as_ref().map(|s| s.context().entity);
+        let element = element::Element::Closure {
+            captures,
+            parameters,
+            statements,
+            signature,
+        };
 
-        self.storage.insert(
-            lambda.context.entity,
-            element::Element::Closure {
-                captures,
-                parameters,
-                statements,
-                signature,
-            },
-        );
+        trace!("AST node {:?} is element {:?}", lambda, element);
+        self.storage.insert(lambda.context.entity, element);
     }
 
     fn visit_after_select(&mut self, select: &ast::Select<ir::AstContext>) {
@@ -116,11 +119,10 @@ impl<'a> ast::visitor::Visitor<ir::AstContext> for AssignElementAstVisitor<'a> {
 
         let record = select.record.context().entity;
         let field = select.field.value.clone();
+        let element = element::Element::Select { record, field };
 
-        self.storage.insert(
-            select.context.entity,
-            element::Element::Select { record, field },
-        );
+        trace!("AST node {:?} is element {:?}", select, element);
+        self.storage.insert(select.context.entity, element);
     }
 
     fn visit_after_apply(&mut self, apply: &ast::Apply<ir::AstContext>) {
@@ -132,24 +134,22 @@ impl<'a> ast::visitor::Visitor<ir::AstContext> for AssignElementAstVisitor<'a> {
             .iter()
             .map(|p| p.context().entity)
             .collect();
+        let element = element::Element::Apply {
+            function,
+            parameters,
+        };
 
-        self.storage.insert(
-            apply.context.entity,
-            element::Element::Apply {
-                function,
-                parameters,
-            },
-        );
+        trace!("AST node {:?} is element {:?}", apply, element);
+        self.storage.insert(apply.context.entity, element);
     }
 
     fn visit_after_parameter(&mut self, parameter: &ast::Parameter<ir::AstContext>) {
         use ast::AstNode;
         let name = parameter.name.value.clone();
         let signature = parameter.signature.as_ref().map(|s| s.context().entity);
+        let element = element::Element::Parameter { name, signature };
 
-        self.storage.insert(
-            parameter.context.entity,
-            element::Element::Parameter { name, signature },
-        );
+        trace!("AST node {:?} is element {:?}", parameter, element);
+        self.storage.insert(parameter.context.entity, element);
     }
 }

@@ -11,9 +11,7 @@ pub trait Visitor<C> {
     fn visit_after_module(&mut self, _module: &super::Module<C>) {}
 
     /// Called when an identifier is about to be defined.
-    fn define_ident(&mut self, _ident: &super::Identifier<C>, _value_context: &C) {}
-    /// Called when an identifier was referenced.
-    fn reference_ident(&mut self, _ident: &super::Identifier<C>) {}
+    fn visit_definition(&mut self, _ident: &super::Identifier<C>, _value_context: &C) {}
 
     /// Called before visiting an identifier.
     fn visit_before_identifier(&mut self, _identifier: &super::Identifier<C>) {}

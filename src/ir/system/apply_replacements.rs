@@ -21,7 +21,14 @@ impl<'a> specs::System<'a> for ApplyReplacementsSystem {
 
     fn run(&mut self, (entities, replacements, mut elements): Self::SystemData) {
         use specs::prelude::ParallelIterator;
+        use specs::Join;
         use specs::ParJoin;
+
+        (&entities, &replacements)
+            .par_join()
+            .for_each(|(entity, _)| {
+                entities.delete(entity);
+            });
 
         let replacements = (&entities, &replacements)
             .par_join()
@@ -33,14 +40,14 @@ impl<'a> specs::System<'a> for ApplyReplacementsSystem {
         (&mut elements).par_join().for_each(|element| {
             use specs_visitor::VisitEntities;
             element.accept_mut(&visitor);
-        })
+        });
     }
 }
 
 impl specs_visitor::EntityVisitorMut for ReplacementEntityVisitor {
     fn visit_entity_mut(&self, from: &mut specs::Entity) {
         if let Some(to) = self.replacements.get(from) {
-            println!("Applying replacement from {:?} to {:?}", from, to);
+            trace!("applying replacement from {:?} to {:?}", from, to);
             *from = *to;
         }
     }
