@@ -39,7 +39,7 @@ extern crate specs_visitor_derive;
 
 pub mod ast;
 pub mod error;
-mod ir;
+pub mod ir;
 pub mod parser;
 
 pub use error::Error;

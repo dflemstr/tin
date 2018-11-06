@@ -63,6 +63,7 @@ where
             ref name,
             signature,
         } => infer_parameter_type(name, signature, types),
+        element::Element::Capture { name: _, captured } => infer_capture_type(captured, types),
         element::Element::Closure {
             ref captures,
             ref parameters,
@@ -204,6 +205,16 @@ where
         // TODO: implement surjective type inference
         None
     }
+}
+
+fn infer_capture_type<D>(
+    capture: specs::Entity,
+    types: &specs::Storage<ty::Type, D>,
+) -> Option<ty::Type>
+where
+    D: ops::Deref<Target = specs::storage::MaskedStorage<ty::Type>>,
+{
+    types.get(capture).cloned()
 }
 
 fn infer_closure_type<D>(

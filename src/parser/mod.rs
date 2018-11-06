@@ -227,6 +227,7 @@ mod tests {
 
     use super::norm;
     use ast;
+    use ast::MapContext;
 
     #[test]
     fn e2e() {

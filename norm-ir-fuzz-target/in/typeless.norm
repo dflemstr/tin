@@ -1,0 +1,6 @@
+Int = 0;
+pickFirst = |a, b| {
+  capture = |x| { a };
+  capture(b)
+};
+main = || { pickFirst(1, 2) };

@@ -128,6 +128,14 @@ impl<'a> dot::GraphWalk<'a, Node, Edge<'a>> for Graph<'a> {
                             });
                         }
                     }
+                    element::Element::Capture {
+                        ref name,
+                        captured
+                    } => result.push(Edge {
+                        source: entity,
+                        target: *captured,
+                        label: Label::ClosureCapture(name),
+                    }),
                     element::Element::Closure {
                         captures,
                         parameters,
@@ -226,6 +234,9 @@ impl<'a> dot::Labeller<'a, Node, Edge<'a>> for Graph<'a> {
                 } => write!(result, "apply <br/> <b>{:?}</b> params", parameters.len()).unwrap(),
                 element::Element::Parameter { name, signature } => {
                     write!(result, "param <b>{:?}</b>", name).unwrap()
+                }
+                element::Element::Capture { name, captured } => {
+                    write!(result, "capture <b>{:?}</b>", name).unwrap()
                 }
                 element::Element::Closure {
                     captures,

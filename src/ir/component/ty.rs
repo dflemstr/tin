@@ -5,7 +5,7 @@ use specs;
 use specs::Component;
 use specs::VecStorage;
 
-#[derive(Component, Clone, Debug, Eq, PartialEq)]
+#[derive(Component, Clone, Debug, Eq, PartialEq, VisitEntities)]
 #[storage(VecStorage)]
 pub enum Type {
     Number,
@@ -14,26 +14,26 @@ pub enum Type {
     Record(Record),
     Function(Function),
     Conflict(Conflict),
-    Any
+    Any,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, VisitEntities)]
 pub struct Tuple {
     pub fields: Vec<Type>,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, VisitEntities)]
 pub struct Record {
     pub fields: collections::HashMap<String, Type>,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, VisitEntities)]
 pub struct Function {
     pub parameters: Vec<Type>,
     pub result: Box<Type>,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, VisitEntities)]
 pub struct Conflict {
     pub expected: Box<Type>,
     pub actual: Box<Type>,

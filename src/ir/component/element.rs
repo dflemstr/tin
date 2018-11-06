@@ -29,6 +29,10 @@ pub enum Element {
         name: String,
         signature: Option<specs::Entity>,
     },
+    Capture {
+        name: String,
+        captured: specs::Entity,
+    },
     Closure {
         captures: collections::HashMap<String, specs::Entity>,
         parameters: Vec<specs::Entity>,

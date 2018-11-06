@@ -1,8 +1,6 @@
 //! Abstract syntax tree definitions for Norm.
 use std::fmt;
 
-pub mod visitor;
-
 /// A Norm AST node.
 pub trait AstNode<C>: fmt::Debug + Sized {
     /// Returns a reference to the context of this node.
@@ -10,11 +8,20 @@ pub trait AstNode<C>: fmt::Debug + Sized {
 
     /// Returns a mutable reference to the context of this node.
     fn context_mut(&mut self) -> &mut C;
+}
 
-    /// Traverses this node and its children with the specified visitor.
-    fn visit<V>(&self, visitor: &mut V)
+/// A context mapping over some AST node.
+pub trait MapContext<C1, C2>: AstNode<C1> {
+    // This is really just a Functor in disguise, but I choose to specialize it for this specific
+    // use-case.
+
+    /// The output AST node of the mapping, with the new context.
+    type Output: AstNode<C2>;
+
+    /// Maps the context of this AST node to a new context of potentially a different type.
+    fn map_context<F>(self, mapping: &mut F) -> Self::Output
     where
-        V: visitor::Visitor<C>;
+        F: FnMut(C1) -> C2;
 }
 
 /// Identifies the kind of AST node.
@@ -173,11 +180,29 @@ pub struct Parameter<C> {
     pub signature: Option<Expression<C>>,
 }
 
-impl<C> Module<C> {
-    /// Transforms the AST context of this node and all its child nodes.
-    pub fn map_context<F, C2>(self, mapping: &mut F) -> Module<C2>
+impl<C> AstNode<C> for Module<C>
+where
+    C: fmt::Debug,
+{
+    fn context(&self) -> &C {
+        &self.context
+    }
+
+    fn context_mut(&mut self) -> &mut C {
+        &mut self.context
+    }
+}
+
+impl<C1, C2> MapContext<C1, C2> for Module<C1>
+where
+    C1: fmt::Debug,
+    C2: fmt::Debug,
+{
+    type Output = Module<C2>;
+
+    fn map_context<F>(self, mapping: &mut F) -> Self::Output
     where
-        F: FnMut(C) -> C2,
+        F: FnMut(C1) -> C2,
     {
         let context = mapping(self.context);
         let definitions = self
@@ -193,52 +218,6 @@ impl<C> Module<C> {
     }
 }
 
-impl<C> AstNode<C> for Module<C>
-where
-    C: fmt::Debug,
-{
-    fn context(&self) -> &C {
-        &self.context
-    }
-
-    fn context_mut(&mut self) -> &mut C {
-        &mut self.context
-    }
-
-    fn visit<V>(&self, visitor: &mut V)
-    where
-        V: visitor::Visitor<C>,
-    {
-        trace!("begin visiting {:?}", self);
-        visitor.visit_before_module(self);
-        visitor.visit_context(&self.context);
-        for (ident, val) in &self.definitions {
-            visitor.visit_definition(ident, &val.context());
-        }
-
-        for (ident, val) in &self.definitions {
-            visitor.push_definition(ident);
-            val.visit(visitor);
-            visitor.pop_definition();
-        }
-        visitor.visit_after_module(self);
-        trace!("end visiting {:?}", self);
-    }
-}
-
-impl<C> Identifier<C> {
-    /// Transforms the AST context of this node and all its child nodes.
-    pub fn map_context<F, C2>(self, mapping: &mut F) -> Identifier<C2>
-    where
-        F: FnMut(C) -> C2,
-    {
-        let context = mapping(self.context);
-        let value = self.value;
-
-        Identifier { context, value }
-    }
-}
-
 impl<C> AstNode<C> for Identifier<C>
 where
     C: fmt::Debug,
@@ -250,35 +229,23 @@ where
     fn context_mut(&mut self) -> &mut C {
         &mut self.context
     }
-
-    fn visit<V>(&self, visitor: &mut V)
-    where
-        V: visitor::Visitor<C>,
-    {
-        trace!("begin visiting {:?}", self);
-        visitor.visit_before_identifier(self);
-        visitor.visit_context(&self.context);
-        visitor.visit_after_identifier(self);
-        trace!("end visiting {:?}", self);
-    }
 }
 
-impl<C> Expression<C> {
-    /// Transforms the AST context of this node and all its child nodes.
-    pub fn map_context<F, C2>(self, mapping: &mut F) -> Expression<C2>
+impl<C1, C2> MapContext<C1, C2> for Identifier<C1>
+where
+    C1: fmt::Debug,
+    C2: fmt::Debug,
+{
+    type Output = Identifier<C2>;
+
+    fn map_context<F>(self, mapping: &mut F) -> Self::Output
     where
-        F: FnMut(C) -> C2,
+        F: FnMut(C1) -> C2,
     {
-        match self {
-            Expression::Number(e) => Expression::Number(e.map_context(mapping)),
-            Expression::String(e) => Expression::String(e.map_context(mapping)),
-            Expression::Tuple(e) => Expression::Tuple(e.map_context(mapping)),
-            Expression::Record(e) => Expression::Record(e.map_context(mapping)),
-            Expression::Identifier(e) => Expression::Identifier(e.map_context(mapping)),
-            Expression::Lambda(e) => Expression::Lambda(e.map_context(mapping)),
-            Expression::Select(e) => Expression::Select(e.map_context(mapping)),
-            Expression::Apply(e) => Expression::Apply(e.map_context(mapping)),
-        }
+        let context = mapping(self.context);
+        let value = self.value;
+
+        Identifier { context, value }
     }
 }
 
@@ -311,53 +278,29 @@ where
             Expression::Apply(ref mut v) => v.context_mut(),
         }
     }
-
-    fn visit<V>(&self, visitor: &mut V)
-    where
-        V: visitor::Visitor<C>,
-    {
-        trace!("begin visiting {:?}", self);
-        visitor.visit_before_expression(self);
-        match *self {
-            Expression::Number(ref number) => {
-                number.visit(visitor);
-            }
-            Expression::String(ref string) => {
-                string.visit(visitor);
-            }
-            Expression::Tuple(ref tuple) => {
-                tuple.visit(visitor);
-            }
-            Expression::Record(ref record) => {
-                record.visit(visitor);
-            }
-            Expression::Identifier(ref ident) => {
-                ident.visit(visitor);
-            }
-            Expression::Lambda(ref lambda) => {
-                lambda.visit(visitor);
-            }
-            Expression::Select(ref select) => {
-                select.visit(visitor);
-            }
-            Expression::Apply(ref apply) => {
-                apply.visit(visitor);
-            }
-        }
-        visitor.visit_after_expression(self);
-        trace!("end visiting {:?}", self);
-    }
 }
 
-impl<C> NumberLiteral<C> {
-    /// Transforms the AST context of this node and all its child nodes.
-    pub fn map_context<F, C2>(self, mapping: &mut F) -> NumberLiteral<C2>
+impl<C1, C2> MapContext<C1, C2> for Expression<C1>
+where
+    C1: fmt::Debug,
+    C2: fmt::Debug,
+{
+    type Output = Expression<C2>;
+
+    fn map_context<F>(self, mapping: &mut F) -> Self::Output
     where
-        F: FnMut(C) -> C2,
+        F: FnMut(C1) -> C2,
     {
-        let context = mapping(self.context);
-        let value = self.value;
-        NumberLiteral { context, value }
+        match self {
+            Expression::Number(e) => Expression::Number(e.map_context(mapping)),
+            Expression::String(e) => Expression::String(e.map_context(mapping)),
+            Expression::Tuple(e) => Expression::Tuple(e.map_context(mapping)),
+            Expression::Record(e) => Expression::Record(e.map_context(mapping)),
+            Expression::Identifier(e) => Expression::Identifier(e.map_context(mapping)),
+            Expression::Lambda(e) => Expression::Lambda(e.map_context(mapping)),
+            Expression::Select(e) => Expression::Select(e.map_context(mapping)),
+            Expression::Apply(e) => Expression::Apply(e.map_context(mapping)),
+        }
     }
 }
 
@@ -372,28 +315,22 @@ where
     fn context_mut(&mut self) -> &mut C {
         &mut self.context
     }
-
-    fn visit<V>(&self, visitor: &mut V)
-    where
-        V: visitor::Visitor<C>,
-    {
-        trace!("begin visiting {:?}", self);
-        visitor.visit_before_number(self);
-        visitor.visit_context(&self.context);
-        visitor.visit_after_number(self);
-        trace!("end visiting {:?}", self);
-    }
 }
 
-impl<C> StringLiteral<C> {
-    /// Transforms the AST context of this node and all its child nodes.
-    pub fn map_context<F, C2>(self, mapping: &mut F) -> StringLiteral<C2>
+impl<C1, C2> MapContext<C1, C2> for NumberLiteral<C1>
+where
+    C1: fmt::Debug,
+    C2: fmt::Debug,
+{
+    type Output = NumberLiteral<C2>;
+
+    fn map_context<F>(self, mapping: &mut F) -> Self::Output
     where
-        F: FnMut(C) -> C2,
+        F: FnMut(C1) -> C2,
     {
         let context = mapping(self.context);
         let value = self.value;
-        StringLiteral { context, value }
+        NumberLiteral { context, value }
     }
 }
 
@@ -408,32 +345,22 @@ where
     fn context_mut(&mut self) -> &mut C {
         &mut self.context
     }
-
-    fn visit<V>(&self, visitor: &mut V)
-    where
-        V: visitor::Visitor<C>,
-    {
-        trace!("begin visiting {:?}", self);
-        visitor.visit_before_string(self);
-        visitor.visit_context(&self.context);
-        visitor.visit_after_string(self);
-        trace!("end visiting {:?}", self);
-    }
 }
 
-impl<C> Tuple<C> {
-    /// Transforms the AST context of this node and all its child nodes.
-    pub fn map_context<F, C2>(self, mapping: &mut F) -> Tuple<C2>
+impl<C1, C2> MapContext<C1, C2> for StringLiteral<C1>
+where
+    C1: fmt::Debug,
+    C2: fmt::Debug,
+{
+    type Output = StringLiteral<C2>;
+
+    fn map_context<F>(self, mapping: &mut F) -> Self::Output
     where
-        F: FnMut(C) -> C2,
+        F: FnMut(C1) -> C2,
     {
         let context = mapping(self.context);
-        let fields = self
-            .fields
-            .into_iter()
-            .map(|f| f.map_context(mapping))
-            .collect();
-        Tuple { context, fields }
+        let value = self.value;
+        StringLiteral { context, value }
     }
 }
 
@@ -448,35 +375,26 @@ where
     fn context_mut(&mut self) -> &mut C {
         &mut self.context
     }
-
-    fn visit<V>(&self, visitor: &mut V)
-    where
-        V: visitor::Visitor<C>,
-    {
-        trace!("begin visiting {:?}", self);
-        visitor.visit_before_tuple(self);
-        visitor.visit_context(&self.context);
-        for field in &self.fields {
-            field.visit(visitor);
-        }
-        visitor.visit_after_tuple(self);
-        trace!("end visiting {:?}", self);
-    }
 }
 
-impl<C> Record<C> {
-    /// Transforms the AST context of this node and all its child nodes.
-    pub fn map_context<F, C2>(self, mapping: &mut F) -> Record<C2>
+impl<C1, C2> MapContext<C1, C2> for Tuple<C1>
+where
+    C1: fmt::Debug,
+    C2: fmt::Debug,
+{
+    type Output = Tuple<C2>;
+
+    fn map_context<F>(self, mapping: &mut F) -> Self::Output
     where
-        F: FnMut(C) -> C2,
+        F: FnMut(C1) -> C2,
     {
         let context = mapping(self.context);
         let fields = self
             .fields
             .into_iter()
-            .map(|(i, f)| (i.map_context(mapping), f.map_context(mapping)))
+            .map(|f| f.map_context(mapping))
             .collect();
-        Record { context, fields }
+        Tuple { context, fields }
     }
 }
 
@@ -491,28 +409,52 @@ where
     fn context_mut(&mut self) -> &mut C {
         &mut self.context
     }
+}
 
-    fn visit<V>(&self, visitor: &mut V)
+impl<C1, C2> MapContext<C1, C2> for Record<C1>
+where
+    C1: fmt::Debug,
+    C2: fmt::Debug,
+{
+    type Output = Record<C2>;
+
+    fn map_context<F>(self, mapping: &mut F) -> Self::Output
     where
-        V: visitor::Visitor<C>,
+        F: FnMut(C1) -> C2,
     {
-        trace!("begin visiting {:?}", self);
-        visitor.visit_before_record(self);
-        visitor.visit_context(&self.context);
-        for (key, val) in &self.fields {
-            key.visit(visitor);
-            val.visit(visitor);
-        }
-        visitor.visit_after_record(self);
-        trace!("end visiting {:?}", self);
+        let context = mapping(self.context);
+        let fields = self
+            .fields
+            .into_iter()
+            .map(|(i, f)| (i.map_context(mapping), f.map_context(mapping)))
+            .collect();
+        Record { context, fields }
     }
 }
 
-impl<C> Lambda<C> {
-    /// Transforms the AST context of this node and all its child nodes.
-    pub fn map_context<F, C2>(self, mapping: &mut F) -> Lambda<C2>
+impl<C> AstNode<C> for Lambda<C>
+where
+    C: fmt::Debug,
+{
+    fn context(&self) -> &C {
+        &self.context
+    }
+
+    fn context_mut(&mut self) -> &mut C {
+        &mut self.context
+    }
+}
+
+impl<C1, C2> MapContext<C1, C2> for Lambda<C1>
+where
+    C1: fmt::Debug,
+    C2: fmt::Debug,
+{
+    type Output = Lambda<C2>;
+
+    fn map_context<F>(self, mapping: &mut F) -> Self::Output
     where
-        F: FnMut(C) -> C2,
+        F: FnMut(C1) -> C2,
     {
         let context = mapping(self.context);
         let parameters = self
@@ -535,56 +477,6 @@ impl<C> Lambda<C> {
     }
 }
 
-impl<C> AstNode<C> for Lambda<C>
-where
-    C: fmt::Debug,
-{
-    fn context(&self) -> &C {
-        &self.context
-    }
-
-    fn context_mut(&mut self) -> &mut C {
-        &mut self.context
-    }
-
-    fn visit<V>(&self, visitor: &mut V)
-    where
-        V: visitor::Visitor<C>,
-    {
-        trace!("begin visiting {:?}", self);
-        visitor.visit_before_lambda(self);
-        visitor.visit_context(&self.context);
-        if let Some(ref signature) = self.signature {
-            signature.visit(visitor);
-        }
-        visitor.push_scope();
-        for param in &self.parameters {
-            param.visit(visitor);
-        }
-        for statement in &self.statements {
-            statement.visit(visitor);
-        }
-        visitor.pop_scope();
-        visitor.visit_after_lambda(self);
-        trace!("end visiting {:?}", self);
-    }
-}
-
-impl<C> Statement<C> {
-    /// Transforms the AST context of this node and all its child nodes.
-    pub fn map_context<F, C2>(self, mapping: &mut F) -> Statement<C2>
-    where
-        F: FnMut(C) -> C2,
-    {
-        match self {
-            Statement::Expression(e) => Statement::Expression(e.map_context(mapping)),
-            Statement::Definition(i, e) => {
-                Statement::Definition(i.map_context(mapping), e.map_context(mapping))
-            }
-        }
-    }
-}
-
 impl<C> AstNode<C> for Statement<C>
 where
     C: fmt::Debug,
@@ -602,42 +494,24 @@ where
             Statement::Expression(ref mut v) => v.context_mut(),
         }
     }
-
-    fn visit<V>(&self, visitor: &mut V)
-    where
-        V: visitor::Visitor<C>,
-    {
-        trace!("begin visiting {:?}", self);
-        visitor.visit_before_statement(self);
-        match *self {
-            Statement::Definition(ref ident, ref expr) => {
-                visitor.visit_definition(ident, expr.context());
-                visitor.push_definition(ident);
-                expr.visit(visitor);
-                visitor.pop_definition();
-            }
-            Statement::Expression(ref expr) => {
-                expr.visit(visitor);
-            }
-        }
-        visitor.visit_after_statement(self);
-        trace!("end visiting {:?}", self);
-    }
 }
 
-impl<C> Select<C> {
-    /// Transforms the AST context of this node and all its child nodes.
-    pub fn map_context<F, C2>(self, mapping: &mut F) -> Select<C2>
+impl<C1, C2> MapContext<C1, C2> for Statement<C1>
+where
+    C1: fmt::Debug,
+    C2: fmt::Debug,
+{
+    type Output = Statement<C2>;
+
+    fn map_context<F>(self, mapping: &mut F) -> Self::Output
     where
-        F: FnMut(C) -> C2,
+        F: FnMut(C1) -> C2,
     {
-        let context = mapping(self.context);
-        let record = Box::new(self.record.map_context(mapping));
-        let field = self.field.map_context(mapping);
-        Select {
-            context,
-            record,
-            field,
+        match self {
+            Statement::Expression(e) => Statement::Expression(e.map_context(mapping)),
+            Statement::Definition(i, e) => {
+                Statement::Definition(i.map_context(mapping), e.map_context(mapping))
+            }
         }
     }
 }
@@ -653,26 +527,53 @@ where
     fn context_mut(&mut self) -> &mut C {
         &mut self.context
     }
+}
 
-    fn visit<V>(&self, visitor: &mut V)
+impl<C1, C2> MapContext<C1, C2> for Select<C1>
+where
+    C1: fmt::Debug,
+    C2: fmt::Debug,
+{
+    type Output = Select<C2>;
+
+    fn map_context<F>(self, mapping: &mut F) -> Self::Output
     where
-        V: visitor::Visitor<C>,
+        F: FnMut(C1) -> C2,
     {
-        trace!("begin visiting {:?}", self);
-        visitor.visit_before_select(self);
-        visitor.visit_context(&self.context);
-        self.record.visit(visitor);
-        self.field.visit(visitor);
-        visitor.visit_after_select(self);
-        trace!("end visiting {:?}", self);
+        let context = mapping(self.context);
+        let record = Box::new(self.record.map_context(mapping));
+        let field = self.field.map_context(mapping);
+        Select {
+            context,
+            record,
+            field,
+        }
     }
 }
 
-impl<C> Apply<C> {
-    /// Transforms the AST context of this node and all its child nodes.
-    pub fn map_context<F, C2>(self, mapping: &mut F) -> Apply<C2>
+impl<C> AstNode<C> for Apply<C>
+where
+    C: fmt::Debug,
+{
+    fn context(&self) -> &C {
+        &self.context
+    }
+
+    fn context_mut(&mut self) -> &mut C {
+        &mut self.context
+    }
+}
+
+impl<C1, C2> MapContext<C1, C2> for Apply<C1>
+where
+    C1: fmt::Debug,
+    C2: fmt::Debug,
+{
+    type Output = Apply<C2>;
+
+    fn map_context<F>(self, mapping: &mut F) -> Self::Output
     where
-        F: FnMut(C) -> C2,
+        F: FnMut(C1) -> C2,
     {
         let context = mapping(self.context);
         let function = Box::new(self.function.map_context(mapping));
@@ -689,52 +590,6 @@ impl<C> Apply<C> {
     }
 }
 
-impl<C> AstNode<C> for Apply<C>
-where
-    C: fmt::Debug,
-{
-    fn context(&self) -> &C {
-        &self.context
-    }
-
-    fn context_mut(&mut self) -> &mut C {
-        &mut self.context
-    }
-
-    fn visit<V>(&self, visitor: &mut V)
-    where
-        V: visitor::Visitor<C>,
-    {
-        trace!("begin visiting {:?}", self);
-        visitor.visit_before_apply(self);
-        visitor.visit_context(&self.context);
-        self.function.visit(visitor);
-
-        for parameter in &self.parameters {
-            parameter.visit(visitor);
-        }
-        visitor.visit_after_apply(self);
-        trace!("end visiting {:?}", self);
-    }
-}
-
-impl<C> Parameter<C> {
-    /// Transforms the AST context of this node and all its child nodes.
-    pub fn map_context<F, C2>(self, mapping: &mut F) -> Parameter<C2>
-    where
-        F: FnMut(C) -> C2,
-    {
-        let context = mapping(self.context);
-        let name = self.name.map_context(mapping);
-        let signature = self.signature.map(|e| e.map_context(mapping));
-        Parameter {
-            context,
-            name,
-            signature,
-        }
-    }
-}
-
 impl<C> AstNode<C> for Parameter<C>
 where
     C: fmt::Debug,
@@ -746,19 +601,26 @@ where
     fn context_mut(&mut self) -> &mut C {
         &mut self.context
     }
+}
 
-    fn visit<V>(&self, visitor: &mut V)
+impl<C1, C2> MapContext<C1, C2> for Parameter<C1>
+where
+    C1: fmt::Debug,
+    C2: fmt::Debug,
+{
+    type Output = Parameter<C2>;
+
+    fn map_context<F>(self, mapping: &mut F) -> Self::Output
     where
-        V: visitor::Visitor<C>,
+        F: FnMut(C1) -> C2,
     {
-        trace!("begin visiting {:?}", self);
-        visitor.visit_before_parameter(self);
-        visitor.visit_context(&self.context);
-        visitor.visit_definition(&self.name, &self.context);
-        if let Some(ref signature) = self.signature {
-            signature.visit(visitor);
+        let context = mapping(self.context);
+        let name = self.name.map_context(mapping);
+        let signature = self.signature.map(|e| e.map_context(mapping));
+        Parameter {
+            context,
+            name,
+            signature,
         }
-        visitor.visit_after_parameter(self);
-        trace!("end visiting {:?}", self);
     }
 }

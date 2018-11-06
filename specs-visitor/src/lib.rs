@@ -83,6 +83,25 @@ where
     }
 }
 
+impl<A> VisitEntities for Box<A>
+where
+    A: VisitEntities + Send + Sync,
+{
+    fn accept<V>(&self, visitor: &V)
+    where
+        V: EntityVisitor,
+    {
+        (**self).accept(visitor)
+    }
+
+    fn accept_mut<V>(&mut self, visitor: &V)
+    where
+        V: EntityVisitorMut,
+    {
+        (**self).accept_mut(visitor)
+    }
+}
+
 impl<A, B> VisitEntities for collections::HashMap<A, B>
 where
     A: Eq + hash::Hash + Send + Sync,
