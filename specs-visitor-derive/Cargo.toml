@@ -1,0 +1,16 @@
+[package]
+name = "specs-visitor-derive"
+version = "0.1.0"
+authors = ["David Flemström <david.flemstrom@gmail.com>"]
+
+[lib]
+proc-macro = true
+
+[dependencies]
+synstructure = "0.10.1"
+quote = "0.6.9"
+proc-macro2 = "0.4.20"
+
+[dev-dependencies]
+specs = "0.14.0"
+specs-visitor = { path = "../specs-visitor" }
