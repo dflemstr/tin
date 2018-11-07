@@ -21,13 +21,12 @@ impl<'a> specs::System<'a> for ApplyReplacementsSystem {
 
     fn run(&mut self, (entities, replacements, mut elements): Self::SystemData) {
         use specs::prelude::ParallelIterator;
-        use specs::Join;
         use specs::ParJoin;
 
         (&entities, &replacements)
             .par_join()
             .for_each(|(entity, _)| {
-                entities.delete(entity);
+                entities.delete(entity).unwrap();
             });
 
         let replacements = (&entities, &replacements)

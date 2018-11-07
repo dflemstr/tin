@@ -35,7 +35,7 @@ impl<'a> specs::System<'a> for InferTypesSystem {
             }
 
             for (entity, ty) in new_types {
-                types.insert(entity, ty);
+                types.insert(entity, ty).unwrap();
             }
         }
     }
@@ -60,16 +60,16 @@ where
             ref parameters,
         } => infer_apply_type(function, parameters, types),
         element::Element::Parameter {
-            ref name,
+            name: _,
             signature,
-        } => infer_parameter_type(name, signature, types),
+        } => infer_parameter_type( signature, types),
         element::Element::Capture { name: _, captured } => infer_capture_type(captured, types),
         element::Element::Closure {
-            ref captures,
+            captures: _,
             ref parameters,
-            ref statements,
+            statements: _,
             signature,
-        } => infer_closure_type(captures, parameters, statements, signature, types),
+        } => infer_closure_type(parameters, signature, types),
         element::Element::Module { ref definitions } => infer_module_type(definitions, types),
     }
 }
@@ -191,7 +191,6 @@ where
 }
 
 fn infer_parameter_type<D>(
-    name: &str,
     signature: Option<specs::Entity>,
     types: &specs::Storage<ty::Type, D>,
 ) -> Option<ty::Type>
@@ -218,9 +217,7 @@ where
 }
 
 fn infer_closure_type<D>(
-    captures: &collections::HashMap<String, specs::Entity>,
     parameters: &[specs::Entity],
-    statements: &[specs::Entity],
     signature: Option<specs::Entity>,
     types: &specs::Storage<ty::Type, D>,
 ) -> Option<ty::Type>

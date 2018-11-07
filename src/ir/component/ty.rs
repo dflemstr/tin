@@ -1,7 +1,5 @@
 use std::collections;
 
-use specs;
-
 use specs::Component;
 use specs::VecStorage;
 

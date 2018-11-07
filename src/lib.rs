@@ -1,6 +1,28 @@
 //! Norm is a simple embeddable programming language.
 //!
 //! The aim is to have a very light-weight footprint and a simple API.
+//!
+//! # Examples
+//!
+//! ```
+//! use norm::parser::Parse;
+//!
+//! let source = r#"
+//! Int = 0;
+//! pickFirst = |a: Int, b: Int|: Int {
+//!   capture = |x: Int|: Int { a };
+//!   capture(b)
+//! };
+//! main = ||: Int { pickFirst(1, 2) };
+//! "#;
+//!
+//! let module = norm::ast::Module::parse(source).unwrap();
+//!
+//! let mut ir = norm::ir::Ir::new();
+//! ir.add_module(&module);
+//! ir.resolve_references();
+//! ir.check_types();
+//! ```
 #![deny(nonstandard_style, warnings, unused)]
 #![deny(
     missing_docs,

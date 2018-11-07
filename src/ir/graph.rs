@@ -1,28 +1,37 @@
+//! Graph manipulation and rendering tools for the intermediate representation.
 use std::borrow;
 use std::fmt;
 
 use dot;
 use specs;
 
+use ir;
 use ir::component::element;
 use ir::component::ty;
 
+/// A graph representation of IR.
 pub struct Graph<'a> {
     entities: specs::Entities<'a>,
     elements: specs::ReadStorage<'a, element::Element>,
     types: specs::ReadStorage<'a, ty::Type>,
 }
 
+/// A node in the IR graph.
+///
+/// This is a simple mapping to an ECS entity for now.
 pub type Node = specs::Entity;
 
-#[derive(Clone)]
+/// An edge in the IR graph.
+///
+/// This is a labeled directed relationship between two ECS entities.
+#[derive(Clone, Debug)]
 pub struct Edge<'a> {
-    source: specs::Entity,
-    target: specs::Entity,
+    source: Node,
+    target: Node,
     label: Label<'a>,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 enum Label<'a> {
     RecordField(&'a str),
     TupleField(usize),
@@ -40,7 +49,9 @@ enum Label<'a> {
 struct PrettyTy<T>(T);
 
 impl<'a> Graph<'a> {
-    pub fn new(world: &'a specs::World) -> Graph<'a> {
+    /// Creates a new IR graph based on the supplied intermediate representation.
+    pub fn new(ir: &'a ir::Ir) -> Graph<'a> {
+        let world = &ir.world;
         let entities = world.entities();
         let elements = world.read_storage::<element::Element>();
         let types = world.read_storage::<ty::Type>();
@@ -94,7 +105,7 @@ impl<'a> dot::GraphWalk<'a, Node, Edge<'a>> for Graph<'a> {
                             });
                         }
                     }
-                    element::Element::Reference(v) => {}
+                    element::Element::Reference(_) => {}
                     element::Element::Select { record, field } => {
                         result.push(Edge {
                             source: entity,
@@ -119,7 +130,7 @@ impl<'a> dot::GraphWalk<'a, Node, Edge<'a>> for Graph<'a> {
                             });
                         }
                     }
-                    element::Element::Parameter { name, signature } => {
+                    element::Element::Parameter { name: _, signature } => {
                         if let Some(signature) = signature {
                             result.push(Edge {
                                 source: entity,
@@ -227,22 +238,22 @@ impl<'a> dot::Labeller<'a, Node, Edge<'a>> for Graph<'a> {
                 element::Element::Reference(v) => {
                     write!(result, "reference <br/> to <b>{:?}</b>", v).unwrap()
                 }
-                element::Element::Select { record, field } => write!(result, "select").unwrap(),
+                element::Element::Select { record: _, field: _ } => write!(result, "select").unwrap(),
                 element::Element::Apply {
-                    function,
+                    function: _,
                     parameters,
                 } => write!(result, "apply <br/> <b>{:?}</b> params", parameters.len()).unwrap(),
-                element::Element::Parameter { name, signature } => {
+                element::Element::Parameter { name, signature: _ } => {
                     write!(result, "param <b>{:?}</b>", name).unwrap()
                 }
-                element::Element::Capture { name, captured } => {
+                element::Element::Capture { name, captured: _ } => {
                     write!(result, "capture <b>{:?}</b>", name).unwrap()
                 }
                 element::Element::Closure {
                     captures,
                     parameters,
-                    statements,
-                    signature,
+                    statements: _,
+                    signature: _,
                 } => write!(
                     result,
                     "closure <br/> <b>{:?}</b> parameters <br/> <b>{:?}</b> captures",
@@ -303,23 +314,27 @@ impl<'a> dot::Labeller<'a, Node, Edge<'a>> for Graph<'a> {
         match e.label {
             Label::RecordField(_) => dot::Style::None,
             Label::TupleField(_) => dot::Style::None,
-            Label::SelectField(ref name) => dot::Style::None,
+            Label::SelectField(_) => dot::Style::None,
             Label::AppliedFunction => dot::Style::None,
-            Label::AppliedParameter(idx) => dot::Style::None,
+            Label::AppliedParameter(_) => dot::Style::None,
             Label::ParameterSignature => dot::Style::Dotted,
-            Label::ClosureCapture(ref name) => dot::Style::Dashed,
-            Label::ClosureParameter(idx) => dot::Style::None,
-            Label::ClosureStatement(idx) => dot::Style::Dashed,
+            Label::ClosureCapture(_) => dot::Style::Dashed,
+            Label::ClosureParameter(_) => dot::Style::None,
+            Label::ClosureStatement(_) => dot::Style::Dashed,
             Label::ClosureSignature => dot::Style::Dotted,
-            Label::ModuleDefinition(ref name) => dot::Style::None,
+            Label::ModuleDefinition(_) => dot::Style::None,
         }
+    }
+}
+
+impl<'a> fmt::Debug for Graph<'a> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.debug_struct("Graph").finish()
     }
 }
 
 impl<'a> fmt::Display for PrettyTy<&'a ty::Type> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        use std::fmt::Display;
-
         match self.0 {
             ty::Type::Number => write!(f, "num"),
             ty::Type::String => write!(f, "str"),
@@ -334,8 +349,6 @@ impl<'a> fmt::Display for PrettyTy<&'a ty::Type> {
 
 impl<'a> fmt::Display for PrettyTy<&'a ty::Tuple> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        use std::fmt::Display;
-
         write!(f, "(")?;
         let mut needs_sep = false;
         for ty in &self.0.fields {
@@ -352,8 +365,6 @@ impl<'a> fmt::Display for PrettyTy<&'a ty::Tuple> {
 
 impl<'a> fmt::Display for PrettyTy<&'a ty::Record> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        use std::fmt::Display;
-
         write!(f, "\\{{")?;
         let mut needs_sep = false;
         for (id, ty) in &self.0.fields {
@@ -371,8 +382,6 @@ impl<'a> fmt::Display for PrettyTy<&'a ty::Record> {
 
 impl<'a> fmt::Display for PrettyTy<&'a ty::Function> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        use std::fmt::Display;
-
         write!(f, "\\|")?;
         let mut needs_sep = false;
         for ty in &self.0.parameters {
@@ -390,8 +399,6 @@ impl<'a> fmt::Display for PrettyTy<&'a ty::Function> {
 
 impl<'a> fmt::Display for PrettyTy<&'a ty::Conflict> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        use std::fmt::Display;
-
         PrettyTy(&*self.0.expected).fmt(f)?;
         write!(f, "!=")?;
         PrettyTy(&*self.0.actual).fmt(f)?;

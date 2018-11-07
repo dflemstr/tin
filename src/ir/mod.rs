@@ -1,9 +1,7 @@
 //! Intermediate representation definitions for the compiler and interpreter.
-#![allow(warnings, unused)]
 
 use std::collections;
 use std::fmt;
-use std::sync;
 
 use specs;
 
@@ -11,8 +9,8 @@ use ast;
 use parser;
 
 mod component;
-mod graph;
-mod jit_compiler;
+pub mod graph;
+pub mod compiler;
 mod system;
 
 /// A separate universe of the Norm intermediate representation.
@@ -101,7 +99,7 @@ impl Ir {
     }
 
     fn set_identifier_scope(
-        elements: &specs::ReadStorage<component::element::Element>,
+        _elements: &specs::ReadStorage<component::element::Element>,
         scopes: &mut specs::WriteStorage<component::scope::Scope>,
         entity: specs::Entity,
         _identifier: &ast::Identifier<parser::Context>,
@@ -168,7 +166,7 @@ impl Ir {
     }
 
     fn set_number_scope(
-        elements: &specs::ReadStorage<component::element::Element>,
+        _elements: &specs::ReadStorage<component::element::Element>,
         scopes: &mut specs::WriteStorage<component::scope::Scope>,
         entity: specs::Entity,
         _number: &ast::NumberLiteral<parser::Context>,
@@ -187,7 +185,7 @@ impl Ir {
     }
 
     fn set_string_scope(
-        elements: &specs::ReadStorage<component::element::Element>,
+        _elements: &specs::ReadStorage<component::element::Element>,
         scopes: &mut specs::WriteStorage<component::scope::Scope>,
         entity: specs::Entity,
         _string: &ast::StringLiteral<parser::Context>,
@@ -343,22 +341,20 @@ impl Ir {
                 for (idx, statement) in statements.iter().enumerate() {
                     match lambda.statements[idx] {
                         ast::Statement::Definition(ref ident, ref expr) => {
-                            let expr_entity = statements[idx];
                             Ir::set_expression_scope(
                                 elements,
                                 scopes,
-                                expr_entity,
+                                *statement,
                                 expr,
                                 &definitions,
                             );
-                            definitions.insert(ident.value.clone(), expr_entity);
+                            definitions.insert(ident.value.clone(), *statement);
                         }
                         ast::Statement::Expression(ref expr) => {
-                            let expr_entity = statements[idx];
                             Ir::set_expression_scope(
                                 elements,
                                 scopes,
-                                expr_entity,
+                                *statement,
                                 expr,
                                 &definitions,
                             );
@@ -482,7 +478,7 @@ impl Ir {
         definitions: &collections::HashMap<String, specs::Entity>,
     ) {
         match elements.get(entity) {
-            Some(component::element::Element::Parameter { name, signature }) => {
+            Some(component::element::Element::Parameter { name: _, signature }) => {
                 if let Some(signature) = signature {
                     Ir::set_expression_scope(
                         elements,
@@ -505,7 +501,7 @@ impl Ir {
         definitions: &collections::HashMap<String, specs::Entity>,
     ) {
         let definitions = definitions.clone();
-        scopes.insert(entity, component::scope::Scope { definitions });
+        scopes.insert(entity, component::scope::Scope { definitions }).unwrap();
     }
 }
 
@@ -526,9 +522,6 @@ mod tests {
 
     #[test]
     fn entity_assignments() -> Result<(), failure::Error> {
-        use ast::AstNode;
-        use ir::component::element;
-        use ir::component::replacement;
         use parser::Parse;
 
         let _ = env_logger::try_init();
@@ -549,7 +542,7 @@ main = ||: Int { pickFirst(1, 2) };
         ir.resolve_references();
         ir.check_types();
 
-        let graph = graph::Graph::new(&ir.world);
+        let graph = graph::Graph::new(&ir);
 
         let mut file = ::std::fs::File::create("/tmp/ir.dot")?;
         dot::render(&graph, &mut file)?;

@@ -7,6 +7,7 @@ use specs::VecStorage;
 
 #[derive(Component, Debug, VisitEntities)]
 #[storage(VecStorage)]
+#[allow(unused)]
 pub enum Element {
     Number(f64),
     String(String),

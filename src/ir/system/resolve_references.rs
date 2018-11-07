@@ -1,9 +1,5 @@
-use std::collections;
-
 use specs;
 
-use ast;
-use ir;
 use ir::component::element;
 use ir::component::replacement;
 use ir::component::scope;
@@ -32,7 +28,7 @@ impl<'a> specs::System<'a> for ResolveReferencesSystem {
                 if let Some(to) = scope.definitions.get(ident) {
                     let to = *to;
                     debug!("resolved reference {:?} to {:?}", ident, to);
-                    replacements.insert(entity, replacement::Replacement { to });
+                    replacements.insert(entity, replacement::Replacement { to }).unwrap();
                 } else {
                     warn!("undefined reference to {:?}", ident);
                 }
