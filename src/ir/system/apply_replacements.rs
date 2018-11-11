@@ -5,6 +5,8 @@ use specs_visitor;
 
 use ir::component::element;
 use ir::component::replacement;
+use ir::component::scope;
+use ir::component::ty;
 
 pub struct ApplyReplacementsSystem;
 
@@ -17,9 +19,14 @@ impl<'a> specs::System<'a> for ApplyReplacementsSystem {
         specs::Entities<'a>,
         specs::ReadStorage<'a, replacement::Replacement>,
         specs::WriteStorage<'a, element::Element>,
+        specs::WriteStorage<'a, scope::Scope>,
+        specs::WriteStorage<'a, ty::Type>,
     );
 
-    fn run(&mut self, (entities, replacements, mut elements): Self::SystemData) {
+    fn run(
+        &mut self,
+        (entities, replacements, mut elements, mut scopes, mut types): Self::SystemData,
+    ) {
         use specs::prelude::ParallelIterator;
         use specs::ParJoin;
 
@@ -37,6 +44,16 @@ impl<'a> specs::System<'a> for ApplyReplacementsSystem {
         let visitor = ReplacementEntityVisitor { replacements };
 
         (&mut elements).par_join().for_each(|element| {
+            use specs_visitor::VisitEntities;
+            element.accept_mut(&visitor);
+        });
+
+        (&mut scopes).par_join().for_each(|element| {
+            use specs_visitor::VisitEntities;
+            element.accept_mut(&visitor);
+        });
+
+        (&mut types).par_join().for_each(|element| {
             use specs_visitor::VisitEntities;
             element.accept_mut(&visitor);
         });

@@ -8,14 +8,13 @@ use specs;
 use ast;
 use parser;
 
-mod component;
+pub(crate) mod component;
 pub mod graph;
-pub mod compiler;
 mod system;
 
 /// A separate universe of the Norm intermediate representation.
 pub struct Ir {
-    world: specs::World,
+    pub(crate) world: specs::World,
 }
 
 impl Ir {
@@ -27,18 +26,24 @@ impl Ir {
     }
 
     /// Adds all of the definitions in the specified AST module to the IR world.
-    pub fn add_module(&mut self, ast: &ast::Module<parser::Context>) -> specs::Entity {
+    pub fn add_module(
+        &mut self,
+        ast: &ast::Module<parser::Context>,
+        symbol: &[component::symbol::Part],
+    ) -> specs::Entity {
         use specs::world::Builder;
 
         let mut definitions = collections::HashMap::new();
         for (name, expr) in &ast.definitions {
-            let entity = self.add_expression(expr);
+            let mut symbol = symbol.to_vec();
+            symbol.push(component::symbol::Part::Named(name.value.clone()));
+            let entity = self.add_expression(expr, &symbol);
             definitions.insert(name.value.clone(), entity);
         }
 
-        let element = component::element::Element::Module {
+        let element = component::element::Element::Module(component::element::Module {
             definitions: definitions.clone(),
-        };
+        });
 
         for (name, expr) in &ast.definitions {
             Ir::set_expression_scope(
@@ -53,6 +58,7 @@ impl Ir {
         self.world
             .create_entity()
             .with(element)
+            .with(component::symbol::Symbol::new(symbol.to_vec()))
             .with(component::scope::Scope { definitions })
             .build()
     }
@@ -68,10 +74,10 @@ impl Ir {
                 "resolve_references",
                 &[],
             ).with(
-            system::apply_replacements::ApplyReplacementsSystem,
-            "apply_replacements",
-            &["resolve_references"],
-        ).build();
+                system::apply_replacements::ApplyReplacementsSystem,
+                "apply_replacements",
+                &["resolve_references"],
+            ).build();
         dispatcher.dispatch(&mut self.world.res);
         self.world.maintain();
     }
@@ -88,14 +94,19 @@ impl Ir {
         self.world.maintain();
     }
 
-    fn add_identifier(&mut self, identifier: &ast::Identifier<parser::Context>) -> specs::Entity {
+    fn add_identifier(
+        &mut self,
+        identifier: &ast::Identifier<parser::Context>,
+        symbol: &[component::symbol::Part],
+    ) -> specs::Entity {
         use specs::world::Builder;
 
         self.world
             .create_entity()
             .with(component::element::Element::Reference(
-                identifier.value.clone(),
-            )).build()
+                component::element::Reference(identifier.value.clone()),
+            )).with(component::symbol::Symbol::new(symbol.to_vec()))
+            .build()
     }
 
     fn set_identifier_scope(
@@ -108,16 +119,20 @@ impl Ir {
         Ir::set_scope(scopes, entity, definitions);
     }
 
-    fn add_expression(&mut self, expression: &ast::Expression<parser::Context>) -> specs::Entity {
+    fn add_expression(
+        &mut self,
+        expression: &ast::Expression<parser::Context>,
+        symbol: &[component::symbol::Part],
+    ) -> specs::Entity {
         match *expression {
-            ast::Expression::Number(ref v) => self.add_number(v),
-            ast::Expression::String(ref v) => self.add_string(v),
-            ast::Expression::Tuple(ref v) => self.add_tuple(v),
-            ast::Expression::Record(ref v) => self.add_record(v),
-            ast::Expression::Identifier(ref v) => self.add_identifier(v),
-            ast::Expression::Lambda(ref v) => self.add_lambda(v),
-            ast::Expression::Select(ref v) => self.add_select(v),
-            ast::Expression::Apply(ref v) => self.add_apply(v),
+            ast::Expression::Number(ref v) => self.add_number(v, symbol),
+            ast::Expression::String(ref v) => self.add_string(v, symbol),
+            ast::Expression::Tuple(ref v) => self.add_tuple(v, symbol),
+            ast::Expression::Record(ref v) => self.add_record(v, symbol),
+            ast::Expression::Identifier(ref v) => self.add_identifier(v, symbol),
+            ast::Expression::Lambda(ref v) => self.add_lambda(v, symbol),
+            ast::Expression::Select(ref v) => self.add_select(v, symbol),
+            ast::Expression::Apply(ref v) => self.add_apply(v, symbol),
         }
     }
 
@@ -156,12 +171,18 @@ impl Ir {
         }
     }
 
-    fn add_number(&mut self, number: &ast::NumberLiteral<parser::Context>) -> specs::Entity {
+    fn add_number(
+        &mut self,
+        number: &ast::NumberLiteral<parser::Context>,
+        symbol: &[component::symbol::Part],
+    ) -> specs::Entity {
         use specs::world::Builder;
 
         self.world
             .create_entity()
-            .with(component::element::Element::Number(number.value))
+            .with(component::element::Element::NumberValue(
+                component::element::NumberValue(number.value),
+            )).with(component::symbol::Symbol::new(symbol.to_vec()))
             .build()
     }
 
@@ -175,12 +196,18 @@ impl Ir {
         Ir::set_scope(scopes, entity, definitions);
     }
 
-    fn add_string(&mut self, string: &ast::StringLiteral<parser::Context>) -> specs::Entity {
+    fn add_string(
+        &mut self,
+        string: &ast::StringLiteral<parser::Context>,
+        symbol: &[component::symbol::Part],
+    ) -> specs::Entity {
         use specs::world::Builder;
 
         self.world
             .create_entity()
-            .with(component::element::Element::String(string.value.clone()))
+            .with(component::element::Element::StringValue(
+                component::element::StringValue(string.value.clone()),
+            )).with(component::symbol::Symbol::new(symbol.to_vec()))
             .build()
     }
 
@@ -194,18 +221,24 @@ impl Ir {
         Ir::set_scope(scopes, entity, definitions);
     }
 
-    fn add_tuple(&mut self, tuple: &ast::Tuple<parser::Context>) -> specs::Entity {
+    fn add_tuple(
+        &mut self,
+        tuple: &ast::Tuple<parser::Context>,
+        symbol: &[component::symbol::Part],
+    ) -> specs::Entity {
         use specs::world::Builder;
 
         let fields = tuple
             .fields
             .iter()
-            .map(|f| self.add_expression(f))
+            .map(|f| self.add_expression(f, symbol))
             .collect();
 
         self.world
             .create_entity()
-            .with(component::element::Element::Tuple { fields })
+            .with(component::element::Element::Tuple(
+                component::element::Tuple { fields },
+            )).with(component::symbol::Symbol::new(symbol.to_vec()))
             .build()
     }
 
@@ -217,7 +250,7 @@ impl Ir {
         definitions: &collections::HashMap<String, specs::Entity>,
     ) {
         match elements.get(entity) {
-            Some(component::element::Element::Tuple { ref fields }) => {
+            Some(component::element::Element::Tuple(component::element::Tuple { ref fields })) => {
                 for (idx, field) in tuple.fields.iter().enumerate() {
                     Ir::set_expression_scope(elements, scopes, fields[idx], field, definitions);
                 }
@@ -228,18 +261,24 @@ impl Ir {
         Ir::set_scope(scopes, entity, definitions);
     }
 
-    fn add_record(&mut self, record: &ast::Record<parser::Context>) -> specs::Entity {
+    fn add_record(
+        &mut self,
+        record: &ast::Record<parser::Context>,
+        symbol: &[component::symbol::Part],
+    ) -> specs::Entity {
         use specs::world::Builder;
 
         let fields = record
             .fields
             .iter()
-            .map(|(i, e)| (i.value.clone(), self.add_expression(e)))
+            .map(|(i, e)| (i.value.clone(), self.add_expression(e, symbol)))
             .collect();
 
         self.world
             .create_entity()
-            .with(component::element::Element::Record { fields })
+            .with(component::element::Element::Record(
+                component::element::Record { fields },
+            )).with(component::symbol::Symbol::new(symbol.to_vec()))
             .build()
     }
 
@@ -251,7 +290,9 @@ impl Ir {
         definitions: &collections::HashMap<String, specs::Entity>,
     ) {
         match elements.get(entity) {
-            Some(component::element::Element::Record { ref fields }) => {
+            Some(component::element::Element::Record(component::element::Record {
+                ref fields,
+            })) => {
                 for (name, field) in &record.fields {
                     Ir::set_expression_scope(
                         elements,
@@ -268,30 +309,42 @@ impl Ir {
         Ir::set_scope(scopes, entity, definitions);
     }
 
-    fn add_lambda(&mut self, lambda: &ast::Lambda<parser::Context>) -> specs::Entity {
+    fn add_lambda(
+        &mut self,
+        lambda: &ast::Lambda<parser::Context>,
+        symbol: &[component::symbol::Part],
+    ) -> specs::Entity {
         use specs::world::Builder;
+
+        // TODO generate unique symbol for anonymous lambdas
 
         let captures = collections::HashMap::new();
         let parameters = lambda
             .parameters
             .iter()
-            .map(|p| self.add_parameter(p))
+            .map(|p| self.add_parameter(p, symbol))
             .collect();
         let statements = lambda
             .statements
             .iter()
-            .map(|s| self.add_statement(s))
+            .map(|s| self.add_statement(s, symbol))
             .collect();
-        let signature = lambda.signature.as_ref().map(|s| self.add_expression(s));
+        let signature = lambda
+            .signature
+            .as_ref()
+            .map(|s| self.add_expression(s, symbol));
 
         self.world
             .create_entity()
-            .with(component::element::Element::Closure {
-                captures,
-                parameters,
-                statements,
-                signature,
-            }).build()
+            .with(component::element::Element::Closure(
+                component::element::Closure {
+                    captures,
+                    parameters,
+                    statements,
+                    signature,
+                },
+            )).with(component::symbol::Symbol::new(symbol.to_vec()))
+            .build()
     }
 
     fn set_lambda_scope(
@@ -302,12 +355,12 @@ impl Ir {
         definitions: &collections::HashMap<String, specs::Entity>,
     ) {
         match elements.get(entity) {
-            Some(component::element::Element::Closure {
+            Some(component::element::Element::Closure(component::element::Closure {
                 ref captures,
                 ref parameters,
                 ref statements,
                 ref signature,
-            }) => {
+            })) => {
                 for (idx, parameter) in lambda.parameters.iter().enumerate() {
                     Ir::set_parameter_scope(
                         elements,
@@ -368,22 +421,36 @@ impl Ir {
         Ir::set_scope(scopes, entity, definitions);
     }
 
-    fn add_statement(&mut self, statement: &ast::Statement<parser::Context>) -> specs::Entity {
+    fn add_statement(
+        &mut self,
+        statement: &ast::Statement<parser::Context>,
+        symbol: &[component::symbol::Part],
+    ) -> specs::Entity {
         match *statement {
-            ast::Statement::Definition(_, ref expression) => self.add_expression(expression),
-            ast::Statement::Expression(ref expression) => self.add_expression(expression),
+            ast::Statement::Definition(ref ident, ref expression) => {
+                let mut symbol = symbol.to_vec();
+                symbol.push(component::symbol::Part::Named(ident.value.clone()));
+                self.add_expression(expression, &symbol)
+            }
+            ast::Statement::Expression(ref expression) => self.add_expression(expression, symbol),
         }
     }
 
-    fn add_select(&mut self, select: &ast::Select<parser::Context>) -> specs::Entity {
+    fn add_select(
+        &mut self,
+        select: &ast::Select<parser::Context>,
+        symbol: &[component::symbol::Part],
+    ) -> specs::Entity {
         use specs::world::Builder;
 
-        let record = self.add_expression(&*select.record);
+        let record = self.add_expression(&*select.record, symbol);
         let field = select.field.value.clone();
 
         self.world
             .create_entity()
-            .with(component::element::Element::Select { record, field })
+            .with(component::element::Element::Select(
+                component::element::Select { record, field },
+            )).with(component::symbol::Symbol::new(symbol.to_vec()))
             .build()
     }
 
@@ -395,7 +462,10 @@ impl Ir {
         definitions: &collections::HashMap<String, specs::Entity>,
     ) {
         match elements.get(entity) {
-            Some(component::element::Element::Select { record, .. }) => {
+            Some(component::element::Element::Select(component::element::Select {
+                record,
+                ..
+            })) => {
                 Ir::set_expression_scope(elements, scopes, *record, &*select.record, definitions);
             }
             _ => unreachable!(),
@@ -404,22 +474,29 @@ impl Ir {
         Ir::set_scope(scopes, entity, definitions);
     }
 
-    fn add_apply(&mut self, apply: &ast::Apply<parser::Context>) -> specs::Entity {
+    fn add_apply(
+        &mut self,
+        apply: &ast::Apply<parser::Context>,
+        symbol: &[component::symbol::Part],
+    ) -> specs::Entity {
         use specs::world::Builder;
 
-        let function = self.add_expression(&*apply.function);
+        let function = self.add_expression(&*apply.function, symbol);
         let parameters = apply
             .parameters
             .iter()
-            .map(|p| self.add_expression(p))
+            .map(|p| self.add_expression(p, symbol))
             .collect();
 
         self.world
             .create_entity()
-            .with(component::element::Element::Apply {
-                function,
-                parameters,
-            }).build()
+            .with(component::element::Element::Apply(
+                component::element::Apply {
+                    function,
+                    parameters,
+                },
+            )).with(component::symbol::Symbol::new(symbol.to_vec()))
+            .build()
     }
 
     fn set_apply_scope(
@@ -430,10 +507,10 @@ impl Ir {
         definitions: &collections::HashMap<String, specs::Entity>,
     ) {
         match elements.get(entity) {
-            Some(component::element::Element::Apply {
+            Some(component::element::Element::Apply(component::element::Apply {
                 function,
                 parameters,
-            }) => {
+            })) => {
                 Ir::set_expression_scope(
                     elements,
                     scopes,
@@ -458,15 +535,24 @@ impl Ir {
         Ir::set_scope(scopes, entity, definitions);
     }
 
-    fn add_parameter(&mut self, parameter: &ast::Parameter<parser::Context>) -> specs::Entity {
+    fn add_parameter(
+        &mut self,
+        parameter: &ast::Parameter<parser::Context>,
+        symbol: &[component::symbol::Part],
+    ) -> specs::Entity {
         use specs::world::Builder;
 
         let name = parameter.name.value.clone();
-        let signature = parameter.signature.as_ref().map(|s| self.add_expression(s));
+        let signature = parameter
+            .signature
+            .as_ref()
+            .map(|s| self.add_expression(s, symbol));
 
         self.world
             .create_entity()
-            .with(component::element::Element::Parameter { name, signature })
+            .with(component::element::Element::Parameter(
+                component::element::Parameter { name, signature },
+            )).with(component::symbol::Symbol::new(symbol.to_vec()))
             .build()
     }
 
@@ -478,7 +564,10 @@ impl Ir {
         definitions: &collections::HashMap<String, specs::Entity>,
     ) {
         match elements.get(entity) {
-            Some(component::element::Element::Parameter { name: _, signature }) => {
+            Some(component::element::Element::Parameter(component::element::Parameter {
+                name: _,
+                signature,
+            })) => {
                 if let Some(signature) = signature {
                     Ir::set_expression_scope(
                         elements,
@@ -501,7 +590,9 @@ impl Ir {
         definitions: &collections::HashMap<String, specs::Entity>,
     ) {
         let definitions = definitions.clone();
-        scopes.insert(entity, component::scope::Scope { definitions }).unwrap();
+        scopes
+            .insert(entity, component::scope::Scope { definitions })
+            .unwrap();
     }
 }
 
@@ -538,7 +629,7 @@ main = ||: Int { pickFirst(1, 2) };
         let ast_module = ast::Module::parse(source)?;
 
         let mut ir = Ir::new();
-        ir.add_module(&ast_module);
+        ir.add_module(&ast_module, &[]);
         ir.resolve_references();
         ir.check_types();
 

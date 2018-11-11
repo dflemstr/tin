@@ -85,9 +85,9 @@ impl<'a> dot::GraphWalk<'a, Node, Edge<'a>> for Graph<'a> {
         for entity in self.entities.join() {
             if let Some(element) = elements.get(entity) {
                 match element {
-                    element::Element::Number(_) => {}
-                    element::Element::String(_) => {}
-                    element::Element::Tuple { fields } => {
+                    element::Element::NumberValue(_) => {}
+                    element::Element::StringValue(_) => {}
+                    element::Element::Tuple(element::Tuple { fields }) => {
                         for (idx, field) in fields.iter().enumerate() {
                             result.push(Edge {
                                 source: entity,
@@ -96,7 +96,7 @@ impl<'a> dot::GraphWalk<'a, Node, Edge<'a>> for Graph<'a> {
                             });
                         }
                     }
-                    element::Element::Record { fields } => {
+                    element::Element::Record(element::Record { fields }) => {
                         for (name, field) in fields {
                             result.push(Edge {
                                 source: entity,
@@ -106,17 +106,17 @@ impl<'a> dot::GraphWalk<'a, Node, Edge<'a>> for Graph<'a> {
                         }
                     }
                     element::Element::Reference(_) => {}
-                    element::Element::Select { record, field } => {
+                    element::Element::Select(element::Select { record, field }) => {
                         result.push(Edge {
                             source: entity,
                             target: *record,
                             label: Label::SelectField(field),
                         });
                     }
-                    element::Element::Apply {
+                    element::Element::Apply(element::Apply {
                         function,
                         parameters,
-                    } => {
+                    }) => {
                         result.push(Edge {
                             source: entity,
                             target: *function,
@@ -130,7 +130,7 @@ impl<'a> dot::GraphWalk<'a, Node, Edge<'a>> for Graph<'a> {
                             });
                         }
                     }
-                    element::Element::Parameter { name: _, signature } => {
+                    element::Element::Parameter(element::Parameter { name: _, signature }) => {
                         if let Some(signature) = signature {
                             result.push(Edge {
                                 source: entity,
@@ -139,20 +139,18 @@ impl<'a> dot::GraphWalk<'a, Node, Edge<'a>> for Graph<'a> {
                             });
                         }
                     }
-                    element::Element::Capture {
-                        ref name,
-                        captured
-                    } => result.push(Edge {
-                        source: entity,
-                        target: *captured,
-                        label: Label::ClosureCapture(name),
-                    }),
-                    element::Element::Closure {
+                    element::Element::Capture(element::Capture { ref name, captured }) => result
+                        .push(Edge {
+                            source: entity,
+                            target: *captured,
+                            label: Label::ClosureCapture(name),
+                        }),
+                    element::Element::Closure(element::Closure {
                         captures,
                         parameters,
                         statements,
                         signature,
-                    } => {
+                    }) => {
                         for (name, capture) in captures {
                             result.push(Edge {
                                 source: entity,
@@ -182,7 +180,7 @@ impl<'a> dot::GraphWalk<'a, Node, Edge<'a>> for Graph<'a> {
                             });
                         }
                     }
-                    element::Element::Module { definitions } => {
+                    element::Element::Module(element::Module { definitions }) => {
                         for (name, definition) in definitions {
                             result.push(Edge {
                                 source: entity,
@@ -227,41 +225,48 @@ impl<'a> dot::Labeller<'a, Node, Edge<'a>> for Graph<'a> {
 
         if let Some(element) = self.elements.get(*n) {
             match element {
-                element::Element::Number(n) => write!(result, "num <b>{:?}</b>", n).unwrap(),
-                element::Element::String(s) => write!(result, "str <b>{:?}</b>", s).unwrap(),
-                element::Element::Tuple { fields } => {
+                element::Element::NumberValue(element::NumberValue(n)) => {
+                    write!(result, "num <b>{:?}</b>", n).unwrap()
+                }
+                element::Element::StringValue(element::StringValue(s)) => {
+                    write!(result, "str <b>{:?}</b>", s).unwrap()
+                }
+                element::Element::Tuple(element::Tuple { fields }) => {
                     write!(result, "tuple <br/> <b>{:?}</b> fields", fields.len()).unwrap()
                 }
-                element::Element::Record { fields } => {
+                element::Element::Record(element::Record { fields }) => {
                     write!(result, "record <br/> <b>{:?}</b> fields", fields.len()).unwrap()
                 }
-                element::Element::Reference(v) => {
+                element::Element::Reference(element::Reference(v)) => {
                     write!(result, "reference <br/> to <b>{:?}</b>", v).unwrap()
                 }
-                element::Element::Select { record: _, field: _ } => write!(result, "select").unwrap(),
-                element::Element::Apply {
+                element::Element::Select(element::Select {
+                    record: _,
+                    field: _,
+                }) => write!(result, "select").unwrap(),
+                element::Element::Apply(element::Apply {
                     function: _,
                     parameters,
-                } => write!(result, "apply <br/> <b>{:?}</b> params", parameters.len()).unwrap(),
-                element::Element::Parameter { name, signature: _ } => {
+                }) => write!(result, "apply <br/> <b>{:?}</b> params", parameters.len()).unwrap(),
+                element::Element::Parameter(element::Parameter { name, signature: _ }) => {
                     write!(result, "param <b>{:?}</b>", name).unwrap()
                 }
-                element::Element::Capture { name, captured: _ } => {
+                element::Element::Capture(element::Capture { name, captured: _ }) => {
                     write!(result, "capture <b>{:?}</b>", name).unwrap()
                 }
-                element::Element::Closure {
+                element::Element::Closure(element::Closure {
                     captures,
                     parameters,
                     statements: _,
                     signature: _,
-                } => write!(
+                }) => write!(
                     result,
                     "closure <br/> <b>{:?}</b> parameters <br/> <b>{:?}</b> captures",
                     parameters.len(),
                     captures.len()
                 ).unwrap(),
 
-                element::Element::Module { definitions } => write!(
+                element::Element::Module(element::Module { definitions }) => write!(
                     result,
                     "module <br/> <b>{:?}</b> definitions",
                     definitions.len()

@@ -19,7 +19,7 @@
 //! let module = norm::ast::Module::parse(source).unwrap();
 //!
 //! let mut ir = norm::ir::Ir::new();
-//! ir.add_module(&module);
+//! ir.add_module(&module, &[]);
 //! ir.resolve_references();
 //! ir.check_types();
 //! ```
@@ -60,6 +60,7 @@ extern crate specs_visitor;
 extern crate specs_visitor_derive;
 
 pub mod ast;
+pub mod compiler;
 pub mod error;
 pub mod ir;
 pub mod parser;

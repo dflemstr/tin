@@ -129,11 +129,13 @@ where
 macro_rules! impl_visit_entities_empty {
     ($t:ty) => {
         impl VisitEntities for $t {
+            #[inline(always)]
             fn accept<V>(&self, _visitor: &V)
             where
                 V: EntityVisitor,
             {
             }
+            #[inline(always)]
             fn accept_mut<V>(&mut self, _visitor: &V)
             where
                 V: EntityVisitorMut,

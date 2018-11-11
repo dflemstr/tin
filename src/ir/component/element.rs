@@ -7,40 +7,73 @@ use specs::VecStorage;
 
 #[derive(Component, Debug, VisitEntities)]
 #[storage(VecStorage)]
-#[allow(unused)]
 pub enum Element {
-    Number(f64),
-    String(String),
-    Tuple {
-        fields: Vec<specs::Entity>,
-    },
-    Record {
-        fields: collections::HashMap<String, specs::Entity>,
-    },
-    Reference(String),
-    Select {
-        record: specs::Entity,
-        field: String,
-    },
-    Apply {
-        function: specs::Entity,
-        parameters: Vec<specs::Entity>,
-    },
-    Parameter {
-        name: String,
-        signature: Option<specs::Entity>,
-    },
-    Capture {
-        name: String,
-        captured: specs::Entity,
-    },
-    Closure {
-        captures: collections::HashMap<String, specs::Entity>,
-        parameters: Vec<specs::Entity>,
-        statements: Vec<specs::Entity>,
-        signature: Option<specs::Entity>,
-    },
-    Module {
-        definitions: collections::HashMap<String, specs::Entity>,
-    },
+    NumberValue(NumberValue),
+    StringValue(StringValue),
+    Tuple(Tuple),
+    Record(Record),
+    Reference(Reference),
+    Select(Select),
+    Apply(Apply),
+    Parameter(Parameter),
+    #[allow(unused)]
+    Capture(Capture),
+    Closure(Closure),
+    Module(Module),
+}
+
+#[derive(Debug, VisitEntities)]
+pub struct NumberValue(pub f64);
+
+#[derive(Debug, VisitEntities)]
+pub struct StringValue(pub String);
+
+#[derive(Debug, VisitEntities)]
+pub struct Tuple {
+    pub fields: Vec<specs::Entity>,
+}
+
+#[derive(Debug, VisitEntities)]
+pub struct Record {
+    pub fields: collections::HashMap<String, specs::Entity>,
+}
+
+#[derive(Debug, VisitEntities)]
+pub struct Reference(pub String);
+
+#[derive(Debug, VisitEntities)]
+pub struct Select {
+    pub record: specs::Entity,
+    pub field: String,
+}
+
+#[derive(Debug, VisitEntities)]
+pub struct Apply {
+    pub function: specs::Entity,
+    pub parameters: Vec<specs::Entity>,
+}
+
+#[derive(Debug, VisitEntities)]
+pub struct Parameter {
+    pub name: String,
+    pub signature: Option<specs::Entity>,
+}
+
+#[derive(Debug, VisitEntities)]
+pub struct Capture {
+    pub name: String,
+    pub captured: specs::Entity,
+}
+
+#[derive(Debug, VisitEntities)]
+pub struct Closure {
+    pub captures: collections::HashMap<String, specs::Entity>,
+    pub parameters: Vec<specs::Entity>,
+    pub statements: Vec<specs::Entity>,
+    pub signature: Option<specs::Entity>,
+}
+
+#[derive(Debug, VisitEntities)]
+pub struct Module {
+    pub definitions: collections::HashMap<String, specs::Entity>,
 }

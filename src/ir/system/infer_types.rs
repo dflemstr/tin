@@ -49,28 +49,35 @@ where
     D: ops::Deref<Target = specs::storage::MaskedStorage<ty::Type>>,
 {
     match *element {
-        element::Element::Number(_) => Some(ty::Type::Number),
-        element::Element::String(_) => Some(ty::Type::String),
-        element::Element::Tuple { ref fields } => infer_tuple_type(fields, types),
-        element::Element::Record { ref fields } => infer_record_type(fields, types),
+        element::Element::NumberValue(_) => Some(ty::Type::Number),
+        element::Element::StringValue(_) => Some(ty::Type::String),
+        element::Element::Tuple(element::Tuple { ref fields }) => infer_tuple_type(fields, types),
+        element::Element::Record(element::Record { ref fields }) => {
+            infer_record_type(fields, types)
+        }
         element::Element::Reference(_) => None,
-        element::Element::Select { record, ref field } => infer_select_type(record, field, types),
-        element::Element::Apply {
+        element::Element::Select(element::Select { record, ref field }) => {
+            infer_select_type(record, field, types)
+        }
+        element::Element::Apply(element::Apply {
             function,
             ref parameters,
-        } => infer_apply_type(function, parameters, types),
-        element::Element::Parameter {
-            name: _,
-            signature,
-        } => infer_parameter_type( signature, types),
-        element::Element::Capture { name: _, captured } => infer_capture_type(captured, types),
-        element::Element::Closure {
+        }) => infer_apply_type(function, parameters, types),
+        element::Element::Parameter(element::Parameter { name: _, signature }) => {
+            infer_parameter_type(signature, types)
+        }
+        element::Element::Capture(element::Capture { name: _, captured }) => {
+            infer_capture_type(captured, types)
+        }
+        element::Element::Closure(element::Closure {
             captures: _,
             ref parameters,
             statements: _,
             signature,
-        } => infer_closure_type(parameters, signature, types),
-        element::Element::Module { ref definitions } => infer_module_type(definitions, types),
+        }) => infer_closure_type(parameters, signature, types),
+        element::Element::Module(element::Module { ref definitions }) => {
+            infer_module_type(definitions, types)
+        }
     }
 }
 

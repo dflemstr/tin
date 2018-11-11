@@ -24,11 +24,13 @@ impl<'a> specs::System<'a> for ResolveReferencesSystem {
                 element,
                 scope
             );
-            if let element::Element::Reference(ref ident) = element {
+            if let element::Element::Reference(element::Reference(ref ident)) = element {
                 if let Some(to) = scope.definitions.get(ident) {
                     let to = *to;
                     debug!("resolved reference {:?} to {:?}", ident, to);
-                    replacements.insert(entity, replacement::Replacement { to }).unwrap();
+                    replacements
+                        .insert(entity, replacement::Replacement { to })
+                        .unwrap();
                 } else {
                     warn!("undefined reference to {:?}", ident);
                 }
