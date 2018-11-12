@@ -78,7 +78,7 @@ pub Field: (ast::Identifier<parser::Context>, ast::Expression<parser::Context>) 
 
 pub Number: ast::NumberLiteral<parser::Context> = {
     <lo:@L> <v:r"-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?"> <hi:@R> =>
-        ast::NumberLiteral { context: parser::Context::new(ast::Kind::NumberLiteral, lo, hi), value: f64::from_str(v).unwrap() },
+        ast::NumberLiteral { context: parser::Context::new(ast::Kind::NumberLiteral, lo, hi), value: ast::NumberValue::F64(f64::from_str(v).unwrap()) },
 }
 
 pub String: ast::StringLiteral<parser::Context> = {

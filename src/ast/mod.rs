@@ -94,7 +94,32 @@ pub struct NumberLiteral<C> {
     /// This node's AST context.
     pub context: C,
     /// The value of the literal.
-    pub value: f64,
+    pub value: NumberValue,
+}
+
+/// All syntactic number literal value variants.
+#[derive(Clone, Copy, Debug, PartialEq, PartialOrd)]
+pub enum NumberValue {
+    /// Unsigned 8-bit integer value.
+    U8(u8),
+    /// Unsigned 16-bit integer value.
+    U16(u16),
+    /// Unsigned 32-bit integer value.
+    U32(u32),
+    /// Unsigned 64-bit integer value.
+    U64(u64),
+    /// Signed 8-bit integer value.
+    I8(i8),
+    /// Signed 16-bit integer value.
+    I16(i16),
+    /// Signed 32-bit integer value.
+    I32(i32),
+    /// Signed 64-bit integer value.
+    I64(i64),
+    /// Floating point 32-bit value.
+    F32(f32),
+    /// Floating point 64-bit value.
+    F64(f64),
 }
 
 /// A string literal.

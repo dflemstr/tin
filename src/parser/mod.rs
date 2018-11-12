@@ -287,7 +287,7 @@ main = || {
 
         let expected = Ok(ast::Expression::Number(ast::NumberLiteral {
             context: (),
-            value: 1.0,
+            value: ast::NumberValue::F64(1.0),
         }));
         let actual = norm::ExpressionParser::new()
             .parse(r#"1"#)
@@ -301,7 +301,7 @@ main = || {
 
         let expected = Ok(ast::Expression::Number(ast::NumberLiteral {
             context: (),
-            value: -1.0,
+            value: ast::NumberValue::F64(-1.0),
         }));
         let actual = norm::ExpressionParser::new()
             .parse(r#"-1"#)
@@ -315,7 +315,7 @@ main = || {
 
         let expected = Ok(ast::Expression::Number(ast::NumberLiteral {
             context: (),
-            value: 0.0,
+            value: ast::NumberValue::F64(0.0),
         }));
         let actual = norm::ExpressionParser::new()
             .parse(r#"0"#)
@@ -329,7 +329,7 @@ main = || {
 
         let expected = Ok(ast::Expression::Number(ast::NumberLiteral {
             context: (),
-            value: -0.0,
+            value: ast::NumberValue::F64(-0.0),
         }));
         let actual = norm::ExpressionParser::new()
             .parse(r#"-0"#)
@@ -343,7 +343,7 @@ main = || {
 
         let expected = Ok(ast::Expression::Number(ast::NumberLiteral {
             context: (),
-            value: 1.5,
+            value: ast::NumberValue::F64(1.5),
         }));
         let actual = norm::ExpressionParser::new()
             .parse(r#"1.5"#)
@@ -357,7 +357,7 @@ main = || {
 
         let expected = Ok(ast::Expression::Number(ast::NumberLiteral {
             context: (),
-            value: -1.5,
+            value: ast::NumberValue::F64(-1.5),
         }));
         let actual = norm::ExpressionParser::new()
             .parse(r#"-1.5"#)
@@ -371,7 +371,7 @@ main = || {
 
         let expected = Ok(ast::Expression::Number(ast::NumberLiteral {
             context: (),
-            value: 1500.0,
+            value: ast::NumberValue::F64(1500.0),
         }));
         let actual = norm::ExpressionParser::new()
             .parse(r#"1.5000e3"#)
@@ -385,7 +385,7 @@ main = || {
 
         let expected = Ok(ast::Expression::Number(ast::NumberLiteral {
             context: (),
-            value: -1500.0,
+            value: ast::NumberValue::F64(-1500.0),
         }));
         let actual = norm::ExpressionParser::new()
             .parse(r#"-1.5000e3"#)
@@ -399,7 +399,7 @@ main = || {
 
         let expected = Ok(ast::Expression::Number(ast::NumberLiteral {
             context: (),
-            value: 1500.0,
+            value: ast::NumberValue::F64(1500.0),
         }));
         let actual = norm::ExpressionParser::new()
             .parse(r#"1.5000E3"#)
@@ -413,7 +413,7 @@ main = || {
 
         let expected = Ok(ast::Expression::Number(ast::NumberLiteral {
             context: (),
-            value: -1500.0,
+            value: ast::NumberValue::F64(-1500.0),
         }));
         let actual = norm::ExpressionParser::new()
             .parse(r#"-1.5000E3"#)
@@ -427,7 +427,7 @@ main = || {
 
         let expected = Ok(ast::Expression::Number(ast::NumberLiteral {
             context: (),
-            value: 0.0015,
+            value: ast::NumberValue::F64(0.0015),
         }));
         let actual = norm::ExpressionParser::new()
             .parse(r#"1.5000e-3"#)
@@ -441,7 +441,7 @@ main = || {
 
         let expected = Ok(ast::Expression::Number(ast::NumberLiteral {
             context: (),
-            value: 1500.0,
+            value: ast::NumberValue::F64(1500.0),
         }));
         let actual = norm::ExpressionParser::new()
             .parse(r#"1.5000e0003"#)
@@ -455,7 +455,7 @@ main = || {
 
         let expected = Ok(ast::Expression::Number(ast::NumberLiteral {
             context: (),
-            value: 1500.0,
+            value: ast::NumberValue::F64(1500.0),
         }));
         let actual = norm::ExpressionParser::new()
             .parse(r#"1.5000e+3"#)
@@ -469,7 +469,7 @@ main = || {
 
         let expected = Ok(ast::Expression::Number(ast::NumberLiteral {
             context: (),
-            value: 1.5,
+            value: ast::NumberValue::F64(1.5),
         }));
         let actual = norm::ExpressionParser::new()
             .parse(r#"1.5000e0"#)
@@ -483,7 +483,7 @@ main = || {
 
         let expected = Ok(ast::Expression::Number(ast::NumberLiteral {
             context: (),
-            value: 1.5,
+            value: ast::NumberValue::F64(1.5),
         }));
         let actual = norm::ExpressionParser::new()
             .parse(r#"1.5000e+0"#)
@@ -542,11 +542,11 @@ main = || {
             fields: vec![
                 ast::Expression::Number(ast::NumberLiteral {
                     context: (),
-                    value: 1.0,
+                    value: ast::NumberValue::F64(1.0),
                 }),
                 ast::Expression::Number(ast::NumberLiteral {
                     context: (),
-                    value: 2.0,
+                    value: ast::NumberValue::F64(2.0),
                 }),
             ],
         });
@@ -565,11 +565,11 @@ main = || {
             fields: vec![
                 ast::Expression::Number(ast::NumberLiteral {
                     context: (),
-                    value: 1.0,
+                    value: ast::NumberValue::F64(1.0),
                 }),
                 ast::Expression::Number(ast::NumberLiteral {
                     context: (),
-                    value: 2.0,
+                    value: ast::NumberValue::F64(2.0),
                 }),
             ],
         });
@@ -587,7 +587,7 @@ main = || {
             context: (),
             fields: vec![ast::Expression::Number(ast::NumberLiteral {
                 context: (),
-                value: 1.0,
+                value: ast::NumberValue::F64(1.0),
             })],
         });
         let actual = norm::TupleParser::new()
@@ -604,7 +604,7 @@ main = || {
             context: (),
             fields: vec![ast::Expression::Number(ast::NumberLiteral {
                 context: (),
-                value: 1.0,
+                value: ast::NumberValue::F64(1.0),
             })],
         });
         let actual = norm::TupleParser::new()
@@ -651,7 +651,7 @@ main = || {
                     },
                     ast::Expression::Number(ast::NumberLiteral {
                         context: (),
-                        value: 1.0,
+                        value: ast::NumberValue::F64(1.0),
                     }),
                 ),
                 (
@@ -687,7 +687,7 @@ main = || {
                     },
                     ast::Expression::Number(ast::NumberLiteral {
                         context: (),
-                        value: 1.0,
+                        value: ast::NumberValue::F64(1.0),
                     }),
                 ),
                 (
@@ -722,7 +722,7 @@ main = || {
                 },
                 ast::Expression::Number(ast::NumberLiteral {
                     context: (),
-                    value: 1.0,
+                    value: ast::NumberValue::F64(1.0),
                 }),
             )].into_iter()
             .collect(),
@@ -746,7 +746,7 @@ main = || {
                 },
                 ast::Expression::Number(ast::NumberLiteral {
                     context: (),
-                    value: 1.0,
+                    value: ast::NumberValue::F64(1.0),
                 }),
             )].into_iter()
             .collect(),

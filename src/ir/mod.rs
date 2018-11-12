@@ -181,9 +181,24 @@ impl Ir {
         self.world
             .create_entity()
             .with(component::element::Element::NumberValue(
-                component::element::NumberValue(number.value),
+                Ir::from_ast_number(number.value),
             )).with(component::symbol::Symbol::new(symbol.to_vec()))
             .build()
+    }
+
+    fn from_ast_number(number: ast::NumberValue) -> component::element::NumberValue {
+        match number {
+            ast::NumberValue::U8(n) => component::element::NumberValue::U8(n),
+            ast::NumberValue::U16(n) => component::element::NumberValue::U16(n),
+            ast::NumberValue::U32(n) => component::element::NumberValue::U32(n),
+            ast::NumberValue::U64(n) => component::element::NumberValue::U64(n),
+            ast::NumberValue::I8(n) => component::element::NumberValue::I8(n),
+            ast::NumberValue::I16(n) => component::element::NumberValue::I16(n),
+            ast::NumberValue::I32(n) => component::element::NumberValue::I32(n),
+            ast::NumberValue::I64(n) => component::element::NumberValue::I64(n),
+            ast::NumberValue::F32(n) => component::element::NumberValue::F32(n),
+            ast::NumberValue::F64(n) => component::element::NumberValue::F64(n),
+        }
     }
 
     fn set_number_scope(

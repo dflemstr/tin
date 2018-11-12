@@ -1,7 +1,6 @@
 //! A JIT compiler implementation based on the IR.
 use std::collections;
 use std::fmt;
-use std::mem;
 
 use cranelift::codegen;
 use cranelift_module;
@@ -15,18 +14,14 @@ use ir::component::ty;
 
 use cranelift::prelude::*;
 
+pub mod module;
+
 /// A compiler system, that can be used for JIT compilation.
 #[allow(unused)]
 pub struct Compiler<'a> {
     elements: specs::ReadStorage<'a, element::Element>,
     symbols: specs::ReadStorage<'a, symbol::Symbol>,
     types: specs::ReadStorage<'a, ty::Type>,
-}
-
-/// A compiled module, the result of an invocation of `compile`.
-pub struct Module {
-    compiled: cranelift_module::Module<cranelift_simplejit::SimpleJITBackend>,
-    function_ids: collections::HashMap<String, cranelift_module::FuncId>,
 }
 
 impl<'a> Compiler<'a> {
@@ -44,7 +39,7 @@ impl<'a> Compiler<'a> {
     }
 
     /// Compiles the captured IR into a module.
-    pub fn compile(&self) -> Module {
+    pub fn compile(&self) -> module::Module {
         use specs::Join;
 
         let Compiler {
@@ -111,10 +106,7 @@ impl<'a> Compiler<'a> {
 
         module.finalize_definitions();
 
-        Module {
-            compiled: module,
-            function_ids,
-        }
+        module::Module::new(module, function_ids)
     }
 }
 
@@ -124,35 +116,30 @@ impl<'a> fmt::Debug for Compiler<'a> {
     }
 }
 
-impl Module {
-    /// Fetches the specified function with the specified signature.
-    ///
-    /// Returns `None` if the signature does not match the compiled function.
-    #[allow(unsafe_code)]
-    pub fn function(&mut self, name: &str) -> Option<fn() -> i64> {
-        if let Some(id) = self.function_ids.get(name) {
-            Some(unsafe { mem::transmute(self.compiled.get_finalized_function(*id)) })
-        } else {
-            None
-        }
-    }
-}
-
-impl fmt::Debug for Module {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f.debug_struct("Module").finish()
-    }
-}
-
 fn to_type(ir_type: &ty::Type, ptr_type: Type) -> Type {
     match *ir_type {
-        ty::Type::Number => types::F64,
+        ty::Type::Number(ref n) => to_number_type(n),
         ty::Type::String => ptr_type,
         ty::Type::Tuple(_) => ptr_type,
         ty::Type::Record(_) => ptr_type,
         ty::Type::Function(_) => ptr_type,
         ty::Type::Conflict(_) => ptr_type,
         ty::Type::Any => panic!("can't map any type to concrete type"),
+    }
+}
+
+fn to_number_type(ir_type: &ty::Number) -> Type {
+    match *ir_type {
+        ty::Number::U8 => types::I8,
+        ty::Number::U16 => types::I16,
+        ty::Number::U32 => types::I32,
+        ty::Number::U64 => types::I64,
+        ty::Number::I8 => types::I8,
+        ty::Number::I16 => types::I16,
+        ty::Number::I32 => types::I32,
+        ty::Number::I64 => types::I64,
+        ty::Number::F32 => types::F32,
+        ty::Number::F64 => types::F64,
     }
 }
 

@@ -23,7 +23,18 @@ pub enum Element {
 }
 
 #[derive(Debug, VisitEntities)]
-pub struct NumberValue(pub f64);
+pub enum NumberValue {
+    U8(u8),
+    U16(u16),
+    U32(u32),
+    U64(u64),
+    I8(i8),
+    I16(i16),
+    I32(i32),
+    I64(i64),
+    F32(f32),
+    F64(f64),
+}
 
 #[derive(Debug, VisitEntities)]
 pub struct StringValue(pub String);

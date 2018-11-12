@@ -49,7 +49,7 @@ where
     D: ops::Deref<Target = specs::storage::MaskedStorage<ty::Type>>,
 {
     match *element {
-        element::Element::NumberValue(_) => Some(ty::Type::Number),
+        element::Element::NumberValue(ref n) => Some(ty::Type::Number(infer_number_type(n))),
         element::Element::StringValue(_) => Some(ty::Type::String),
         element::Element::Tuple(element::Tuple { ref fields }) => infer_tuple_type(fields, types),
         element::Element::Record(element::Record { ref fields }) => {
@@ -78,6 +78,21 @@ where
         element::Element::Module(element::Module { ref definitions }) => {
             infer_module_type(definitions, types)
         }
+    }
+}
+
+fn infer_number_type(number: &element::NumberValue) -> ty::Number {
+    match *number {
+        element::NumberValue::U8(_) => ty::Number::U8,
+        element::NumberValue::U16(_) => ty::Number::U16,
+        element::NumberValue::U32(_) => ty::Number::U32,
+        element::NumberValue::U64(_) => ty::Number::U64,
+        element::NumberValue::I8(_) => ty::Number::I8,
+        element::NumberValue::I16(_) => ty::Number::I16,
+        element::NumberValue::I32(_) => ty::Number::I32,
+        element::NumberValue::I64(_) => ty::Number::I64,
+        element::NumberValue::F32(_) => ty::Number::F32,
+        element::NumberValue::F64(_) => ty::Number::F64,
     }
 }
 

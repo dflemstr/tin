@@ -225,9 +225,7 @@ impl<'a> dot::Labeller<'a, Node, Edge<'a>> for Graph<'a> {
 
         if let Some(element) = self.elements.get(*n) {
             match element {
-                element::Element::NumberValue(element::NumberValue(n)) => {
-                    write!(result, "num <b>{:?}</b>", n).unwrap()
-                }
+                element::Element::NumberValue(n) => write!(result, "num <b>{:?}</b>", n).unwrap(),
                 element::Element::StringValue(element::StringValue(s)) => {
                     write!(result, "str <b>{:?}</b>", s).unwrap()
                 }
@@ -341,13 +339,30 @@ impl<'a> fmt::Debug for Graph<'a> {
 impl<'a> fmt::Display for PrettyTy<&'a ty::Type> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self.0 {
-            ty::Type::Number => write!(f, "num"),
+            ty::Type::Number(ref number) => PrettyTy(number).fmt(f),
             ty::Type::String => write!(f, "str"),
             ty::Type::Tuple(ref tuple) => PrettyTy(tuple).fmt(f),
             ty::Type::Record(ref record) => PrettyTy(record).fmt(f),
             ty::Type::Function(ref function) => PrettyTy(function).fmt(f),
             ty::Type::Conflict(ref conflict) => PrettyTy(conflict).fmt(f),
             ty::Type::Any => write!(f, "any"),
+        }
+    }
+}
+
+impl<'a> fmt::Display for PrettyTy<&'a ty::Number> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self.0 {
+            ty::Number::U8 => write!(f, "u8"),
+            ty::Number::U16 => write!(f, "u16"),
+            ty::Number::U32 => write!(f, "u32"),
+            ty::Number::U64 => write!(f, "u64"),
+            ty::Number::I8 => write!(f, "i8"),
+            ty::Number::I16 => write!(f, "i16"),
+            ty::Number::I32 => write!(f, "i32"),
+            ty::Number::I64 => write!(f, "i64"),
+            ty::Number::F32 => write!(f, "f32"),
+            ty::Number::F64 => write!(f, "f64"),
         }
     }
 }
