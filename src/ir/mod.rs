@@ -34,26 +34,24 @@ impl Ir {
         use specs::world::Builder;
 
         let mut definitions = collections::HashMap::new();
-        for (name, expr) in &ast.definitions {
-            let mut symbol = symbol.to_vec();
-            symbol.push(component::symbol::Part::Named(name.value.clone()));
-            let entity = self.add_expression(expr, &symbol);
-            definitions.insert(name.value.clone(), entity);
+        for variable in &ast.definitions {
+            let entity = self.add_variable(variable, &symbol);
+            definitions.insert(variable.name.value.clone(), entity);
+        }
+
+        for variable in &ast.definitions {
+            Ir::set_variable_scope(
+                &self.world.read_storage(),
+                &mut self.world.write_storage(),
+                definitions[&variable.name.value],
+                variable,
+                &definitions,
+            );
         }
 
         let element = component::element::Element::Module(component::element::Module {
             definitions: definitions.clone(),
         });
-
-        for (name, expr) in &ast.definitions {
-            Ir::set_expression_scope(
-                &self.world.read_storage(),
-                &mut self.world.write_storage(),
-                definitions[&name.value],
-                expr,
-                &definitions,
-            );
-        }
 
         self.world
             .create_entity()
@@ -333,21 +331,22 @@ impl Ir {
 
         // TODO generate unique symbol for anonymous lambdas
 
-        let captures = collections::HashMap::new();
+        let captures = Vec::new();
         let parameters = lambda
             .parameters
             .iter()
             .map(|p| self.add_parameter(p, symbol))
             .collect();
-        let statements = lambda
+        let mut statements = lambda
             .statements
             .iter()
             .map(|s| self.add_statement(s, symbol))
-            .collect();
+            .collect::<Vec<_>>();
         let signature = lambda
             .signature
             .as_ref()
             .map(|s| self.add_expression(s, symbol));
+        let result = statements.pop();
 
         self.world
             .create_entity()
@@ -357,6 +356,7 @@ impl Ir {
                     parameters,
                     statements,
                     signature,
+                    result,
                 },
             )).with(component::symbol::Symbol::new(symbol.to_vec()))
             .build()
@@ -371,10 +371,11 @@ impl Ir {
     ) {
         match elements.get(entity) {
             Some(component::element::Element::Closure(component::element::Closure {
-                ref captures,
+                captures: _,
                 ref parameters,
                 ref statements,
                 ref signature,
+                result,
             })) => {
                 for (idx, parameter) in lambda.parameters.iter().enumerate() {
                     Ir::set_parameter_scope(
@@ -402,13 +403,24 @@ impl Ir {
                     definitions.insert(parameter.name.value.clone(), parameters[idx]);
                 }
 
-                for (name, capture) in captures {
-                    definitions.insert(name.clone(), *capture);
-                }
+                // TODO: Captures
+                //for capture in captures {
+                //    definitions.insert(name.clone(), *capture);
+                //}
 
                 for (idx, statement) in statements.iter().enumerate() {
                     match lambda.statements[idx] {
-                        ast::Statement::Definition(ref ident, ref expr) => {
+                        ast::Statement::Definition(ref variable) => {
+                            Ir::set_variable_scope(
+                                elements,
+                                scopes,
+                                *statement,
+                                variable,
+                                &definitions,
+                            );
+                            definitions.insert(variable.name.value.clone(), *statement);
+                        }
+                        ast::Statement::Evaluation(ref expr) => {
                             Ir::set_expression_scope(
                                 elements,
                                 scopes,
@@ -416,17 +428,20 @@ impl Ir {
                                 expr,
                                 &definitions,
                             );
-                            definitions.insert(ident.value.clone(), *statement);
                         }
-                        ast::Statement::Expression(ref expr) => {
-                            Ir::set_expression_scope(
-                                elements,
-                                scopes,
-                                *statement,
-                                expr,
-                                &definitions,
-                            );
-                        }
+                    }
+                }
+
+                if let Some(result) = result {
+                    match lambda.statements.last() {
+                        Some(ast::Statement::Evaluation(expression)) => Ir::set_expression_scope(
+                            elements,
+                            scopes,
+                            *result,
+                            expression,
+                            &definitions,
+                        ),
+                        _ => unreachable!(),
                     }
                 }
             }
@@ -442,13 +457,56 @@ impl Ir {
         symbol: &[component::symbol::Part],
     ) -> specs::Entity {
         match *statement {
-            ast::Statement::Definition(ref ident, ref expression) => {
-                let mut symbol = symbol.to_vec();
-                symbol.push(component::symbol::Part::Named(ident.value.clone()));
-                self.add_expression(expression, &symbol)
-            }
-            ast::Statement::Expression(ref expression) => self.add_expression(expression, symbol),
+            ast::Statement::Definition(ref variable) => self.add_variable(variable, symbol),
+            ast::Statement::Evaluation(ref expression) => self.add_expression(expression, symbol),
         }
+    }
+
+    fn add_variable(
+        &mut self,
+        variable: &ast::Variable<parser::Context>,
+        symbol: &[component::symbol::Part],
+    ) -> specs::Entity {
+        use specs::world::Builder;
+
+        let mut symbol = symbol.to_vec();
+        symbol.push(component::symbol::Part::Named(variable.name.value.clone()));
+
+        let name = variable.name.value.clone();
+        let initializer = self.add_expression(&variable.initializer, &symbol);
+
+        self.world
+            .create_entity()
+            .with(component::element::Element::Variable(
+                component::element::Variable { name, initializer },
+            )).with(component::symbol::Symbol::new(symbol))
+            .build()
+    }
+
+    fn set_variable_scope(
+        elements: &specs::ReadStorage<component::element::Element>,
+        scopes: &mut specs::WriteStorage<component::scope::Scope>,
+        entity: specs::Entity,
+        variable: &ast::Variable<parser::Context>,
+        definitions: &collections::HashMap<String, specs::Entity>,
+    ) {
+        match elements.get(entity) {
+            Some(component::element::Element::Variable(component::element::Variable {
+                initializer,
+                ..
+            })) => {
+                Ir::set_expression_scope(
+                    elements,
+                    scopes,
+                    *initializer,
+                    &variable.initializer,
+                    definitions,
+                );
+            }
+            _ => unreachable!(),
+        }
+
+        Ir::set_scope(scopes, entity, definitions);
     }
 
     fn add_select(

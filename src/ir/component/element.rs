@@ -13,6 +13,7 @@ pub enum Element {
     Tuple(Tuple),
     Record(Record),
     Reference(Reference),
+    Variable(Variable),
     Select(Select),
     Apply(Apply),
     Parameter(Parameter),
@@ -53,6 +54,12 @@ pub struct Record {
 pub struct Reference(pub String);
 
 #[derive(Debug, VisitEntities)]
+pub struct Variable {
+    pub name: String,
+    pub initializer: specs::Entity,
+}
+
+#[derive(Debug, VisitEntities)]
 pub struct Select {
     pub record: specs::Entity,
     pub field: String,
@@ -78,10 +85,11 @@ pub struct Capture {
 
 #[derive(Debug, VisitEntities)]
 pub struct Closure {
-    pub captures: collections::HashMap<String, specs::Entity>,
+    pub captures: Vec<specs::Entity>,
     pub parameters: Vec<specs::Entity>,
     pub statements: Vec<specs::Entity>,
     pub signature: Option<specs::Entity>,
+    pub result: Option<specs::Entity>,
 }
 
 #[derive(Debug, VisitEntities)]

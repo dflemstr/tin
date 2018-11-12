@@ -35,14 +35,17 @@ pub struct Edge<'a> {
 enum Label<'a> {
     RecordField(&'a str),
     TupleField(usize),
+    VariableInitializer,
     SelectField(&'a str),
     AppliedFunction,
     AppliedParameter(usize),
     ParameterSignature,
-    ClosureCapture(&'a str),
+    ClosureCaptureDefinition(&'a str),
+    ClosureCaptureUsage(usize),
     ClosureParameter(usize),
     ClosureStatement(usize),
     ClosureSignature,
+    ClosureResult,
     ModuleDefinition(&'a str),
 }
 
@@ -79,7 +82,7 @@ impl<'a> dot::GraphWalk<'a, Node, Edge<'a>> for Graph<'a> {
     fn edges(&'a self) -> borrow::Cow<'a, [Edge<'a>]> {
         use specs::Join;
 
-        let mut result = Vec::new();
+        let mut edges = Vec::new();
         let elements = &self.elements;
 
         for entity in self.entities.join() {
@@ -89,7 +92,7 @@ impl<'a> dot::GraphWalk<'a, Node, Edge<'a>> for Graph<'a> {
                     element::Element::StringValue(_) => {}
                     element::Element::Tuple(element::Tuple { fields }) => {
                         for (idx, field) in fields.iter().enumerate() {
-                            result.push(Edge {
+                            edges.push(Edge {
                                 source: entity,
                                 target: *field,
                                 label: Label::TupleField(idx),
@@ -98,7 +101,7 @@ impl<'a> dot::GraphWalk<'a, Node, Edge<'a>> for Graph<'a> {
                     }
                     element::Element::Record(element::Record { fields }) => {
                         for (name, field) in fields {
-                            result.push(Edge {
+                            edges.push(Edge {
                                 source: entity,
                                 target: *field,
                                 label: Label::RecordField(name),
@@ -106,8 +109,16 @@ impl<'a> dot::GraphWalk<'a, Node, Edge<'a>> for Graph<'a> {
                         }
                     }
                     element::Element::Reference(_) => {}
+                    element::Element::Variable(element::Variable {
+                        name: _,
+                        initializer,
+                    }) => edges.push(Edge {
+                        source: entity,
+                        target: *initializer,
+                        label: Label::VariableInitializer,
+                    }),
                     element::Element::Select(element::Select { record, field }) => {
-                        result.push(Edge {
+                        edges.push(Edge {
                             source: entity,
                             target: *record,
                             label: Label::SelectField(field),
@@ -117,13 +128,13 @@ impl<'a> dot::GraphWalk<'a, Node, Edge<'a>> for Graph<'a> {
                         function,
                         parameters,
                     }) => {
-                        result.push(Edge {
+                        edges.push(Edge {
                             source: entity,
                             target: *function,
                             label: Label::AppliedFunction,
                         });
                         for (idx, parameter) in parameters.iter().enumerate() {
-                            result.push(Edge {
+                            edges.push(Edge {
                                 source: entity,
                                 target: *parameter,
                                 label: Label::AppliedParameter(idx),
@@ -132,59 +143,67 @@ impl<'a> dot::GraphWalk<'a, Node, Edge<'a>> for Graph<'a> {
                     }
                     element::Element::Parameter(element::Parameter { name: _, signature }) => {
                         if let Some(signature) = signature {
-                            result.push(Edge {
+                            edges.push(Edge {
                                 source: entity,
                                 target: *signature,
                                 label: Label::ParameterSignature,
                             });
                         }
                     }
-                    element::Element::Capture(element::Capture { ref name, captured }) => result
+                    element::Element::Capture(element::Capture { ref name, captured }) => edges
                         .push(Edge {
                             source: entity,
                             target: *captured,
-                            label: Label::ClosureCapture(name),
+                            label: Label::ClosureCaptureDefinition(name),
                         }),
                     element::Element::Closure(element::Closure {
                         captures,
                         parameters,
                         statements,
                         signature,
+                        result,
                     }) => {
-                        for (name, capture) in captures {
-                            result.push(Edge {
+                        for (idx, capture) in captures.iter().enumerate() {
+                            edges.push(Edge {
                                 source: entity,
                                 target: *capture,
-                                label: Label::ClosureCapture(name),
+                                label: Label::ClosureCaptureUsage(idx),
                             });
                         }
                         for (idx, parameter) in parameters.iter().enumerate() {
-                            result.push(Edge {
+                            edges.push(Edge {
                                 source: entity,
                                 target: *parameter,
                                 label: Label::ClosureParameter(idx),
                             });
                         }
                         for (idx, statement) in statements.iter().enumerate() {
-                            result.push(Edge {
+                            edges.push(Edge {
                                 source: entity,
                                 target: *statement,
                                 label: Label::ClosureStatement(idx),
                             });
                         }
                         if let Some(signature) = signature {
-                            result.push(Edge {
+                            edges.push(Edge {
                                 source: entity,
                                 target: *signature,
                                 label: Label::ClosureSignature,
                             });
                         }
+                        if let Some(result) = result {
+                            edges.push(Edge {
+                                source: entity,
+                                target: *result,
+                                label: Label::ClosureResult,
+                            });
+                        }
                     }
                     element::Element::Module(element::Module { definitions }) => {
-                        for (name, definition) in definitions {
-                            result.push(Edge {
+                        for (name, variable) in definitions {
+                            edges.push(Edge {
                                 source: entity,
-                                target: *definition,
+                                target: *variable,
                                 label: Label::ModuleDefinition(name),
                             });
                         }
@@ -193,7 +212,7 @@ impl<'a> dot::GraphWalk<'a, Node, Edge<'a>> for Graph<'a> {
             }
         }
 
-        borrow::Cow::Owned(result)
+        borrow::Cow::Owned(edges)
     }
 
     fn source(&'a self, edge: &Edge) -> Node {
@@ -235,6 +254,10 @@ impl<'a> dot::Labeller<'a, Node, Edge<'a>> for Graph<'a> {
                 element::Element::Record(element::Record { fields }) => {
                     write!(result, "record <br/> <b>{:?}</b> fields", fields.len()).unwrap()
                 }
+                element::Element::Variable(element::Variable {
+                    name,
+                    initializer: _,
+                }) => write!(result, "variable <b>{:?}</b>", name).unwrap(),
                 element::Element::Reference(element::Reference(v)) => {
                     write!(result, "reference <br/> to <b>{:?}</b>", v).unwrap()
                 }
@@ -257,6 +280,7 @@ impl<'a> dot::Labeller<'a, Node, Edge<'a>> for Graph<'a> {
                     parameters,
                     statements: _,
                     signature: _,
+                    result: _,
                 }) => write!(
                     result,
                     "closure <br/> <b>{:?}</b> parameters <br/> <b>{:?}</b> captures",
@@ -289,6 +313,7 @@ impl<'a> dot::Labeller<'a, Node, Edge<'a>> for Graph<'a> {
             Label::TupleField(idx) => {
                 dot::LabelText::HtmlStr(format!("field <b>{}</b>", idx).into())
             }
+            Label::VariableInitializer => dot::LabelText::HtmlStr("initializer".into()),
             Label::SelectField(ref name) => {
                 dot::LabelText::HtmlStr(format!("select <b>{}</b>", name).into())
             }
@@ -297,14 +322,20 @@ impl<'a> dot::Labeller<'a, Node, Edge<'a>> for Graph<'a> {
                 dot::LabelText::HtmlStr(format!("param <b>{}</b>", idx).into())
             }
             Label::ParameterSignature => dot::LabelText::LabelStr("sig".into()),
-            Label::ClosureCapture(ref name) => {
-                dot::LabelText::HtmlStr(format!("capture <b>{}</b>", name).into())
+            Label::ClosureCaptureDefinition(ref name) => {
+                dot::LabelText::HtmlStr(format!("capture definition <b>{}</b>", name).into())
+            }
+            Label::ClosureCaptureUsage(idx) => {
+                dot::LabelText::HtmlStr(format!("capture usage <b>{}</b>", idx).into())
             }
             Label::ClosureParameter(idx) => {
                 dot::LabelText::HtmlStr(format!("param <b>{}</b>", idx).into())
             }
             Label::ClosureStatement(idx) => {
                 dot::LabelText::HtmlStr(format!("stmt <b>{}</b>", idx).into())
+            }
+            Label::ClosureResult => {
+                dot::LabelText::HtmlStr("result".into())
             }
             Label::ClosureSignature => dot::LabelText::LabelStr("sig".into()),
             Label::ModuleDefinition(ref name) => {
@@ -317,13 +348,16 @@ impl<'a> dot::Labeller<'a, Node, Edge<'a>> for Graph<'a> {
         match e.label {
             Label::RecordField(_) => dot::Style::None,
             Label::TupleField(_) => dot::Style::None,
+            Label::VariableInitializer => dot::Style::None,
             Label::SelectField(_) => dot::Style::None,
             Label::AppliedFunction => dot::Style::None,
             Label::AppliedParameter(_) => dot::Style::None,
             Label::ParameterSignature => dot::Style::Dotted,
-            Label::ClosureCapture(_) => dot::Style::Dashed,
+            Label::ClosureCaptureDefinition(_) => dot::Style::Dashed,
+            Label::ClosureCaptureUsage(_) => dot::Style::None,
             Label::ClosureParameter(_) => dot::Style::None,
             Label::ClosureStatement(_) => dot::Style::Dashed,
+            Label::ClosureResult => dot::Style::None,
             Label::ClosureSignature => dot::Style::Dotted,
             Label::ModuleDefinition(_) => dot::Style::None,
         }

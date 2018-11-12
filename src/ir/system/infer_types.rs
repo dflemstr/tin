@@ -56,6 +56,10 @@ where
             infer_record_type(fields, types)
         }
         element::Element::Reference(_) => None,
+        element::Element::Variable(element::Variable {
+            name: _,
+            initializer,
+        }) => infer_variable_type(initializer, types),
         element::Element::Select(element::Select { record, ref field }) => {
             infer_select_type(record, field, types)
         }
@@ -74,7 +78,8 @@ where
             ref parameters,
             statements: _,
             signature,
-        }) => infer_closure_type(parameters, signature, types),
+            result,
+        }) => infer_closure_type(parameters, signature, result, types),
         element::Element::Module(element::Module { ref definitions }) => {
             infer_module_type(definitions, types)
         }
@@ -122,6 +127,16 @@ where
         .map(|(k, v)| types.get(*v).map(|t| (k.clone(), t.clone())))
         .collect::<Option<collections::HashMap<_, _>>>()
         .map(|fields| ty::Type::Record(ty::Record { fields }))
+}
+
+fn infer_variable_type<D>(
+    initializer: specs::Entity,
+    types: &specs::Storage<ty::Type, D>,
+) -> Option<ty::Type>
+where
+    D: ops::Deref<Target = specs::storage::MaskedStorage<ty::Type>>,
+{
+    types.get(initializer).cloned()
 }
 
 fn infer_select_type<D>(
@@ -241,30 +256,39 @@ where
 fn infer_closure_type<D>(
     parameters: &[specs::Entity],
     signature: Option<specs::Entity>,
+    result: Option<specs::Entity>,
     types: &specs::Storage<ty::Type, D>,
 ) -> Option<ty::Type>
 where
     D: ops::Deref<Target = specs::storage::MaskedStorage<ty::Type>>,
 {
-    if let Some(ref signature) = signature {
-        if let Some(result) = types.get(*signature).cloned() {
-            if let Some(parameters) = parameters
-                .iter()
-                .map(|p| types.get(*p).cloned())
-                .collect::<Option<Vec<_>>>()
-            {
+    if let Some(parameters) = parameters
+        .iter()
+        .map(|p| types.get(*p).cloned())
+        .collect::<Option<Vec<_>>>()
+    {
+        if let Some(signature) = signature {
+            if let Some(result) = types.get(signature).cloned() {
                 let result = Box::new(result);
                 Some(ty::Type::Function(ty::Function { parameters, result }))
             } else {
-                trace!("inference failure: missing parameter type(s) for closure");
+                trace!("inference failure: no signature for closure");
+                None
+            }
+        } else if let Some(result) = result {
+            if let Some(result) = types.get(result).cloned() {
+                let result = Box::new(result);
+                Some(ty::Type::Function(ty::Function { parameters, result }))
+            } else {
+                trace!("inference failure: can't infer result type for closure");
                 None
             }
         } else {
-            trace!("inference failure: missing signature type for closure");
+            trace!("inference failure: missing signature type for closure, and no inferrable result type");
             None
         }
     } else {
-        trace!("inference failure: no signature for closure");
+        trace!("inference failure: missing parameter type(s) for closure");
         // TODO: implement surjective type inference
         None
     }

@@ -227,7 +227,7 @@ mod tests {
 
     use super::norm;
     use ast;
-    use ast::MapContext;
+    use ast::map_context::MapContext;
 
     #[test]
     fn e2e() {
@@ -806,7 +806,7 @@ main = || {
                 },
             ],
             signature: None,
-            statements: vec![ast::Statement::Expression(ast::Expression::Apply(
+            statements: vec![ast::Statement::Evaluation(ast::Expression::Apply(
                 ast::Apply {
                     context: (),
                     function: Box::new(ast::Expression::Identifier(ast::Identifier {
@@ -852,12 +852,13 @@ main = || {
             ],
             signature: None,
             statements: vec![
-                ast::Statement::Definition(
-                    ast::Identifier {
+                ast::Statement::Definition(ast::Variable {
+                    context: (),
+                    name: ast::Identifier {
                         context: (),
                         value: "c".to_owned(),
                     },
-                    ast::Expression::Lambda(ast::Lambda {
+                    initializer: ast::Expression::Lambda(ast::Lambda {
                         context: (),
                         parameters: vec![ast::Parameter {
                             context: (),
@@ -868,7 +869,7 @@ main = || {
                             signature: None,
                         }],
                         signature: None,
-                        statements: vec![ast::Statement::Expression(ast::Expression::Apply(
+                        statements: vec![ast::Statement::Evaluation(ast::Expression::Apply(
                             ast::Apply {
                                 context: (),
                                 function: Box::new(ast::Expression::Identifier(ast::Identifier {
@@ -882,8 +883,8 @@ main = || {
                             },
                         ))],
                     }),
-                ),
-                ast::Statement::Expression(ast::Expression::Apply(ast::Apply {
+                }),
+                ast::Statement::Evaluation(ast::Expression::Apply(ast::Apply {
                     context: (),
                     function: Box::new(ast::Expression::Identifier(ast::Identifier {
                         context: (),
@@ -928,12 +929,13 @@ main = || {
             ],
             signature: None,
             statements: vec![
-                ast::Statement::Definition(
-                    ast::Identifier {
+                ast::Statement::Definition(ast::Variable {
+                    context: (),
+                    name: ast::Identifier {
                         context: (),
                         value: "c".to_owned(),
                     },
-                    ast::Expression::Lambda(ast::Lambda {
+                    initializer: ast::Expression::Lambda(ast::Lambda {
                         context: (),
                         parameters: vec![ast::Parameter {
                             context: (),
@@ -944,7 +946,7 @@ main = || {
                             signature: None,
                         }],
                         signature: None,
-                        statements: vec![ast::Statement::Expression(ast::Expression::Apply(
+                        statements: vec![ast::Statement::Evaluation(ast::Expression::Apply(
                             ast::Apply {
                                 context: (),
                                 function: Box::new(ast::Expression::Identifier(ast::Identifier {
@@ -959,8 +961,8 @@ main = || {
                             },
                         ))],
                     }),
-                ),
-                ast::Statement::Expression(ast::Expression::Apply(ast::Apply {
+                }),
+                ast::Statement::Evaluation(ast::Expression::Apply(ast::Apply {
                     context: (),
                     function: Box::new(ast::Expression::Identifier(ast::Identifier {
                         context: (),
@@ -1010,7 +1012,7 @@ main = || {
                 },
             ],
             signature: None,
-            statements: vec![ast::Statement::Expression(ast::Expression::Apply(
+            statements: vec![ast::Statement::Evaluation(ast::Expression::Apply(
                 ast::Apply {
                     context: (),
                     function: Box::new(ast::Expression::Identifier(ast::Identifier {
@@ -1056,7 +1058,7 @@ main = || {
             ],
             signature: None,
             statements: vec![
-                ast::Statement::Expression(ast::Expression::Apply(ast::Apply {
+                ast::Statement::Evaluation(ast::Expression::Apply(ast::Apply {
                     context: (),
                     function: Box::new(ast::Expression::Identifier(ast::Identifier {
                         context: (),
@@ -1067,7 +1069,7 @@ main = || {
                         value: "b".to_owned(),
                     })],
                 })),
-                ast::Statement::Expression(ast::Expression::Apply(ast::Apply {
+                ast::Statement::Evaluation(ast::Expression::Apply(ast::Apply {
                     context: (),
                     function: Box::new(ast::Expression::Identifier(ast::Identifier {
                         context: (),

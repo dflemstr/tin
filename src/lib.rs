@@ -60,7 +60,7 @@ extern crate specs_visitor;
 extern crate specs_visitor_derive;
 
 pub mod ast;
-pub mod compiler;
+pub mod codegen;
 pub mod error;
 pub mod ir;
 pub mod parser;

@@ -42,8 +42,9 @@ Comment: () = {
     r"/\*(\*[^/]|[^*])*\*/"=> ()
 }
 
-pub Definition: (ast::Identifier<parser::Context>, ast::Expression<parser::Context>) = {
-    <Identifier> "=" <Expression> => (<>),
+pub Definition: ast::Variable<parser::Context> = {
+    <lo:@L> <n:Identifier> "=" <i:Expression> <hi:@R> =>
+        ast::Variable { context: parser::Context::new(ast::Kind::Variable, lo, hi), name: n, initializer: i },
 }
 
 pub Expression: ast::Expression<parser::Context> = {
@@ -92,8 +93,8 @@ pub Lambda: ast::Lambda<parser::Context> = {
 }
 
 pub Statement: ast::Statement<parser::Context> = {
-    <d:Definition> => ast::Statement::Definition(d.0, d.1),
-    <Expression> => ast::Statement::Expression(<>),
+    <Definition> => ast::Statement::Definition(<>),
+    <Expression> => ast::Statement::Evaluation(<>),
 }
 
 pub Select: ast::Select<parser::Context> = {
