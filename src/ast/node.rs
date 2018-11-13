@@ -13,8 +13,8 @@ pub trait AstNode<C>: fmt::Debug + Sized {
 }
 
 impl<C> AstNode<C> for ast::Module<C>
-    where
-        C: fmt::Debug,
+where
+    C: fmt::Debug,
 {
     fn context(&self) -> &C {
         &self.context
@@ -26,8 +26,8 @@ impl<C> AstNode<C> for ast::Module<C>
 }
 
 impl<C> AstNode<C> for ast::Identifier<C>
-    where
-        C: fmt::Debug,
+where
+    C: fmt::Debug,
 {
     fn context(&self) -> &C {
         &self.context
@@ -39,8 +39,8 @@ impl<C> AstNode<C> for ast::Identifier<C>
 }
 
 impl<C> AstNode<C> for ast::Expression<C>
-    where
-        C: fmt::Debug,
+where
+    C: fmt::Debug,
 {
     fn context(&self) -> &C {
         match *self {
@@ -70,8 +70,8 @@ impl<C> AstNode<C> for ast::Expression<C>
 }
 
 impl<C> AstNode<C> for ast::NumberLiteral<C>
-    where
-        C: fmt::Debug,
+where
+    C: fmt::Debug,
 {
     fn context(&self) -> &C {
         &self.context
@@ -83,8 +83,8 @@ impl<C> AstNode<C> for ast::NumberLiteral<C>
 }
 
 impl<C> AstNode<C> for ast::StringLiteral<C>
-    where
-        C: fmt::Debug,
+where
+    C: fmt::Debug,
 {
     fn context(&self) -> &C {
         &self.context
@@ -96,8 +96,8 @@ impl<C> AstNode<C> for ast::StringLiteral<C>
 }
 
 impl<C> AstNode<C> for ast::Tuple<C>
-    where
-        C: fmt::Debug,
+where
+    C: fmt::Debug,
 {
     fn context(&self) -> &C {
         &self.context
@@ -109,8 +109,8 @@ impl<C> AstNode<C> for ast::Tuple<C>
 }
 
 impl<C> AstNode<C> for ast::Record<C>
-    where
-        C: fmt::Debug,
+where
+    C: fmt::Debug,
 {
     fn context(&self) -> &C {
         &self.context
@@ -122,8 +122,8 @@ impl<C> AstNode<C> for ast::Record<C>
 }
 
 impl<C> AstNode<C> for ast::Lambda<C>
-    where
-        C: fmt::Debug,
+where
+    C: fmt::Debug,
 {
     fn context(&self) -> &C {
         &self.context
@@ -135,8 +135,8 @@ impl<C> AstNode<C> for ast::Lambda<C>
 }
 
 impl<C> AstNode<C> for ast::Statement<C>
-    where
-        C: fmt::Debug,
+where
+    C: fmt::Debug,
 {
     fn context(&self) -> &C {
         match *self {
@@ -154,8 +154,8 @@ impl<C> AstNode<C> for ast::Statement<C>
 }
 
 impl<C> AstNode<C> for ast::Variable<C>
-    where
-        C: fmt::Debug,
+where
+    C: fmt::Debug,
 {
     fn context(&self) -> &C {
         &self.context
@@ -167,8 +167,8 @@ impl<C> AstNode<C> for ast::Variable<C>
 }
 
 impl<C> AstNode<C> for ast::Select<C>
-    where
-        C: fmt::Debug,
+where
+    C: fmt::Debug,
 {
     fn context(&self) -> &C {
         &self.context
@@ -180,8 +180,8 @@ impl<C> AstNode<C> for ast::Select<C>
 }
 
 impl<C> AstNode<C> for ast::Apply<C>
-    where
-        C: fmt::Debug,
+where
+    C: fmt::Debug,
 {
     fn context(&self) -> &C {
         &self.context
@@ -193,8 +193,8 @@ impl<C> AstNode<C> for ast::Apply<C>
 }
 
 impl<C> AstNode<C> for ast::Parameter<C>
-    where
-        C: fmt::Debug,
+where
+    C: fmt::Debug,
 {
     fn context(&self) -> &C {
         &self.context

@@ -256,7 +256,7 @@ where
 fn infer_closure_type<D>(
     parameters: &[specs::Entity],
     signature: Option<specs::Entity>,
-    result: Option<specs::Entity>,
+    result: specs::Entity,
     types: &specs::Storage<ty::Type, D>,
 ) -> Option<ty::Type>
 where
@@ -275,14 +275,9 @@ where
                 trace!("inference failure: no signature for closure");
                 None
             }
-        } else if let Some(result) = result {
-            if let Some(result) = types.get(result).cloned() {
-                let result = Box::new(result);
-                Some(ty::Type::Function(ty::Function { parameters, result }))
-            } else {
-                trace!("inference failure: can't infer result type for closure");
-                None
-            }
+        } else if let Some(result) = types.get(result).cloned() {
+            let result = Box::new(result);
+            Some(ty::Type::Function(ty::Function { parameters, result }))
         } else {
             trace!("inference failure: missing signature type for closure, and no inferrable result type");
             None

@@ -337,7 +337,7 @@ impl Ir {
             .iter()
             .map(|p| self.add_parameter(p, symbol))
             .collect();
-        let mut statements = lambda
+        let statements = lambda
             .statements
             .iter()
             .map(|s| self.add_statement(s, symbol))
@@ -346,7 +346,7 @@ impl Ir {
             .signature
             .as_ref()
             .map(|s| self.add_expression(s, symbol));
-        let result = statements.pop();
+        let result = self.add_expression(&*lambda.result, symbol);
 
         self.world
             .create_entity()
@@ -431,19 +431,7 @@ impl Ir {
                         }
                     }
                 }
-
-                if let Some(result) = result {
-                    match lambda.statements.last() {
-                        Some(ast::Statement::Evaluation(expression)) => Ir::set_expression_scope(
-                            elements,
-                            scopes,
-                            *result,
-                            expression,
-                            &definitions,
-                        ),
-                        _ => unreachable!(),
-                    }
-                }
+                Ir::set_expression_scope(elements, scopes, *result, &*lambda.result, &definitions)
             }
             _ => unreachable!(),
         }

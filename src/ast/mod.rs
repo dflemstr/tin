@@ -140,6 +140,8 @@ pub struct Lambda<C> {
     pub signature: Option<Box<Expression<C>>>,
     /// The statements that constitute the lambda body.
     pub statements: Vec<Statement<C>>,
+    /// The result ("return value") of the lambda.
+    pub result: Box<Expression<C>>,
 }
 
 /// A valid statement.

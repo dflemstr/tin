@@ -89,7 +89,7 @@ pub struct Closure {
     pub parameters: Vec<specs::Entity>,
     pub statements: Vec<specs::Entity>,
     pub signature: Option<specs::Entity>,
-    pub result: Option<specs::Entity>,
+    pub result: specs::Entity,
 }
 
 #[derive(Debug, VisitEntities)]

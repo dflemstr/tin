@@ -191,13 +191,11 @@ impl<'a> dot::GraphWalk<'a, Node, Edge<'a>> for Graph<'a> {
                                 label: Label::ClosureSignature,
                             });
                         }
-                        if let Some(result) = result {
-                            edges.push(Edge {
-                                source: entity,
-                                target: *result,
-                                label: Label::ClosureResult,
-                            });
-                        }
+                        edges.push(Edge {
+                            source: entity,
+                            target: *result,
+                            label: Label::ClosureResult,
+                        });
                     }
                     element::Element::Module(element::Module { definitions }) => {
                         for (name, variable) in definitions {
@@ -334,9 +332,7 @@ impl<'a> dot::Labeller<'a, Node, Edge<'a>> for Graph<'a> {
             Label::ClosureStatement(idx) => {
                 dot::LabelText::HtmlStr(format!("stmt <b>{}</b>", idx).into())
             }
-            Label::ClosureResult => {
-                dot::LabelText::HtmlStr("result".into())
-            }
+            Label::ClosureResult => dot::LabelText::HtmlStr("result".into()),
             Label::ClosureSignature => dot::LabelText::LabelStr("sig".into()),
             Label::ModuleDefinition(ref name) => {
                 dot::LabelText::HtmlStr(format!("def <b>{}</b>", name).into())

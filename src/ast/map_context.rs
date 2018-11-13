@@ -14,20 +14,20 @@ pub trait MapContext<C1, C2>: node::AstNode<C1> {
 
     /// Maps the context of this AST node to a new context of potentially a different type.
     fn map_context<F>(self, mapping: &mut F) -> Self::Output
-        where
-            F: FnMut(C1) -> C2;
+    where
+        F: FnMut(C1) -> C2;
 }
 
 impl<C1, C2> MapContext<C1, C2> for ast::Module<C1>
-    where
-        C1: fmt::Debug,
-        C2: fmt::Debug,
+where
+    C1: fmt::Debug,
+    C2: fmt::Debug,
 {
     type Output = ast::Module<C2>;
 
     fn map_context<F>(self, mapping: &mut F) -> Self::Output
-        where
-            F: FnMut(C1) -> C2,
+    where
+        F: FnMut(C1) -> C2,
     {
         let context = mapping(self.context);
         let definitions = self
@@ -44,15 +44,15 @@ impl<C1, C2> MapContext<C1, C2> for ast::Module<C1>
 }
 
 impl<C1, C2> MapContext<C1, C2> for ast::Identifier<C1>
-    where
-        C1: fmt::Debug,
-        C2: fmt::Debug,
+where
+    C1: fmt::Debug,
+    C2: fmt::Debug,
 {
     type Output = ast::Identifier<C2>;
 
     fn map_context<F>(self, mapping: &mut F) -> Self::Output
-        where
-            F: FnMut(C1) -> C2,
+    where
+        F: FnMut(C1) -> C2,
     {
         let context = mapping(self.context);
         let value = self.value;
@@ -62,15 +62,15 @@ impl<C1, C2> MapContext<C1, C2> for ast::Identifier<C1>
 }
 
 impl<C1, C2> MapContext<C1, C2> for ast::Expression<C1>
-    where
-        C1: fmt::Debug,
-        C2: fmt::Debug,
+where
+    C1: fmt::Debug,
+    C2: fmt::Debug,
 {
     type Output = ast::Expression<C2>;
 
     fn map_context<F>(self, mapping: &mut F) -> Self::Output
-        where
-            F: FnMut(C1) -> C2,
+    where
+        F: FnMut(C1) -> C2,
     {
         match self {
             ast::Expression::Number(e) => ast::Expression::Number(e.map_context(mapping)),
@@ -86,15 +86,15 @@ impl<C1, C2> MapContext<C1, C2> for ast::Expression<C1>
 }
 
 impl<C1, C2> MapContext<C1, C2> for ast::NumberLiteral<C1>
-    where
-        C1: fmt::Debug,
-        C2: fmt::Debug,
+where
+    C1: fmt::Debug,
+    C2: fmt::Debug,
 {
     type Output = ast::NumberLiteral<C2>;
 
     fn map_context<F>(self, mapping: &mut F) -> Self::Output
-        where
-            F: FnMut(C1) -> C2,
+    where
+        F: FnMut(C1) -> C2,
     {
         let context = mapping(self.context);
         let value = self.value;
@@ -103,15 +103,15 @@ impl<C1, C2> MapContext<C1, C2> for ast::NumberLiteral<C1>
 }
 
 impl<C1, C2> MapContext<C1, C2> for ast::StringLiteral<C1>
-    where
-        C1: fmt::Debug,
-        C2: fmt::Debug,
+where
+    C1: fmt::Debug,
+    C2: fmt::Debug,
 {
     type Output = ast::StringLiteral<C2>;
 
     fn map_context<F>(self, mapping: &mut F) -> Self::Output
-        where
-            F: FnMut(C1) -> C2,
+    where
+        F: FnMut(C1) -> C2,
     {
         let context = mapping(self.context);
         let value = self.value;
@@ -120,15 +120,15 @@ impl<C1, C2> MapContext<C1, C2> for ast::StringLiteral<C1>
 }
 
 impl<C1, C2> MapContext<C1, C2> for ast::Tuple<C1>
-    where
-        C1: fmt::Debug,
-        C2: fmt::Debug,
+where
+    C1: fmt::Debug,
+    C2: fmt::Debug,
 {
     type Output = ast::Tuple<C2>;
 
     fn map_context<F>(self, mapping: &mut F) -> Self::Output
-        where
-            F: FnMut(C1) -> C2,
+    where
+        F: FnMut(C1) -> C2,
     {
         let context = mapping(self.context);
         let fields = self
@@ -141,15 +141,15 @@ impl<C1, C2> MapContext<C1, C2> for ast::Tuple<C1>
 }
 
 impl<C1, C2> MapContext<C1, C2> for ast::Record<C1>
-    where
-        C1: fmt::Debug,
-        C2: fmt::Debug,
+where
+    C1: fmt::Debug,
+    C2: fmt::Debug,
 {
     type Output = ast::Record<C2>;
 
     fn map_context<F>(self, mapping: &mut F) -> Self::Output
-        where
-            F: FnMut(C1) -> C2,
+    where
+        F: FnMut(C1) -> C2,
     {
         let context = mapping(self.context);
         let fields = self
@@ -162,15 +162,15 @@ impl<C1, C2> MapContext<C1, C2> for ast::Record<C1>
 }
 
 impl<C1, C2> MapContext<C1, C2> for ast::Lambda<C1>
-    where
-        C1: fmt::Debug,
-        C2: fmt::Debug,
+where
+    C1: fmt::Debug,
+    C2: fmt::Debug,
 {
     type Output = ast::Lambda<C2>;
 
     fn map_context<F>(self, mapping: &mut F) -> Self::Output
-        where
-            F: FnMut(C1) -> C2,
+    where
+        F: FnMut(C1) -> C2,
     {
         let context = mapping(self.context);
         let parameters = self
@@ -184,25 +184,28 @@ impl<C1, C2> MapContext<C1, C2> for ast::Lambda<C1>
             .into_iter()
             .map(|s| s.map_context(mapping))
             .collect();
+        let result = Box::new(self.result.map_context(mapping));
+
         ast::Lambda {
             context,
             parameters,
             signature,
             statements,
+            result,
         }
     }
 }
 
 impl<C1, C2> MapContext<C1, C2> for ast::Statement<C1>
-    where
-        C1: fmt::Debug,
-        C2: fmt::Debug,
+where
+    C1: fmt::Debug,
+    C2: fmt::Debug,
 {
     type Output = ast::Statement<C2>;
 
     fn map_context<F>(self, mapping: &mut F) -> Self::Output
-        where
-            F: FnMut(C1) -> C2,
+    where
+        F: FnMut(C1) -> C2,
     {
         match self {
             ast::Statement::Definition(v) => ast::Statement::Definition(v.map_context(mapping)),
@@ -212,15 +215,15 @@ impl<C1, C2> MapContext<C1, C2> for ast::Statement<C1>
 }
 
 impl<C1, C2> MapContext<C1, C2> for ast::Variable<C1>
-    where
-        C1: fmt::Debug,
-        C2: fmt::Debug,
+where
+    C1: fmt::Debug,
+    C2: fmt::Debug,
 {
     type Output = ast::Variable<C2>;
 
     fn map_context<F>(self, mapping: &mut F) -> Self::Output
-        where
-            F: FnMut(C1) -> C2,
+    where
+        F: FnMut(C1) -> C2,
     {
         let context = mapping(self.context);
         let name = self.name.map_context(mapping);
@@ -235,15 +238,15 @@ impl<C1, C2> MapContext<C1, C2> for ast::Variable<C1>
 }
 
 impl<C1, C2> MapContext<C1, C2> for ast::Select<C1>
-    where
-        C1: fmt::Debug,
-        C2: fmt::Debug,
+where
+    C1: fmt::Debug,
+    C2: fmt::Debug,
 {
     type Output = ast::Select<C2>;
 
     fn map_context<F>(self, mapping: &mut F) -> Self::Output
-        where
-            F: FnMut(C1) -> C2,
+    where
+        F: FnMut(C1) -> C2,
     {
         let context = mapping(self.context);
         let record = Box::new(self.record.map_context(mapping));
@@ -257,15 +260,15 @@ impl<C1, C2> MapContext<C1, C2> for ast::Select<C1>
 }
 
 impl<C1, C2> MapContext<C1, C2> for ast::Apply<C1>
-    where
-        C1: fmt::Debug,
-        C2: fmt::Debug,
+where
+    C1: fmt::Debug,
+    C2: fmt::Debug,
 {
     type Output = ast::Apply<C2>;
 
     fn map_context<F>(self, mapping: &mut F) -> Self::Output
-        where
-            F: FnMut(C1) -> C2,
+    where
+        F: FnMut(C1) -> C2,
     {
         let context = mapping(self.context);
         let function = Box::new(self.function.map_context(mapping));
@@ -283,15 +286,15 @@ impl<C1, C2> MapContext<C1, C2> for ast::Apply<C1>
 }
 
 impl<C1, C2> MapContext<C1, C2> for ast::Parameter<C1>
-    where
-        C1: fmt::Debug,
-        C2: fmt::Debug,
+where
+    C1: fmt::Debug,
+    C2: fmt::Debug,
 {
     type Output = ast::Parameter<C2>;
 
     fn map_context<F>(self, mapping: &mut F) -> Self::Output
-        where
-            F: FnMut(C1) -> C2,
+    where
+        F: FnMut(C1) -> C2,
     {
         let context = mapping(self.context);
         let name = self.name.map_context(mapping);

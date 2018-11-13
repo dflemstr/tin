@@ -806,19 +806,18 @@ main = || {
                 },
             ],
             signature: None,
-            statements: vec![ast::Statement::Evaluation(ast::Expression::Apply(
-                ast::Apply {
+            statements: vec![],
+            result: Box::new(ast::Expression::Apply(ast::Apply {
+                context: (),
+                function: Box::new(ast::Expression::Identifier(ast::Identifier {
                     context: (),
-                    function: Box::new(ast::Expression::Identifier(ast::Identifier {
-                        context: (),
-                        value: "a".to_owned(),
-                    })),
-                    parameters: vec![ast::Expression::Identifier(ast::Identifier {
-                        context: (),
-                        value: "b".to_owned(),
-                    })],
-                },
-            ))],
+                    value: "a".to_owned(),
+                })),
+                parameters: vec![ast::Expression::Identifier(ast::Identifier {
+                    context: (),
+                    value: "b".to_owned(),
+                })],
+            })),
         });
         let actual = norm::LambdaParser::new()
             .parse(r#"|a, b| { a(b) }"#)
@@ -851,51 +850,48 @@ main = || {
                 },
             ],
             signature: None,
-            statements: vec![
-                ast::Statement::Definition(ast::Variable {
+            statements: vec![ast::Statement::Definition(ast::Variable {
+                context: (),
+                name: ast::Identifier {
                     context: (),
-                    name: ast::Identifier {
+                    value: "c".to_owned(),
+                },
+                initializer: ast::Expression::Lambda(ast::Lambda {
+                    context: (),
+                    parameters: vec![ast::Parameter {
                         context: (),
-                        value: "c".to_owned(),
-                    },
-                    initializer: ast::Expression::Lambda(ast::Lambda {
-                        context: (),
-                        parameters: vec![ast::Parameter {
+                        name: ast::Identifier {
                             context: (),
-                            name: ast::Identifier {
-                                context: (),
-                                value: "b".to_owned(),
-                            },
-                            signature: None,
-                        }],
+                            value: "b".to_owned(),
+                        },
                         signature: None,
-                        statements: vec![ast::Statement::Evaluation(ast::Expression::Apply(
-                            ast::Apply {
-                                context: (),
-                                function: Box::new(ast::Expression::Identifier(ast::Identifier {
-                                    context: (),
-                                    value: "a".to_owned(),
-                                })),
-                                parameters: vec![ast::Expression::Identifier(ast::Identifier {
-                                    context: (),
-                                    value: "b".to_owned(),
-                                })],
-                            },
-                        ))],
-                    }),
-                }),
-                ast::Statement::Evaluation(ast::Expression::Apply(ast::Apply {
-                    context: (),
-                    function: Box::new(ast::Expression::Identifier(ast::Identifier {
+                    }],
+                    signature: None,
+                    statements: vec![],
+                    result: Box::new(ast::Expression::Apply(ast::Apply {
                         context: (),
-                        value: "c".to_owned(),
+                        function: Box::new(ast::Expression::Identifier(ast::Identifier {
+                            context: (),
+                            value: "a".to_owned(),
+                        })),
+                        parameters: vec![ast::Expression::Identifier(ast::Identifier {
+                            context: (),
+                            value: "b".to_owned(),
+                        })],
                     })),
-                    parameters: vec![ast::Expression::Identifier(ast::Identifier {
-                        context: (),
-                        value: "b".to_owned(),
-                    })],
+                }),
+            })],
+            result: Box::new(ast::Expression::Apply(ast::Apply {
+                context: (),
+                function: Box::new(ast::Expression::Identifier(ast::Identifier {
+                    context: (),
+                    value: "c".to_owned(),
                 })),
-            ],
+                parameters: vec![ast::Expression::Identifier(ast::Identifier {
+                    context: (),
+                    value: "b".to_owned(),
+                })],
+            })),
         });
         let actual = norm::LambdaParser::new()
             .parse(r#"|a, b| { c = |b| { a(b) }; c(b) }"#)
@@ -928,52 +924,49 @@ main = || {
                 },
             ],
             signature: None,
-            statements: vec![
-                ast::Statement::Definition(ast::Variable {
+            statements: vec![ast::Statement::Definition(ast::Variable {
+                context: (),
+                name: ast::Identifier {
                     context: (),
-                    name: ast::Identifier {
+                    value: "c".to_owned(),
+                },
+                initializer: ast::Expression::Lambda(ast::Lambda {
+                    context: (),
+                    parameters: vec![ast::Parameter {
                         context: (),
-                        value: "c".to_owned(),
-                    },
-                    initializer: ast::Expression::Lambda(ast::Lambda {
-                        context: (),
-                        parameters: vec![ast::Parameter {
+                        name: ast::Identifier {
                             context: (),
-                            name: ast::Identifier {
-                                context: (),
-                                value: "b".to_owned(),
-                            },
-                            signature: None,
-                        }],
+                            value: "b".to_owned(),
+                        },
                         signature: None,
-                        statements: vec![ast::Statement::Evaluation(ast::Expression::Apply(
-                            ast::Apply {
-                                context: (),
-                                function: Box::new(ast::Expression::Identifier(ast::Identifier {
-                                    context: (),
+                    }],
+                    signature: None,
+                    statements: vec![],
+                    result: Box::new(ast::Expression::Apply(ast::Apply {
+                        context: (),
+                        function: Box::new(ast::Expression::Identifier(ast::Identifier {
+                            context: (),
 
-                                    value: "a".to_owned(),
-                                })),
-                                parameters: vec![ast::Expression::Identifier(ast::Identifier {
-                                    context: (),
-                                    value: "b".to_owned(),
-                                })],
-                            },
-                        ))],
-                    }),
-                }),
-                ast::Statement::Evaluation(ast::Expression::Apply(ast::Apply {
-                    context: (),
-                    function: Box::new(ast::Expression::Identifier(ast::Identifier {
-                        context: (),
-                        value: "c".to_owned(),
+                            value: "a".to_owned(),
+                        })),
+                        parameters: vec![ast::Expression::Identifier(ast::Identifier {
+                            context: (),
+                            value: "b".to_owned(),
+                        })],
                     })),
-                    parameters: vec![ast::Expression::Identifier(ast::Identifier {
-                        context: (),
-                        value: "b".to_owned(),
-                    })],
+                }),
+            })],
+            result: Box::new(ast::Expression::Apply(ast::Apply {
+                context: (),
+                function: Box::new(ast::Expression::Identifier(ast::Identifier {
+                    context: (),
+                    value: "c".to_owned(),
                 })),
-            ],
+                parameters: vec![ast::Expression::Identifier(ast::Identifier {
+                    context: (),
+                    value: "b".to_owned(),
+                })],
+            })),
         });
         let actual = norm::LambdaParser::new()
             .parse(r#"|a, b| { /* define c */ c = |b| { a(b) }; /* call c */ c(b) }"#)
@@ -1012,19 +1005,18 @@ main = || {
                 },
             ],
             signature: None,
-            statements: vec![ast::Statement::Evaluation(ast::Expression::Apply(
-                ast::Apply {
+            statements: vec![],
+            result: Box::new(ast::Expression::Apply(ast::Apply {
+                context: (),
+                function: Box::new(ast::Expression::Identifier(ast::Identifier {
                     context: (),
-                    function: Box::new(ast::Expression::Identifier(ast::Identifier {
-                        context: (),
-                        value: "a".to_owned(),
-                    })),
-                    parameters: vec![ast::Expression::Identifier(ast::Identifier {
-                        context: (),
-                        value: "b".to_owned(),
-                    })],
-                },
-            ))],
+                    value: "a".to_owned(),
+                })),
+                parameters: vec![ast::Expression::Identifier(ast::Identifier {
+                    context: (),
+                    value: "b".to_owned(),
+                })],
+            })),
         });
         let actual = norm::LambdaParser::new()
             .parse(r#"|a: Int, b: Int| { a(b) }"#)
@@ -1057,8 +1049,8 @@ main = || {
                 },
             ],
             signature: None,
-            statements: vec![
-                ast::Statement::Evaluation(ast::Expression::Apply(ast::Apply {
+            statements: vec![ast::Statement::Evaluation(ast::Expression::Apply(
+                ast::Apply {
                     context: (),
                     function: Box::new(ast::Expression::Identifier(ast::Identifier {
                         context: (),
@@ -1068,19 +1060,19 @@ main = || {
                         context: (),
                         value: "b".to_owned(),
                     })],
-                })),
-                ast::Statement::Evaluation(ast::Expression::Apply(ast::Apply {
+                },
+            ))],
+            result: Box::new(ast::Expression::Apply(ast::Apply {
+                context: (),
+                function: Box::new(ast::Expression::Identifier(ast::Identifier {
                     context: (),
-                    function: Box::new(ast::Expression::Identifier(ast::Identifier {
-                        context: (),
-                        value: "a".to_owned(),
-                    })),
-                    parameters: vec![ast::Expression::Identifier(ast::Identifier {
-                        context: (),
-                        value: "b".to_owned(),
-                    })],
+                    value: "a".to_owned(),
                 })),
-            ],
+                parameters: vec![ast::Expression::Identifier(ast::Identifier {
+                    context: (),
+                    value: "b".to_owned(),
+                })],
+            })),
         });
         let actual = norm::LambdaParser::new()
             .parse(r#"|a, b| { a(b); a(b) }"#)
