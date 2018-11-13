@@ -88,7 +88,7 @@ pub String: ast::StringLiteral<parser::Context> = {
 }
 
 pub Lambda: ast::Lambda<parser::Context> = {
-    <lo:@L> "|" <params:Comma<(Comment? <Parameter>)>> "|" <sig:(":" <Expression>)?> "{" <stmts:SemiRequired<(Comment? <Statement>)>> <res:(Comment? <Expression>)> "}" <hi:@R> =>
+    <lo:@L> "|" <params:Comma<(Comment? <Parameter>)>> "|" <sig:Expression?> "{" <stmts:SemiRequired<(Comment? <Statement>)>> <res:(Comment? <Expression>)> "}" <hi:@R> =>
         ast::Lambda { context: parser::Context::new(ast::Kind::Lambda, lo, hi), parameters: params, signature: sig.map(Box::new), statements: stmts, result: Box::new(res) },
 }
 

@@ -680,11 +680,11 @@ mod tests {
 
         let source = r#"
 Int = 0;
-pickFirst = |a: Int, b: Int|: Int {
-  capture = |x: Int|: Int { a };
+pickFirst = |a: Int, b: Int| Int {
+  capture = |x: Int| Int { a };
   capture(b)
 };
-main = ||: Int { pickFirst(1, 2) };
+main = || Int { pickFirst(1, 2) };
 "#;
 
         let ast_module = ast::Module::parse(source)?;

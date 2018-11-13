@@ -171,10 +171,10 @@ mod tests {
 
         let source = r#"
 Int = 0;
-pickFirst = |a: Int, b: Int|: Int {
+pickFirst = |a: Int, b: Int| Int {
   a
 };
-main = ||: Int { pickFirst(42, 65313) };
+main = || Int { pickFirst(42, 65313) };
 "#;
 
         let ast_module = ast::Module::parse(source)?;
