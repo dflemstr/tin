@@ -7,12 +7,14 @@ use specs;
 
 use ir;
 use ir::component::element;
+use ir::component::symbol;
 use ir::component::ty;
 
 /// A graph representation of IR.
 pub struct Graph<'a> {
     entities: specs::Entities<'a>,
     elements: specs::ReadStorage<'a, element::Element>,
+    symbols: specs::ReadStorage<'a, symbol::Symbol>,
     types: specs::ReadStorage<'a, ty::Type>,
 }
 
@@ -57,11 +59,13 @@ impl<'a> Graph<'a> {
         let world = &ir.world;
         let entities = world.entities();
         let elements = world.read_storage::<element::Element>();
+        let symbols = world.read_storage::<symbol::Symbol>();
         let types = world.read_storage::<ty::Type>();
 
         Graph {
             entities,
             elements,
+            symbols,
             types,
         }
     }
@@ -83,10 +87,9 @@ impl<'a> dot::GraphWalk<'a, Node, Edge<'a>> for Graph<'a> {
         use specs::Join;
 
         let mut edges = Vec::new();
-        let elements = &self.elements;
 
         for entity in self.entities.join() {
-            if let Some(element) = elements.get(entity) {
+            if let Some(element) = self.elements.get(entity) {
                 match element {
                     element::Element::NumberValue(_) => {}
                     element::Element::StringValue(_) => {}
@@ -298,6 +301,14 @@ impl<'a> dot::Labeller<'a, Node, Edge<'a>> for Graph<'a> {
 
         if let Some(ty) = self.types.get(*n) {
             write!(result, "<br/> <font color=\"blue\">{}</font>", PrettyTy(ty)).unwrap();
+        }
+
+        if let Some(symbol) = self.symbols.get(*n) {
+            if symbol.is_empty() {
+                write!(result, "<br/> <font color=\"purple\">(root)</font>").unwrap();
+            } else {
+                write!(result, "<br/> <font color=\"purple\">{}</font>", symbol).unwrap();
+            }
         }
 
         dot::LabelText::HtmlStr(result.into())

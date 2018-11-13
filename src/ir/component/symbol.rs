@@ -20,6 +20,10 @@ impl Symbol {
     pub fn new(parts: Vec<Part>) -> Self {
         Symbol { parts }
     }
+
+    pub fn is_empty(&self) -> bool {
+        self.parts.is_empty()
+    }
 }
 
 impl fmt::Display for Symbol {
