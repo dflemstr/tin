@@ -58,7 +58,7 @@ impl<'a> Codegen<'a> {
         let function_ctxs = (elements, symbols, types)
             .join()
             .filter_map(|(el, sy, ty)| as_closure(el, ty).map(|(el, ty)| (el, sy, ty)))
-            .map(|(el, sy, ty)| {
+            .map(|(closure, sy, ty)| {
                 let ptr_type = module.pointer_type();
                 let mut ctx: codegen::Context = module.make_context();
                 let mut builder_context = FunctionBuilderContext::new();
@@ -79,7 +79,24 @@ impl<'a> Codegen<'a> {
                     builder.switch_to_block(entry_ebb);
                     builder.seal_block(entry_ebb);
 
-                    let result = self.compile_closure_body(&el, ptr_type, &mut builder);
+                    let result = {
+                        let mut translation_ctx =
+                            translation::Context::new(self, &mut builder, &self.elements, ptr_type);
+                        for stmt in &closure.statements {
+                            translation_ctx.declare_element(
+                                *stmt,
+                                self.elements.get(*stmt).unwrap(),
+                                self.types.get(*stmt).unwrap(),
+                            );
+                        }
+                        for stmt in &closure.statements {
+                            translation_ctx.exec_element(*stmt, self.elements.get(*stmt).unwrap());
+                        }
+                        translation_ctx.eval_element(
+                            closure.result,
+                            self.elements.get(closure.result).unwrap(),
+                        )
+                    };
 
                     builder.ins().return_(&[result]);
                     builder.finalize();
@@ -114,19 +131,6 @@ impl<'a> Codegen<'a> {
 
         module::Module::new(module, function_ids)
     }
-
-    fn compile_closure_body<'b>(
-        &self,
-        closure: &element::Closure,
-        ptr_type: Type,
-        builder: &mut FunctionBuilder<'b>,
-    ) -> Value {
-        let mut translation_ctx = translation::Context::new(self, builder, ptr_type);
-        for stmt in &closure.statements {
-            translation_ctx.translate_element(self.elements.get(*stmt).unwrap());
-        }
-        translation_ctx.translate_element(self.elements.get(closure.result).unwrap())
-    }
 }
 
 impl<'a> fmt::Debug for Codegen<'a> {
@@ -156,9 +160,7 @@ mod tests {
     use test_util;
 
     #[test]
-    fn compile_simple() -> Result<(), failure::Error> {
-        use parser::Parse;
-
+    fn immediate() -> Result<(), failure::Error> {
         let _ = env_logger::try_init();
 
         let source = r#"
@@ -166,20 +168,45 @@ Int = 0;
 main = || Int { 42 };
 "#;
 
-        let ast_module = ast::Module::parse(source)?;
+        let mut module = compile_module("immediate", source)?;
 
+        let main = module.function::<f64>("main").unwrap();
+
+        let result = main();
+        assert_eq!(42.0, result);
+        Ok(())
+    }
+
+    #[test]
+    fn variable() -> Result<(), failure::Error> {
+        let _ = env_logger::try_init();
+
+        let source = r#"
+Int = 0;
+main = || Int { a = 43; a };
+"#;
+
+        let mut module = compile_module("variable", source)?;
+
+        let main = module.function::<f64>("main").unwrap();
+
+        let result = main();
+        assert_eq!(43.0, result);
+        Ok(())
+    }
+
+    fn compile_module(name: &str, source: &str) -> Result<module::Module, failure::Error> {
+        use parser::Parse;
+
+        let ast_module = ast::Module::parse(source)?;
         let mut ir = ir::Ir::new();
         ir.add_module(&ast_module, &[]);
         ir.resolve_references();
         ir.check_types();
-
-        test_util::render_graph(concat!(module_path!(), "::compile_simple"), &ir)?;
-
+        test_util::render_graph(&format!(concat!(module_path!(), "::{}"), name), &ir)?;
         let compiler = Codegen::new(&ir);
-        let mut module = compiler.compile();
-        let main = module.function::<f64>("main").unwrap();
-        let result = main();
-        assert_eq!(42.0, result);
-        Ok(())
+        let module = compiler.compile();
+
+        Ok(module)
     }
 }

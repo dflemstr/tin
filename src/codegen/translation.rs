@@ -7,6 +7,7 @@ use specs;
 
 use codegen;
 use ir::component::element;
+use ir::component::ty;
 
 use cranelift::prelude::*;
 
@@ -17,10 +18,10 @@ where
     #[allow(unused)]
     codegen: &'a codegen::Codegen<'a>,
     builder: &'a mut FunctionBuilder<'f>,
-    #[allow(unused)]
+    elements: &'a specs::ReadStorage<'a, element::Element>,
     ptr_type: Type,
-    #[allow(unused)]
-    variables: collections::HashMap<specs::Entity, String>,
+    variables: collections::HashMap<specs::Entity, Variable>,
+    next_variable: usize,
 }
 
 #[allow(unused)]
@@ -28,36 +29,86 @@ impl<'a, 'f> Context<'a, 'f> {
     pub fn new(
         codegen: &'a codegen::Codegen<'a>,
         builder: &'a mut FunctionBuilder<'f>,
+        elements: &'a specs::ReadStorage<'a, element::Element>,
         ptr_type: Type,
     ) -> Self {
         let variables = collections::HashMap::new();
+        let next_variable = 0;
 
         Context {
             codegen,
             builder,
+            elements,
             ptr_type,
             variables,
+            next_variable,
         }
     }
 
-    pub fn translate_element(&mut self, element: &element::Element) -> Value {
+    pub fn declare_element(
+        &mut self,
+        entity: specs::Entity,
+        element: &element::Element,
+        ty: &ty::Type,
+    ) {
         match *element {
-            element::Element::NumberValue(ref v) => self.translate_number_value(v),
-            element::Element::StringValue(ref v) => self.translate_string_value(v),
-            element::Element::Tuple(ref v) => self.translate_tuple(v),
-            element::Element::Record(ref v) => self.translate_record(v),
-            element::Element::Reference(ref v) => self.translate_reference(v),
-            element::Element::Variable(ref v) => self.translate_variable(v),
-            element::Element::Select(ref v) => self.translate_select(v),
-            element::Element::Apply(ref v) => self.translate_apply(v),
-            element::Element::Parameter(ref v) => self.translate_parameter(v),
-            element::Element::Capture(ref v) => self.translate_capture(v),
-            element::Element::Closure(ref v) => self.translate_closure(v),
-            element::Element::Module(ref v) => self.translate_module(v),
+            element::Element::Variable(ref v) => self.declare_variable(entity, v, ty),
+            _ => {}
         }
     }
 
-    pub fn translate_number_value(&mut self, number_value: &element::NumberValue) -> Value {
+    pub fn declare_variable(
+        &mut self,
+        entity: specs::Entity,
+        variable: &element::Variable,
+        ty: &ty::Type,
+    ) {
+        let initializer_element = self.elements.get(variable.initializer).unwrap();
+        let value = self.eval_element(variable.initializer, initializer_element);
+        let variable = Variable::new(self.next_variable);
+        self.builder
+            .declare_var(variable, codegen::abi_type::from_type(ty, self.ptr_type));
+        self.variables.insert(entity, variable);
+        self.next_variable += 1;
+    }
+
+    pub fn exec_element(&mut self, entity: specs::Entity, element: &element::Element) {
+        match *element {
+            element::Element::Variable(ref v) => self.exec_variable(entity, v),
+            _ => {
+                self.eval_element(entity, element);
+            }
+        }
+    }
+
+    pub fn exec_variable(&mut self, entity: specs::Entity, variable: &element::Variable) {
+        let initializer_element = self.elements.get(variable.initializer).unwrap();
+        let value = self.eval_element(variable.initializer, initializer_element);
+        self.builder.def_var(self.variables[&entity], value);
+    }
+
+    pub fn eval_element(&mut self, entity: specs::Entity, element: &element::Element) -> Value {
+        match *element {
+            element::Element::NumberValue(ref v) => self.eval_number_value(entity, v),
+            element::Element::StringValue(ref v) => self.eval_string_value(entity, v),
+            element::Element::Tuple(ref v) => self.eval_tuple(entity, v),
+            element::Element::Record(ref v) => self.eval_record(entity, v),
+            element::Element::Reference(ref v) => self.eval_reference(entity, v),
+            element::Element::Variable(ref v) => self.eval_variable(entity, v),
+            element::Element::Select(ref v) => self.eval_select(entity, v),
+            element::Element::Apply(ref v) => self.eval_apply(entity, v),
+            element::Element::Parameter(ref v) => self.eval_parameter(entity, v),
+            element::Element::Capture(ref v) => self.eval_capture(entity, v),
+            element::Element::Closure(ref v) => self.eval_closure(entity, v),
+            element::Element::Module(ref v) => self.eval_module(entity, v),
+        }
+    }
+
+    pub fn eval_number_value(
+        &mut self,
+        entity: specs::Entity,
+        number_value: &element::NumberValue,
+    ) -> Value {
         match *number_value {
             element::NumberValue::U8(v) => self.builder.ins().iconst(types::I8, v as i64),
             element::NumberValue::U16(v) => self.builder.ins().iconst(types::I16, v as i64),
@@ -72,47 +123,59 @@ impl<'a, 'f> Context<'a, 'f> {
         }
     }
 
-    pub fn translate_string_value(&mut self, string_value: &element::StringValue) -> Value {
+    pub fn eval_string_value(
+        &mut self,
+        entity: specs::Entity,
+        string_value: &element::StringValue,
+    ) -> Value {
         unimplemented!()
     }
 
-    pub fn translate_tuple(&mut self, tuple: &element::Tuple) -> Value {
+    pub fn eval_tuple(&mut self, entity: specs::Entity, tuple: &element::Tuple) -> Value {
         unimplemented!()
     }
 
-    pub fn translate_record(&mut self, record: &element::Record) -> Value {
+    pub fn eval_record(&mut self, entity: specs::Entity, record: &element::Record) -> Value {
         unimplemented!()
     }
 
-    pub fn translate_reference(&mut self, reference: &element::Reference) -> Value {
+    pub fn eval_reference(
+        &mut self,
+        entity: specs::Entity,
+        reference: &element::Reference,
+    ) -> Value {
         unimplemented!()
     }
 
-    pub fn translate_variable(&mut self, variable: &element::Variable) -> Value {
+    pub fn eval_variable(&mut self, entity: specs::Entity, variable: &element::Variable) -> Value {
+        self.builder.use_var(self.variables[&entity])
+    }
+
+    pub fn eval_select(&mut self, entity: specs::Entity, select: &element::Select) -> Value {
         unimplemented!()
     }
 
-    pub fn translate_select(&mut self, select: &element::Select) -> Value {
+    pub fn eval_parameter(
+        &mut self,
+        entity: specs::Entity,
+        parameter: &element::Parameter,
+    ) -> Value {
         unimplemented!()
     }
 
-    pub fn translate_parameter(&mut self, parameter: &element::Parameter) -> Value {
+    pub fn eval_apply(&mut self, entity: specs::Entity, apply: &element::Apply) -> Value {
         unimplemented!()
     }
 
-    pub fn translate_apply(&mut self, apply: &element::Apply) -> Value {
+    pub fn eval_capture(&mut self, entity: specs::Entity, capture: &element::Capture) -> Value {
         unimplemented!()
     }
 
-    pub fn translate_capture(&mut self, capture: &element::Capture) -> Value {
+    pub fn eval_closure(&mut self, entity: specs::Entity, closure: &element::Closure) -> Value {
         unimplemented!()
     }
 
-    pub fn translate_closure(&mut self, closure: &element::Closure) -> Value {
-        unimplemented!()
-    }
-
-    pub fn translate_module(&mut self, module: &element::Module) -> Value {
+    pub fn eval_module(&mut self, entity: specs::Entity, module: &element::Module) -> Value {
         unimplemented!()
     }
 }
