@@ -14,24 +14,26 @@ use ir::component::ty;
 
 use cranelift::prelude::*;
 
+pub mod abi_type;
 pub mod module;
+pub mod translation;
 
-/// A compiler system, that can be used for JIT compilation.
+/// A codegen system, that can be used for JIT compilation.
 #[allow(unused)]
-pub struct Compiler<'a> {
+pub struct Codegen<'a> {
     elements: specs::ReadStorage<'a, element::Element>,
     symbols: specs::ReadStorage<'a, symbol::Symbol>,
     types: specs::ReadStorage<'a, ty::Type>,
 }
 
-impl<'a> Compiler<'a> {
-    /// Creates a new compiler instance around the specified IR.
+impl<'a> Codegen<'a> {
+    /// Creates a new codegen instance around the specified IR.
     pub fn new(ir: &'a ir::Ir) -> Self {
         let elements = ir.world.read_storage();
         let symbols = ir.world.read_storage();
         let types = ir.world.read_storage();
 
-        Compiler {
+        Codegen {
             elements,
             symbols,
             types,
@@ -42,7 +44,7 @@ impl<'a> Compiler<'a> {
     pub fn compile(&self) -> module::Module {
         use specs::Join;
 
-        let Compiler {
+        let Codegen {
             ref elements,
             ref symbols,
             ref types,
@@ -56,7 +58,7 @@ impl<'a> Compiler<'a> {
         let function_ctxs = (elements, symbols, types)
             .join()
             .filter_map(|(el, sy, ty)| as_closure(el, ty).map(|(el, ty)| (el, sy, ty)))
-            .map(|(_el, sy, ty)| {
+            .map(|(el, sy, ty)| {
                 let ptr_type = module.pointer_type();
                 let mut ctx: codegen::Context = module.make_context();
                 let mut builder_context = FunctionBuilderContext::new();
@@ -65,9 +67,9 @@ impl<'a> Compiler<'a> {
                     ctx.func
                         .signature
                         .params
-                        .push(AbiParam::new(to_type(parameter, ptr_type)));
+                        .push(AbiParam::new(abi_type::from_type(parameter, ptr_type)));
                 }
-                let ret_type = types::I64; //to_type(&ty.result, ptr_type);
+                let ret_type = abi_type::from_type(&ty.result, ptr_type);
                 ctx.func.signature.returns.push(AbiParam::new(ret_type));
 
                 {
@@ -76,9 +78,13 @@ impl<'a> Compiler<'a> {
                     builder.append_ebb_params_for_function_params(entry_ebb);
                     builder.switch_to_block(entry_ebb);
                     builder.seal_block(entry_ebb);
-                    let arg = builder.ins().iconst(ret_type, 42);
-                    builder.ins().return_(&[arg]);
+
+                    let result = self.compile_closure_body(&el, ptr_type, &mut builder);
+
+                    builder.ins().return_(&[result]);
                     builder.finalize();
+
+                    debug!("generated function: {}", builder.display(None));
                 }
 
                 (sy, ctx)
@@ -108,38 +114,24 @@ impl<'a> Compiler<'a> {
 
         module::Module::new(module, function_ids)
     }
+
+    fn compile_closure_body<'b>(
+        &self,
+        closure: &element::Closure,
+        ptr_type: Type,
+        builder: &mut FunctionBuilder<'b>,
+    ) -> Value {
+        let mut translation_ctx = translation::Context::new(self, builder, ptr_type);
+        for stmt in &closure.statements {
+            translation_ctx.translate_element(self.elements.get(*stmt).unwrap());
+        }
+        translation_ctx.translate_element(self.elements.get(closure.result).unwrap())
+    }
 }
 
-impl<'a> fmt::Debug for Compiler<'a> {
+impl<'a> fmt::Debug for Codegen<'a> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_struct("Compiler").finish()
-    }
-}
-
-fn to_type(ir_type: &ty::Type, ptr_type: Type) -> Type {
-    match *ir_type {
-        ty::Type::Number(ref n) => to_number_type(n),
-        ty::Type::String => ptr_type,
-        ty::Type::Tuple(_) => ptr_type,
-        ty::Type::Record(_) => ptr_type,
-        ty::Type::Function(_) => ptr_type,
-        ty::Type::Conflict(_) => ptr_type,
-        ty::Type::Any => panic!("can't map any type to concrete type"),
-    }
-}
-
-fn to_number_type(ir_type: &ty::Number) -> Type {
-    match *ir_type {
-        ty::Number::U8 => types::I8,
-        ty::Number::U16 => types::I16,
-        ty::Number::U32 => types::I32,
-        ty::Number::U64 => types::I64,
-        ty::Number::I8 => types::I8,
-        ty::Number::I16 => types::I16,
-        ty::Number::I32 => types::I32,
-        ty::Number::I64 => types::I64,
-        ty::Number::F32 => types::F32,
-        ty::Number::F64 => types::F64,
     }
 }
 
@@ -155,13 +147,13 @@ fn as_closure<'a, 'b>(
 
 #[cfg(test)]
 mod tests {
-    use dot;
     use env_logger;
     use failure;
 
     use super::*;
     use ast;
     use ir;
+    use test_util;
 
     #[test]
     fn compile_simple() -> Result<(), failure::Error> {
@@ -171,10 +163,7 @@ mod tests {
 
         let source = r#"
 Int = 0;
-pickFirst = |a: Int, b: Int| Int {
-  a
-};
-main = || Int { pickFirst(42, 65313) };
+main = || Int { 42 };
 "#;
 
         let ast_module = ast::Module::parse(source)?;
@@ -184,21 +173,13 @@ main = || Int { pickFirst(42, 65313) };
         ir.resolve_references();
         ir.check_types();
 
-        let graph = ir::graph::Graph::new(&ir);
+        test_util::render_graph(concat!(module_path!(), "::compile_simple"), &ir)?;
 
-        let mut file = ::std::fs::File::create("/tmp/compiler.dot")?;
-        dot::render(&graph, &mut file)?;
-        drop(file);
-        ::std::process::Command::new("dot")
-            .args(&["-Tpng", "-o/tmp/compiler.png", "/tmp/compiler.dot"])
-            .spawn()?
-            .wait()?;
-
-        let compiler = Compiler::new(&ir);
+        let compiler = Codegen::new(&ir);
         let mut module = compiler.compile();
-        let main = module.function("main").unwrap();
+        let main = module.function::<f64>("main").unwrap();
         let result = main();
-        assert_eq!(42, result);
+        assert_eq!(42.0, result);
         Ok(())
     }
 }

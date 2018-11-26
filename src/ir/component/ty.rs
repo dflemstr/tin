@@ -16,6 +16,7 @@ pub enum Type {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, VisitEntities)]
+#[allow(missing_copy_implementations)]
 pub enum Number {
     U8,
     U16,

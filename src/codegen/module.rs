@@ -27,7 +27,7 @@ impl Module {
     ///
     /// Returns `None` if the signature does not match the compiled function.
     #[allow(unsafe_code)]
-    pub fn function(&mut self, name: &str) -> Option<fn() -> i64> {
+    pub fn function<R>(&mut self, name: &str) -> Option<extern "sysv64" fn() -> R> {
         if let Some(id) = self.function_ids.get(name) {
             Some(unsafe { mem::transmute(self.compiled.get_finalized_function(*id)) })
         } else {

@@ -43,7 +43,7 @@ pub struct Module<C> {
 pub struct Identifier<C> {
     /// This node's AST context.
     pub context: C,
-    /// The raw string backing the identifier.
+    /// The raw string name of the identifier.
     pub value: String,
 }
 

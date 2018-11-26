@@ -87,7 +87,11 @@ impl Ir {
     pub fn check_types(&mut self) {
         let mut dispatcher = specs::DispatcherBuilder::new()
             .with(system::infer_types::InferTypesSystem, "infer_types", &[])
-            .build();
+            .with(
+                system::infer_constexpr::InferConstexprSystem,
+                "infer_constexpr",
+                &[],
+            ).build();
         dispatcher.dispatch(&mut self.world.res);
         self.world.maintain();
     }
@@ -665,12 +669,12 @@ impl fmt::Debug for Ir {
 
 #[cfg(test)]
 mod tests {
-    use dot;
     use env_logger;
     use failure;
 
     use super::*;
     use ast;
+    use test_util;
 
     #[test]
     fn entity_assignments() -> Result<(), failure::Error> {
@@ -694,15 +698,8 @@ main = || Int { pickFirst(1, 2) };
         ir.resolve_references();
         ir.check_types();
 
-        let graph = graph::Graph::new(&ir);
+        test_util::render_graph(concat!(module_path!(), "::entity_assignments"), &ir)?;
 
-        let mut file = ::std::fs::File::create("/tmp/ir.dot")?;
-        dot::render(&graph, &mut file)?;
-        drop(file);
-        ::std::process::Command::new("dot")
-            .args(&["-Tpng", "-o/tmp/ir.png", "/tmp/ir.dot"])
-            .spawn()?
-            .wait()?;
         Ok(())
     }
 }

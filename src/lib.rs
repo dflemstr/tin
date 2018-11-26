@@ -50,20 +50,22 @@ extern crate failure;
 extern crate lalrpop_util;
 #[macro_use]
 extern crate log;
-#[cfg(test)]
-extern crate env_logger;
 extern crate specs;
 #[macro_use]
 extern crate specs_derive;
 extern crate specs_visitor;
 #[macro_use]
 extern crate specs_visitor_derive;
+#[cfg(test)]
+extern crate env_logger;
 
 pub mod ast;
 pub mod codegen;
 pub mod error;
 pub mod ir;
 pub mod parser;
+#[cfg(test)]
+mod test_util;
 
 pub use error::Error;
 pub use error::Result;

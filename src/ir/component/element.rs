@@ -23,7 +23,8 @@ pub enum Element {
     Module(Module),
 }
 
-#[derive(Debug, VisitEntities)]
+#[derive(Clone, Debug, VisitEntities)]
+#[allow(missing_copy_implementations)]
 pub enum NumberValue {
     U8(u8),
     U16(u16),
