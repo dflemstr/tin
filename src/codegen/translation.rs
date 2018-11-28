@@ -5,71 +5,31 @@ use std::fmt;
 
 use specs;
 
-use codegen;
 use ir::component::element;
-use ir::component::ty;
 
 use cranelift::prelude::*;
 
-pub struct Context<'a, 'f>
+pub struct FunctionTranslator<'a, 'f>
 where
     'f: 'a,
 {
-    #[allow(unused)]
-    codegen: &'a codegen::Codegen<'a>,
     builder: &'a mut FunctionBuilder<'f>,
     elements: &'a specs::ReadStorage<'a, element::Element>,
-    ptr_type: Type,
     variables: collections::HashMap<specs::Entity, Variable>,
-    next_variable: usize,
 }
 
 #[allow(unused)]
-impl<'a, 'f> Context<'a, 'f> {
+impl<'a, 'f> FunctionTranslator<'a, 'f> {
     pub fn new(
-        codegen: &'a codegen::Codegen<'a>,
         builder: &'a mut FunctionBuilder<'f>,
         elements: &'a specs::ReadStorage<'a, element::Element>,
-        ptr_type: Type,
+        variables: collections::HashMap<specs::Entity, Variable>,
     ) -> Self {
-        let variables = collections::HashMap::new();
-        let next_variable = 0;
-
-        Context {
-            codegen,
+        FunctionTranslator {
             builder,
             elements,
-            ptr_type,
             variables,
-            next_variable,
         }
-    }
-
-    pub fn declare_element(
-        &mut self,
-        entity: specs::Entity,
-        element: &element::Element,
-        ty: &ty::Type,
-    ) {
-        match *element {
-            element::Element::Variable(ref v) => self.declare_variable(entity, v, ty),
-            _ => {}
-        }
-    }
-
-    pub fn declare_variable(
-        &mut self,
-        entity: specs::Entity,
-        variable: &element::Variable,
-        ty: &ty::Type,
-    ) {
-        let initializer_element = self.elements.get(variable.initializer).unwrap();
-        let value = self.eval_element(variable.initializer, initializer_element);
-        let variable = Variable::new(self.next_variable);
-        self.builder
-            .declare_var(variable, codegen::abi_type::from_type(ty, self.ptr_type));
-        self.variables.insert(entity, variable);
-        self.next_variable += 1;
     }
 
     pub fn exec_element(&mut self, entity: specs::Entity, element: &element::Element) {
@@ -160,7 +120,7 @@ impl<'a, 'f> Context<'a, 'f> {
         entity: specs::Entity,
         parameter: &element::Parameter,
     ) -> Value {
-        unimplemented!()
+        self.builder.use_var(self.variables[&entity])
     }
 
     pub fn eval_apply(&mut self, entity: specs::Entity, apply: &element::Apply) -> Value {
@@ -180,8 +140,8 @@ impl<'a, 'f> Context<'a, 'f> {
     }
 }
 
-impl<'a, 'f> fmt::Debug for Context<'a, 'f> {
+impl<'a, 'f> fmt::Debug for FunctionTranslator<'a, 'f> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f.debug_struct("Context").finish()
+        f.debug_struct("FunctionTranslator").finish()
     }
 }

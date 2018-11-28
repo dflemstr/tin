@@ -79,19 +79,27 @@ impl<'a> Codegen<'a> {
                     builder.switch_to_block(entry_ebb);
                     builder.seal_block(entry_ebb);
 
+                    let variables = declare_variables(
+                        &self.elements,
+                        &self.types,
+                        ptr_type,
+                        &mut builder,
+                        &closure.parameters,
+                        &closure.statements,
+                        entry_ebb,
+                    );
+
                     let result = {
-                        let mut translation_ctx =
-                            translation::Context::new(self, &mut builder, &self.elements, ptr_type);
-                        for stmt in &closure.statements {
-                            translation_ctx.declare_element(
-                                *stmt,
-                                self.elements.get(*stmt).unwrap(),
-                                self.types.get(*stmt).unwrap(),
-                            );
-                        }
+                        let mut translation_ctx = translation::FunctionTranslator::new(
+                            &mut builder,
+                            &self.elements,
+                            variables,
+                        );
+
                         for stmt in &closure.statements {
                             translation_ctx.exec_element(*stmt, self.elements.get(*stmt).unwrap());
                         }
+
                         translation_ctx.eval_element(
                             closure.result,
                             self.elements.get(closure.result).unwrap(),
@@ -111,7 +119,7 @@ impl<'a> Codegen<'a> {
         let mut function_ids = collections::HashMap::new();
 
         for (sy, ctx) in function_ctxs {
-            let fn_name = format!("{}", sy);
+            let fn_name = sy.to_string();
             let fn_id = module
                 .declare_function(
                     &fn_name,
@@ -137,6 +145,83 @@ impl<'a> fmt::Debug for Codegen<'a> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_struct("Compiler").finish()
     }
+}
+
+fn declare_variables(
+    elements: &specs::ReadStorage<element::Element>,
+    types: &specs::ReadStorage<ty::Type>,
+    ptr_type: Type,
+    builder: &mut FunctionBuilder,
+    params: &[specs::Entity],
+    statements: &[specs::Entity],
+    entry_ebb: Ebb,
+) -> collections::HashMap<specs::Entity, Variable> {
+    let mut next_var = 0;
+    let mut variables = collections::HashMap::new();
+
+    for (i, param) in params.iter().enumerate() {
+        let val = builder.ebb_params(entry_ebb)[i];
+        let var = declare_variable(
+            types,
+            ptr_type,
+            builder,
+            &mut variables,
+            &mut next_var,
+            *param,
+        );
+        builder.def_var(var, val);
+    }
+
+    for statement in statements {
+        declare_variables_in_element(
+            elements,
+            types,
+            ptr_type,
+            builder,
+            &mut variables,
+            &mut next_var,
+            *statement,
+        );
+    }
+
+    variables
+}
+
+fn declare_variables_in_element(
+    elements: &specs::ReadStorage<element::Element>,
+    types: &specs::ReadStorage<ty::Type>,
+    ptr_type: Type,
+    builder: &mut FunctionBuilder,
+    variables: &mut collections::HashMap<specs::Entity, Variable>,
+    next_var: &mut usize,
+    entity: specs::Entity,
+) {
+    match *elements.get(entity).unwrap() {
+        element::Element::Variable(_) => {
+            declare_variable(types, ptr_type, builder, variables, next_var, entity);
+        }
+        _ => {}
+    }
+}
+
+fn declare_variable(
+    types: &specs::ReadStorage<ty::Type>,
+    ptr_type: Type,
+    builder: &mut FunctionBuilder,
+    variables: &mut collections::HashMap<specs::Entity, Variable>,
+    next_var: &mut usize,
+    entity: specs::Entity,
+) -> Variable {
+    let var = Variable::new(*next_var);
+    if !variables.contains_key(&entity) {
+        variables.insert(entity, var);
+        builder.declare_var(
+            var,
+            abi_type::from_type(types.get(entity).unwrap(), ptr_type),
+        );
+        *next_var += 1;
+    }
+    var
 }
 
 fn as_closure<'a, 'b>(
@@ -170,7 +255,7 @@ main = || Int { 42 };
 
         let mut module = compile_module("immediate", source)?;
 
-        let main = module.function::<f64>("main").unwrap();
+        let main = module.function::<module::Function0<f64>>("main").unwrap();
 
         let result = main();
         assert_eq!(42.0, result);
@@ -188,9 +273,129 @@ main = || Int { a = 43; a };
 
         let mut module = compile_module("variable", source)?;
 
-        let main = module.function::<f64>("main").unwrap();
+        let main = module.function::<module::Function0<f64>>("main").unwrap();
 
         let result = main();
+        assert_eq!(43.0, result);
+        Ok(())
+    }
+
+    #[test]
+    fn parameter1() -> Result<(), failure::Error> {
+        let _ = env_logger::try_init();
+
+        let source = r#"
+Int = 0;
+main = |a: Int| Int { a };
+"#;
+
+        let mut module = compile_module("parameter1", source)?;
+
+        let main = module
+            .function::<module::Function1<f64, f64>>("main")
+            .unwrap();
+
+        let result = main(43.0);
+        assert_eq!(43.0, result);
+        Ok(())
+    }
+
+    #[test]
+    fn parameter2() -> Result<(), failure::Error> {
+        let _ = env_logger::try_init();
+
+        let source = r#"
+Int = 0;
+main = |a: Int, b: Int| Int { b };
+"#;
+
+        let mut module = compile_module("parameter2", source)?;
+
+        let main = module
+            .function::<module::Function2<f64, f64, f64>>("main")
+            .unwrap();
+
+        let result = main(1.0, 43.0);
+        assert_eq!(43.0, result);
+        Ok(())
+    }
+
+    #[test]
+    fn parameter3() -> Result<(), failure::Error> {
+        let _ = env_logger::try_init();
+
+        let source = r#"
+Int = 0;
+main = |a: Int, b: Int, c: Int| Int { c };
+"#;
+
+        let mut module = compile_module("parameter3", source)?;
+
+        let main = module
+            .function::<module::Function3<f64, f64, f64, f64>>("main")
+            .unwrap();
+
+        let result = main(1.0, 2.0, 43.0);
+        assert_eq!(43.0, result);
+        Ok(())
+    }
+
+    #[test]
+    fn parameter4() -> Result<(), failure::Error> {
+        let _ = env_logger::try_init();
+
+        let source = r#"
+Int = 0;
+main = |a: Int, b: Int, c: Int, d: Int| Int { d };
+"#;
+
+        let mut module = compile_module("parameter4", source)?;
+
+        let main = module
+            .function::<module::Function4<f64, f64, f64, f64, f64>>("main")
+            .unwrap();
+
+        let result = main(1.0, 2.0, 3.0, 43.0);
+        assert_eq!(43.0, result);
+        Ok(())
+    }
+
+    #[test]
+    fn parameter5() -> Result<(), failure::Error> {
+        let _ = env_logger::try_init();
+
+        let source = r#"
+Int = 0;
+main = |a: Int, b: Int, c: Int, d: Int, e: Int| Int { e };
+"#;
+
+        let mut module = compile_module("parameter5", source)?;
+
+        let main = module
+            .function::<module::Function5<f64, f64, f64, f64, f64, f64>>("main")
+            .unwrap();
+
+        let result = main(1.0, 2.0, 3.0, 4.0, 43.0);
+        assert_eq!(43.0, result);
+        Ok(())
+    }
+
+    #[test]
+    fn parameter6() -> Result<(), failure::Error> {
+        let _ = env_logger::try_init();
+
+        let source = r#"
+Int = 0;
+main = |a: Int, b: Int, c: Int, d: Int, e: Int, f: Int| Int { f };
+"#;
+
+        let mut module = compile_module("parameter6", source)?;
+
+        let main = module
+            .function::<module::Function6<f64, f64, f64, f64, f64, f64, f64>>("main")
+            .unwrap();
+
+        let result = main(1.0, 2.0, 3.0, 4.0, 5.0, 43.0);
         assert_eq!(43.0, result);
         Ok(())
     }
