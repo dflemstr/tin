@@ -99,7 +99,7 @@ impl Ir {
     fn add_identifier(
         &mut self,
         identifier: &ast::Identifier<parser::Context>,
-        symbol: &[component::symbol::Part],
+        _symbol: &[component::symbol::Part],
     ) -> specs::Entity {
         use specs::world::Builder;
 
@@ -107,8 +107,7 @@ impl Ir {
             .create_entity()
             .with(component::element::Element::Reference(
                 component::element::Reference(identifier.value.clone()),
-            )).with(component::symbol::Symbol::new(symbol.to_vec()))
-            .build()
+            )).build()
     }
 
     fn set_identifier_scope(
@@ -176,7 +175,7 @@ impl Ir {
     fn add_number(
         &mut self,
         number: &ast::NumberLiteral<parser::Context>,
-        symbol: &[component::symbol::Part],
+        _symbol: &[component::symbol::Part],
     ) -> specs::Entity {
         use specs::world::Builder;
 
@@ -184,8 +183,7 @@ impl Ir {
             .create_entity()
             .with(component::element::Element::NumberValue(
                 Ir::from_ast_number(number.value),
-            )).with(component::symbol::Symbol::new(symbol.to_vec()))
-            .build()
+            )).build()
     }
 
     fn from_ast_number(number: ast::NumberValue) -> component::element::NumberValue {
@@ -216,7 +214,7 @@ impl Ir {
     fn add_string(
         &mut self,
         string: &ast::StringLiteral<parser::Context>,
-        symbol: &[component::symbol::Part],
+        _symbol: &[component::symbol::Part],
     ) -> specs::Entity {
         use specs::world::Builder;
 
@@ -224,8 +222,7 @@ impl Ir {
             .create_entity()
             .with(component::element::Element::StringValue(
                 component::element::StringValue(string.value.clone()),
-            )).with(component::symbol::Symbol::new(symbol.to_vec()))
-            .build()
+            )).build()
     }
 
     fn set_string_scope(
@@ -255,8 +252,7 @@ impl Ir {
             .create_entity()
             .with(component::element::Element::Tuple(
                 component::element::Tuple { fields },
-            )).with(component::symbol::Symbol::new(symbol.to_vec()))
-            .build()
+            )).build()
     }
 
     fn set_tuple_scope(
@@ -295,8 +291,7 @@ impl Ir {
             .create_entity()
             .with(component::element::Element::Record(
                 component::element::Record { fields },
-            )).with(component::symbol::Symbol::new(symbol.to_vec()))
-            .build()
+            )).build()
     }
 
     fn set_record_scope(
@@ -515,8 +510,7 @@ impl Ir {
             .create_entity()
             .with(component::element::Element::Select(
                 component::element::Select { record, field },
-            )).with(component::symbol::Symbol::new(symbol.to_vec()))
-            .build()
+            )).build()
     }
 
     fn set_select_scope(
@@ -560,8 +554,7 @@ impl Ir {
                     function,
                     parameters,
                 },
-            )).with(component::symbol::Symbol::new(symbol.to_vec()))
-            .build()
+            )).build()
     }
 
     fn set_apply_scope(
@@ -617,8 +610,7 @@ impl Ir {
             .create_entity()
             .with(component::element::Element::Parameter(
                 component::element::Parameter { name, signature },
-            )).with(component::symbol::Symbol::new(symbol.to_vec()))
-            .build()
+            )).build()
     }
 
     fn set_parameter_scope(

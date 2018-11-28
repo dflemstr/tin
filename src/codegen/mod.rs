@@ -91,8 +91,12 @@ impl<'a> Codegen<'a> {
 
                     let result = {
                         let mut translation_ctx = translation::FunctionTranslator::new(
+                            &mut module,
                             &mut builder,
                             &self.elements,
+                            &self.symbols,
+                            &self.types,
+                            ptr_type,
                             variables,
                         );
 
@@ -396,6 +400,27 @@ main = |a: Int, b: Int, c: Int, d: Int, e: Int, f: Int| Int { f };
             .unwrap();
 
         let result = main(1.0, 2.0, 3.0, 4.0, 5.0, 43.0);
+        assert_eq!(43.0, result);
+        Ok(())
+    }
+
+    #[test]
+    fn apply() -> Result<(), failure::Error> {
+        let _ = env_logger::try_init();
+
+        let source = r#"
+Int = 0;
+other = |x: Int| Int { x };
+main = |y: Int| Int { a = other(y); other(other(a)) };
+"#;
+
+        let mut module = compile_module("apply", source)?;
+
+        let main = module
+            .function::<module::Function1<f64, f64>>("main")
+            .unwrap();
+
+        let result = main(43.0);
         assert_eq!(43.0, result);
         Ok(())
     }

@@ -5,29 +5,46 @@ use std::fmt;
 
 use specs;
 
-use ir::component::element;
-
 use cranelift::prelude::*;
+use cranelift_module;
+use cranelift_simplejit;
+
+use codegen::abi_type;
+use ir::component::element;
+use ir::component::symbol;
+use ir::component::ty;
 
 pub struct FunctionTranslator<'a, 'f>
 where
     'f: 'a,
 {
+    module: &'a mut cranelift_module::Module<cranelift_simplejit::SimpleJITBackend>,
     builder: &'a mut FunctionBuilder<'f>,
     elements: &'a specs::ReadStorage<'a, element::Element>,
+    symbols: &'a specs::ReadStorage<'a, symbol::Symbol>,
+    types: &'a specs::ReadStorage<'a, ty::Type>,
+    ptr_type: Type,
     variables: collections::HashMap<specs::Entity, Variable>,
 }
 
 #[allow(unused)]
 impl<'a, 'f> FunctionTranslator<'a, 'f> {
     pub fn new(
+        module: &'a mut cranelift_module::Module<cranelift_simplejit::SimpleJITBackend>,
         builder: &'a mut FunctionBuilder<'f>,
         elements: &'a specs::ReadStorage<'a, element::Element>,
+        symbols: &'a specs::ReadStorage<'a, symbol::Symbol>,
+        types: &'a specs::ReadStorage<'a, ty::Type>,
+        ptr_type: Type,
         variables: collections::HashMap<specs::Entity, Variable>,
     ) -> Self {
         FunctionTranslator {
+            module,
             builder,
             elements,
+            symbols,
+            types,
+            ptr_type,
             variables,
         }
     }
@@ -124,11 +141,43 @@ impl<'a, 'f> FunctionTranslator<'a, 'f> {
     }
 
     pub fn eval_apply(&mut self, entity: specs::Entity, apply: &element::Apply) -> Value {
-        unimplemented!()
+        let mut sig = self.module.make_signature();
+
+        for parameter in &apply.parameters {
+            sig.params.push(AbiParam::new(abi_type::from_type(
+                self.types.get(*parameter).unwrap(),
+                self.ptr_type,
+            )));
+        }
+        sig.returns.push(AbiParam::new(abi_type::from_type(
+            self.types.get(entity).unwrap(),
+            self.ptr_type,
+        )));
+
+        let callee = self
+            .module
+            .declare_function(
+                &self.symbols.get(apply.function).unwrap().to_string(),
+                cranelift_module::Linkage::Import,
+                &sig,
+            ).unwrap();
+        let local_callee = self
+            .module
+            .declare_func_in_func(callee, &mut self.builder.func);
+
+        let mut parameter_values = apply
+            .parameters
+            .iter()
+            .map(|p| self.eval_element(*p, self.elements.get(*p).unwrap()))
+            .collect::<Vec<_>>();
+
+        let call = self.builder.ins().call(local_callee, &parameter_values);
+
+        self.builder.inst_results(call)[0]
     }
 
     pub fn eval_capture(&mut self, entity: specs::Entity, capture: &element::Capture) -> Value {
-        unimplemented!()
+        self.builder.use_var(self.variables[&entity])
     }
 
     pub fn eval_closure(&mut self, entity: specs::Entity, closure: &element::Closure) -> Value {
