@@ -121,13 +121,27 @@ impl<'a, 'f> FunctionTranslator<'a, 'f> {
         entity: specs::Entity,
         string_value: &element::StringValue,
     ) -> Value {
-        unimplemented!()
+        let symbol = self
+            .module
+            .declare_data(
+                &format!("__data_{}", entity.id()),
+                cranelift_module::Linkage::Local,
+                false,
+            ).unwrap();
+        let local_id = self
+            .module
+            .declare_data_in_func(symbol, &mut self.builder.func);
+
+        self.builder.ins().symbol_value(self.ptr_type, local_id)
     }
 
     pub fn eval_tuple(&mut self, entity: specs::Entity, tuple: &element::Tuple) -> Value {
         let layout = self.layouts.get(entity).unwrap();
         let alloc_size = self.builder.ins().iconst(self.ptr_type, layout.size as i64);
-        let alloc_align = self.builder.ins().iconst(self.ptr_type, layout.alignment as i64);
+        let alloc_align = self
+            .builder
+            .ins()
+            .iconst(self.ptr_type, layout.alignment as i64);
         let result = self.builtin_alloc(alloc_size, alloc_align);
 
         let mut mem_flags = MemFlags::new();
@@ -146,7 +160,10 @@ impl<'a, 'f> FunctionTranslator<'a, 'f> {
     pub fn eval_record(&mut self, entity: specs::Entity, record: &element::Record) -> Value {
         let layout = self.layouts.get(entity).unwrap();
         let alloc_size = self.builder.ins().iconst(self.ptr_type, layout.size as i64);
-        let alloc_align = self.builder.ins().iconst(self.ptr_type, layout.alignment as i64);
+        let alloc_align = self
+            .builder
+            .ins()
+            .iconst(self.ptr_type, layout.alignment as i64);
         let result = self.builtin_alloc(alloc_size, alloc_align);
 
         let mut mem_flags = MemFlags::new();
@@ -167,7 +184,8 @@ impl<'a, 'f> FunctionTranslator<'a, 'f> {
         entity: specs::Entity,
         reference: &element::Reference,
     ) -> Value {
-        unimplemented!()
+        // TODO: return error
+        unreachable!()
     }
 
     pub fn eval_variable(&mut self, entity: specs::Entity, variable: &element::Variable) -> Value {
@@ -192,7 +210,9 @@ impl<'a, 'f> FunctionTranslator<'a, 'f> {
 
         let record = self.eval_element(select.record, self.elements.get(select.record).unwrap());
 
-        self.builder.ins().load(field_abi_type, mem_flags, record, field_offset)
+        self.builder
+            .ins()
+            .load(field_abi_type, mem_flags, record, field_offset)
     }
 
     pub fn eval_parameter(

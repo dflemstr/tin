@@ -446,9 +446,7 @@ main = || Int { a = { x: 1, y: 2, z: 3}; a.y };
 
         let mut module = compile_module("record", source)?;
 
-        let main = module
-            .function::<module::Function0<f64>>("main")
-            .unwrap();
+        let main = module.function::<module::Function0<f64>>("main").unwrap();
 
         let result = main();
         assert_eq!(2.0, result);

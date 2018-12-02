@@ -8,7 +8,7 @@ pub const DEALLOC_SYMBOL: &str = "__norm_dealloc";
 
 pub const SYMBOLS: &[(&str, *const u8)] = &[
     (ALLOC_SYMBOL, norm_alloc as *const u8),
-    (DEALLOC_SYMBOL, norm_dealloc as *const u8)
+    (DEALLOC_SYMBOL, norm_dealloc as *const u8),
 ];
 
 unsafe extern "C" fn norm_alloc(size: usize, align: num::NonZeroUsize) -> *mut u8 {
