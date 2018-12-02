@@ -3,6 +3,7 @@ use parser;
 
 use std::str::FromStr;
 
+#[LALR]
 grammar;
 
 extern {
