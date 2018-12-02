@@ -91,6 +91,10 @@ impl Ir {
                 system::infer_constexpr::InferConstexprSystem,
                 "infer_constexpr",
                 &[],
+            ).with(
+                system::infer_layouts::InferLayoutsSystem::new(8),
+                "infer_layouts",
+                &[],
             ).build();
         dispatcher.dispatch(&mut self.world.res);
         self.world.maintain();

@@ -7,6 +7,7 @@ use specs;
 
 use ir;
 use ir::component::element;
+use ir::component::layout;
 use ir::component::symbol;
 use ir::component::ty;
 
@@ -14,6 +15,7 @@ use ir::component::ty;
 pub struct Graph<'a> {
     entities: specs::Entities<'a>,
     elements: specs::ReadStorage<'a, element::Element>,
+    layouts: specs::ReadStorage<'a, layout::Layout>,
     symbols: specs::ReadStorage<'a, symbol::Symbol>,
     types: specs::ReadStorage<'a, ty::Type>,
 }
@@ -58,13 +60,15 @@ impl<'a> Graph<'a> {
     pub fn new(ir: &'a ir::Ir) -> Graph<'a> {
         let world = &ir.world;
         let entities = world.entities();
-        let elements = world.read_storage::<element::Element>();
-        let symbols = world.read_storage::<symbol::Symbol>();
-        let types = world.read_storage::<ty::Type>();
+        let elements = world.read_storage();
+        let layouts = world.read_storage();
+        let symbols = world.read_storage();
+        let types = world.read_storage();
 
         Graph {
             entities,
             elements,
+            layouts,
             symbols,
             types,
         }
@@ -301,6 +305,10 @@ impl<'a> dot::Labeller<'a, Node, Edge<'a>> for Graph<'a> {
 
         if let Some(ty) = self.types.get(*n) {
             write!(result, "<br/> <font color=\"blue\">{}</font>", PrettyTy(ty)).unwrap();
+        }
+
+        if let Some(layout) = self.layouts.get(*n) {
+            write!(result, "<br/> <font color=\"brown\">{}</font>", layout).unwrap();
         }
 
         if let Some(symbol) = self.symbols.get(*n) {

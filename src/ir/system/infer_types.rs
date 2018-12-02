@@ -17,14 +17,9 @@ impl<'a> specs::System<'a> for InferTypesSystem {
 
     fn run(&mut self, (entities, elements, mut types): Self::SystemData) {
         use specs::prelude::ParallelIterator;
-        use specs::Join;
         use specs::ParJoin;
 
         loop {
-            for (entity, element) in (&entities, &elements).join() {
-                debug!("{:?} has element {:?}", entity, element);
-            }
-
             let new_types = (&entities, &elements, !&types)
                 .par_join()
                 .flat_map(|(entity, element, _)| infer_type(element, &types).map(|ty| (entity, ty)))

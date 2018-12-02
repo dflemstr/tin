@@ -9,8 +9,10 @@ use cranelift::prelude::*;
 use cranelift_module;
 use cranelift_simplejit;
 
+use builtin;
 use codegen::abi_type;
 use ir::component::element;
+use ir::component::layout;
 use ir::component::symbol;
 use ir::component::ty;
 
@@ -21,10 +23,12 @@ where
     module: &'a mut cranelift_module::Module<cranelift_simplejit::SimpleJITBackend>,
     builder: &'a mut FunctionBuilder<'f>,
     elements: &'a specs::ReadStorage<'a, element::Element>,
+    layouts: &'a specs::ReadStorage<'a, layout::Layout>,
     symbols: &'a specs::ReadStorage<'a, symbol::Symbol>,
     types: &'a specs::ReadStorage<'a, ty::Type>,
     ptr_type: Type,
     variables: collections::HashMap<specs::Entity, Variable>,
+    alloc_signature: Signature,
 }
 
 #[allow(unused)]
@@ -33,19 +37,31 @@ impl<'a, 'f> FunctionTranslator<'a, 'f> {
         module: &'a mut cranelift_module::Module<cranelift_simplejit::SimpleJITBackend>,
         builder: &'a mut FunctionBuilder<'f>,
         elements: &'a specs::ReadStorage<'a, element::Element>,
+        layouts: &'a specs::ReadStorage<'a, layout::Layout>,
         symbols: &'a specs::ReadStorage<'a, symbol::Symbol>,
         types: &'a specs::ReadStorage<'a, ty::Type>,
         ptr_type: Type,
         variables: collections::HashMap<specs::Entity, Variable>,
     ) -> Self {
+        let mut alloc_signature = module.make_signature();
+        // size
+        alloc_signature.params.push(AbiParam::new(ptr_type));
+        // align
+        alloc_signature.params.push(AbiParam::new(ptr_type));
+
+        // ptr
+        alloc_signature.returns.push(AbiParam::new(ptr_type));
+
         FunctionTranslator {
             module,
             builder,
             elements,
+            layouts,
             symbols,
             types,
             ptr_type,
             variables,
+            alloc_signature,
         }
     }
 
@@ -109,11 +125,41 @@ impl<'a, 'f> FunctionTranslator<'a, 'f> {
     }
 
     pub fn eval_tuple(&mut self, entity: specs::Entity, tuple: &element::Tuple) -> Value {
-        unimplemented!()
+        let layout = self.layouts.get(entity).unwrap();
+        let alloc_size = self.builder.ins().iconst(self.ptr_type, layout.size as i64);
+        let alloc_align = self.builder.ins().iconst(self.ptr_type, layout.alignment as i64);
+        let result = self.builtin_alloc(alloc_size, alloc_align);
+
+        let mut mem_flags = MemFlags::new();
+        mem_flags.set_notrap();
+        mem_flags.set_aligned();
+
+        for (idx, value) in tuple.fields.iter().enumerate() {
+            let value = self.eval_element(*value, self.elements.get(*value).unwrap());
+            let offset = layout.unnamed_field_offsets[idx] as i32;
+            self.builder.ins().store(mem_flags, value, result, offset);
+        }
+
+        result
     }
 
     pub fn eval_record(&mut self, entity: specs::Entity, record: &element::Record) -> Value {
-        unimplemented!()
+        let layout = self.layouts.get(entity).unwrap();
+        let alloc_size = self.builder.ins().iconst(self.ptr_type, layout.size as i64);
+        let alloc_align = self.builder.ins().iconst(self.ptr_type, layout.alignment as i64);
+        let result = self.builtin_alloc(alloc_size, alloc_align);
+
+        let mut mem_flags = MemFlags::new();
+        mem_flags.set_notrap();
+        mem_flags.set_aligned();
+
+        for (field, value) in &record.fields {
+            let value = self.eval_element(*value, self.elements.get(*value).unwrap());
+            let offset = layout.named_field_offsets[field] as i32;
+            self.builder.ins().store(mem_flags, value, result, offset);
+        }
+
+        result
     }
 
     pub fn eval_reference(
@@ -129,7 +175,24 @@ impl<'a, 'f> FunctionTranslator<'a, 'f> {
     }
 
     pub fn eval_select(&mut self, entity: specs::Entity, select: &element::Select) -> Value {
-        unimplemented!()
+        let record_layout = self.layouts.get(select.record).unwrap();
+        let record_type = match self.types.get(select.record).unwrap() {
+            ty::Type::Record(r) => r,
+            _ => unreachable!(),
+        };
+
+        let field_type = &record_type.fields[&select.field];
+        let field_abi_type = abi_type::from_type(field_type, self.ptr_type);
+        let field_offset = record_layout.named_field_offsets[&select.field] as i32;
+
+        let mut mem_flags = MemFlags::new();
+        mem_flags.set_notrap();
+        mem_flags.set_aligned();
+        mem_flags.set_readonly();
+
+        let record = self.eval_element(select.record, self.elements.get(select.record).unwrap());
+
+        self.builder.ins().load(field_abi_type, mem_flags, record, field_offset)
     }
 
     pub fn eval_parameter(
@@ -186,6 +249,24 @@ impl<'a, 'f> FunctionTranslator<'a, 'f> {
 
     pub fn eval_module(&mut self, entity: specs::Entity, module: &element::Module) -> Value {
         unimplemented!()
+    }
+
+    fn builtin_alloc(&mut self, size: Value, align: Value) -> Value {
+        let callee = self
+            .module
+            .declare_function(
+                builtin::ALLOC_SYMBOL,
+                cranelift_module::Linkage::Import,
+                &self.alloc_signature,
+            ).unwrap();
+
+        let local_callee = self
+            .module
+            .declare_func_in_func(callee, &mut self.builder.func);
+
+        let call = self.builder.ins().call(local_callee, &[size, align]);
+
+        self.builder.inst_results(call)[0]
     }
 }
 

@@ -4,5 +4,5 @@ version = "0.1.0"
 authors = ["David Flemström <david.flemstrom@gmail.com>"]
 
 [dependencies]
-specs = "0.14.0"
+specs = "0.14.1"
 rayon = "1.0.3"

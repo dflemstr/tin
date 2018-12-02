@@ -29,10 +29,10 @@ macro_rules! define_function {
     ($name:ident, $doc:expr, $ret:ident) => { define_function!($name, $doc, $ret,); };
     ($name:ident, $doc:expr, $ret:ident, $($arg:ident),*) => {
         #[doc=$doc]
-        pub struct $name<$ret, $($arg),*>(extern "sysv64" fn($($arg),*) -> $ret);
+        pub struct $name<$ret, $($arg),*>(extern "C" fn($($arg),*) -> $ret);
 
         impl<$ret, $($arg),*> ops::Deref for $name<$ret, $($arg),*> {
-            type Target = extern "sysv64" fn($($arg),*) -> $ret;
+            type Target = extern "C" fn($($arg),*) -> $ret;
 
             fn deref(&self) -> &Self::Target {
                 &self.0

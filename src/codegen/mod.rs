@@ -7,8 +7,10 @@ use cranelift_module;
 use cranelift_simplejit;
 use specs;
 
+use builtin;
 use ir;
 use ir::component::element;
+use ir::component::layout;
 use ir::component::symbol;
 use ir::component::ty;
 
@@ -22,6 +24,7 @@ pub mod translation;
 #[allow(unused)]
 pub struct Codegen<'a> {
     elements: specs::ReadStorage<'a, element::Element>,
+    layouts: specs::ReadStorage<'a, layout::Layout>,
     symbols: specs::ReadStorage<'a, symbol::Symbol>,
     types: specs::ReadStorage<'a, ty::Type>,
 }
@@ -30,11 +33,13 @@ impl<'a> Codegen<'a> {
     /// Creates a new codegen instance around the specified IR.
     pub fn new(ir: &'a ir::Ir) -> Self {
         let elements = ir.world.read_storage();
+        let layouts = ir.world.read_storage();
         let symbols = ir.world.read_storage();
         let types = ir.world.read_storage();
 
         Codegen {
             elements,
+            layouts,
             symbols,
             types,
         }
@@ -46,20 +51,24 @@ impl<'a> Codegen<'a> {
 
         let Codegen {
             ref elements,
+            ref layouts,
             ref symbols,
             ref types,
         } = *self;
 
-        let builder = cranelift_simplejit::SimpleJITBuilder::new();
+        let mut builder = cranelift_simplejit::SimpleJITBuilder::new();
+
+        builder.symbols(builtin::SYMBOLS.to_vec());
+
         let mut module: cranelift_module::Module<cranelift_simplejit::SimpleJITBackend> =
             cranelift_module::Module::new(builder);
+        let ptr_type = module.target_config().pointer_type();
         // let data_ctx = cranelift_module::DataContext::new();
 
         let function_ctxs = (elements, symbols, types)
             .join()
             .filter_map(|(el, sy, ty)| as_closure(el, ty).map(|(el, ty)| (el, sy, ty)))
             .map(|(closure, sy, ty)| {
-                let ptr_type = module.pointer_type();
                 let mut ctx: codegen::Context = module.make_context();
                 let mut builder_context = FunctionBuilderContext::new();
 
@@ -80,8 +89,8 @@ impl<'a> Codegen<'a> {
                     builder.seal_block(entry_ebb);
 
                     let variables = declare_variables(
-                        &self.elements,
-                        &self.types,
+                        elements,
+                        types,
                         ptr_type,
                         &mut builder,
                         &closure.parameters,
@@ -93,9 +102,10 @@ impl<'a> Codegen<'a> {
                         let mut translation_ctx = translation::FunctionTranslator::new(
                             &mut module,
                             &mut builder,
-                            &self.elements,
-                            &self.symbols,
-                            &self.types,
+                            elements,
+                            layouts,
+                            symbols,
+                            types,
                             ptr_type,
                             variables,
                         );
@@ -422,6 +432,26 @@ main = |y: Int| Int { a = other(y); other(other(a)) };
 
         let result = main(43.0);
         assert_eq!(43.0, result);
+        Ok(())
+    }
+
+    #[test]
+    fn record() -> Result<(), failure::Error> {
+        let _ = env_logger::try_init();
+
+        let source = r#"
+Int = 0;
+main = || Int { a = { x: 1, y: 2, z: 3}; a.y };
+"#;
+
+        let mut module = compile_module("record", source)?;
+
+        let main = module
+            .function::<module::Function0<f64>>("main")
+            .unwrap();
+
+        let result = main();
+        assert_eq!(2.0, result);
         Ok(())
     }
 
