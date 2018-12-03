@@ -3,8 +3,8 @@
 use std::alloc;
 use std::num;
 
-pub const ALLOC_SYMBOL: &str = "__norm_alloc";
-pub const DEALLOC_SYMBOL: &str = "__norm_dealloc";
+pub const ALLOC_SYMBOL: &str = "@builtin:norm_alloc";
+pub const DEALLOC_SYMBOL: &str = "@builtin:norm_dealloc";
 
 pub const SYMBOLS: &[(&str, *const u8)] = &[
     (ALLOC_SYMBOL, norm_alloc as *const u8),
