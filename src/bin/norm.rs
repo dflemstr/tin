@@ -1,3 +1,4 @@
+extern crate env_logger;
 extern crate failure;
 extern crate norm;
 
@@ -6,6 +7,8 @@ use std::io;
 fn main() -> Result<(), failure::Error> {
     use norm::parser::Parse;
     use std::io::Read;
+
+    env_logger::init();
 
     let stdin = io::stdin();
     let mut stdin = stdin.lock();
