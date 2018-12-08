@@ -72,16 +72,20 @@ impl Ir {
             );
         }
 
-        self.world.write_storage().insert(
-            entity,
-            component::element::Element::Module(component::element::Module {
-                variables: variables.clone(),
-            }),
-        ).unwrap();
+        self.world
+            .write_storage()
+            .insert(
+                entity,
+                component::element::Element::Module(component::element::Module {
+                    variables: variables.clone(),
+                }),
+            )
+            .unwrap();
 
         self.world
             .write_storage()
-            .insert(entity, component::symbol::Symbol::new(symbol.to_vec())).unwrap();
+            .insert(entity, component::symbol::Symbol::new(symbol.to_vec()))
+            .unwrap();
     }
 
     /// Checks and infers types for all known variables.
@@ -116,12 +120,15 @@ impl Ir {
         variables: &collections::HashMap<String, specs::Entity>,
     ) {
         // TODO: handle undefined variable
-        self.world.write_storage().insert(
-            entity,
-            component::replacement::Replacement {
-                to: variables[&identifier.value],
-            },
-        ).unwrap();
+        self.world
+            .write_storage()
+            .insert(
+                entity,
+                component::replacement::Replacement {
+                    to: variables[&identifier.value],
+                },
+            )
+            .unwrap();
     }
 
     fn add_expression(
@@ -150,10 +157,13 @@ impl Ir {
         _symbol: &[component::symbol::Part],
         _variables: &collections::HashMap<String, specs::Entity>,
     ) {
-        self.world.write_storage().insert(
-            entity,
-            component::element::Element::NumberValue(Ir::from_ast_number(number.value)),
-        ).unwrap();
+        self.world
+            .write_storage()
+            .insert(
+                entity,
+                component::element::Element::NumberValue(Ir::from_ast_number(number.value)),
+            )
+            .unwrap();
     }
 
     fn from_ast_number(number: ast::NumberValue) -> component::element::NumberValue {
@@ -178,12 +188,15 @@ impl Ir {
         _symbol: &[component::symbol::Part],
         _variables: &collections::HashMap<String, specs::Entity>,
     ) {
-        self.world.write_storage().insert(
-            entity,
-            component::element::Element::StringValue(component::element::StringValue(
-                string.value.clone(),
-            )),
-        ).unwrap();
+        self.world
+            .write_storage()
+            .insert(
+                entity,
+                component::element::Element::StringValue(component::element::StringValue(
+                    string.value.clone(),
+                )),
+            )
+            .unwrap();
     }
 
     fn add_tuple(
@@ -205,10 +218,13 @@ impl Ir {
             })
             .collect();
 
-        self.world.write_storage().insert(
-            entity,
-            component::element::Element::Tuple(component::element::Tuple { fields }),
-        ).unwrap();
+        self.world
+            .write_storage()
+            .insert(
+                entity,
+                component::element::Element::Tuple(component::element::Tuple { fields }),
+            )
+            .unwrap();
     }
 
     fn add_record(
@@ -230,10 +246,13 @@ impl Ir {
             })
             .collect();
 
-        self.world.write_storage().insert(
-            entity,
-            component::element::Element::Record(component::element::Record { fields }),
-        ).unwrap();
+        self.world
+            .write_storage()
+            .insert(
+                entity,
+                component::element::Element::Record(component::element::Record { fields }),
+            )
+            .unwrap();
     }
 
     fn add_lambda(
@@ -289,20 +308,24 @@ impl Ir {
         let result = self.world.create_entity().build();
         self.add_expression(result, &*lambda.result, symbol, &variables);
 
-        self.world.write_storage().insert(
-            entity,
-            component::element::Element::Closure(component::element::Closure {
-                captures,
-                parameters,
-                statements,
-                signature,
-                result,
-            }),
-        ).unwrap();
+        self.world
+            .write_storage()
+            .insert(
+                entity,
+                component::element::Element::Closure(component::element::Closure {
+                    captures,
+                    parameters,
+                    statements,
+                    signature,
+                    result,
+                }),
+            )
+            .unwrap();
 
         self.world
             .write_storage()
-            .insert(entity, component::symbol::Symbol::new(symbol.to_vec())).unwrap();
+            .insert(entity, component::symbol::Symbol::new(symbol.to_vec()))
+            .unwrap();
     }
 
     fn add_variable(
@@ -322,17 +345,21 @@ impl Ir {
 
         self.add_expression(initializer, &variable.initializer, &symbol, variables);
 
-        self.world.write_storage().insert(
-            entity,
-            component::element::Element::Variable(component::element::Variable {
-                name,
-                initializer,
-            }),
-        ).unwrap();
+        self.world
+            .write_storage()
+            .insert(
+                entity,
+                component::element::Element::Variable(component::element::Variable {
+                    name,
+                    initializer,
+                }),
+            )
+            .unwrap();
 
         self.world
             .write_storage()
-            .insert(entity, component::symbol::Symbol::new(symbol)).unwrap();
+            .insert(entity, component::symbol::Symbol::new(symbol))
+            .unwrap();
     }
 
     fn add_select(
@@ -349,10 +376,13 @@ impl Ir {
 
         let field = select.field.value.clone();
 
-        self.world.write_storage().insert(
-            entity,
-            component::element::Element::Select(component::element::Select { record, field }),
-        ).unwrap();
+        self.world
+            .write_storage()
+            .insert(
+                entity,
+                component::element::Element::Select(component::element::Select { record, field }),
+            )
+            .unwrap();
     }
 
     fn add_apply(
@@ -377,13 +407,16 @@ impl Ir {
             })
             .collect();
 
-        self.world.write_storage().insert(
-            entity,
-            component::element::Element::Apply(component::element::Apply {
-                function,
-                parameters,
-            }),
-        ).unwrap();
+        self.world
+            .write_storage()
+            .insert(
+                entity,
+                component::element::Element::Apply(component::element::Apply {
+                    function,
+                    parameters,
+                }),
+            )
+            .unwrap();
     }
 
     fn add_parameter(
@@ -402,13 +435,16 @@ impl Ir {
             e
         });
 
-        self.world.write_storage().insert(
-            entity,
-            component::element::Element::Parameter(component::element::Parameter {
-                name,
-                signature,
-            }),
-        ).unwrap();
+        self.world
+            .write_storage()
+            .insert(
+                entity,
+                component::element::Element::Parameter(component::element::Parameter {
+                    name,
+                    signature,
+                }),
+            )
+            .unwrap();
     }
 }
 

@@ -51,9 +51,13 @@ extern crate dot;
 #[macro_use]
 extern crate failure;
 #[macro_use]
-extern crate lalrpop_util;
-#[macro_use]
 extern crate log;
+#[macro_use]
+extern crate nom;
+#[macro_use]
+extern crate nom_locate;
+#[allow(unused)]
+extern crate regex;
 extern crate specs;
 #[macro_use]
 extern crate specs_derive;
@@ -62,6 +66,8 @@ extern crate specs_visitor;
 extern crate specs_visitor_derive;
 #[cfg(test)]
 extern crate env_logger;
+#[allow(unused)]
+extern crate unicode_xid;
 
 pub mod ast;
 mod builtin;

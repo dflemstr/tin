@@ -10,6 +10,8 @@ fn main() {
 
     #[cfg_attr(rustfmt, rustfmt_skip)]
     fuzz!(|data: &[u8]| {
+        use norm::parser::Parser;
+
         if let Ok(s) = std::str::from_utf8(data) {
             let _ = parser.parse(s);
         }

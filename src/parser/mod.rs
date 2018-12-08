@@ -1,19 +1,11 @@
 //! A parser for Norm code.
 use std::fmt;
 
-use lalrpop_util;
+use nom;
 
 use ast;
 
-mod util;
-
-lalrpop_mod!(
-    #[allow(clippy)]
-    #[allow(missing_debug_implementations)]
-    #[allow(unused)]
-    norm,
-    "/parser/norm.rs"
-);
+mod rules;
 
 /// The context of a parsed AST node.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -24,45 +16,66 @@ pub struct Context {
     pub kind: ast::Kind,
 }
 
+/// A specific point in the input code.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Point {
+    /// The byte offset from the start of the code.
+    pub offset: usize,
+    /// The line number, 1-based.
+    pub line: usize,
+    /// The column number, 1-based.
+    pub column: usize,
+}
+
 /// A source code span.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Span {
-    /// The starting (byte) position of the span.
-    pub start: usize,
-    /// The ending (byte) position of the span.
-    pub end: usize,
+    /// The point at which this span starts.
+    pub start: Point,
+    /// The point at which this span ends.
+    pub end: Point,
 }
 
 /// An error that occurs while parsing Norm.
 #[derive(Debug, Fail, PartialEq)]
 pub enum Error {
-    /// There was an invalid token in the code.
-    #[fail(display = "invalid token at {}", _0)]
-    InvalidToken {
-        /// The location (byte index) of the invalid token.
-        location: usize,
+    /// More input is needed to finish the parse.
+    #[fail(display = "input is incomplete; need {}", needed)]
+    Incomplete {
+        /// The amount of needed input.
+        needed: Needed,
     },
-    /// There was an unexpected token in the code.
-    #[fail(display = "unrecognized token {:?}, expected {:?}", _0, _1)]
-    UnrecognizedToken {
-        /// The start (byte index), seen token, and end (byte index), or `None` if we are at the end
-        /// of the file.
-        token: Option<(usize, String, usize)>,
-        /// Tokens that would have been valid at this point.
-        expected: Vec<String>,
+    /// There was more input than needed.
+    #[fail(display = "there is superfluous code: {}", extra)]
+    Superfluous {
+        /// Extra, unconsumed input.
+        extra: String,
     },
-    /// There was an extra token at the end of the file.
-    #[fail(display = "got extra token {:?}", _0)]
-    ExtraToken {
-        /// The start (byte index), seen token, and end (byte index).
-        token: (usize, String, usize),
-    },
+    /// Unrecognized input was encountered.
+    #[fail(display = "{}: unrecognized input: {}", at, message)]
+    Unrecognized {
+        /// The point at which the error occurred.
+        at: Point,
+        /// A human-readable message describing the error.
+        message: String,
+    }
+}
+
+/// An indicator for how much more input the parser needs.
+#[derive(Debug, PartialEq)]
+#[allow(missing_copy_implementations)]
+pub enum Needed {
+    /// The needed additional input is unknown.
+    Unknown,
+    /// The needed additional input is at least the specified number of bytes.
+    Size(usize),
 }
 
 /// Something that can be parsed.
 pub trait Parse: Sized {
     /// The type of parser created by `new_parser`.
     type Parser: Parser<Self>;
+
     /// Creates a re-usable parser that can be used for bulk parse operations.
     fn new_parser() -> Self::Parser;
 
@@ -75,62 +88,172 @@ pub trait Parse: Sized {
 /// A re-usable parser for a specific type.
 pub trait Parser<A> {
     /// Parses the supplied string into a value.
-    fn parse(&mut self, source: &str) -> Result<A, Error>;
+    fn parse(&self, source: &str) -> Result<A, Error>;
+}
+
+impl Point {
+    fn from_located_span<A>(span: nom_locate::LocatedSpan<A>) -> Point
+        where
+            A: nom::AsBytes, {
+        Point {
+            offset: span.offset,
+            line: span.line as usize,
+            column: span.get_utf8_column(),
+        }
+    }
 }
 
 impl Context {
     /// Creates a new context from span start and end points.
     pub fn new(kind: ast::Kind, start: usize, end: usize) -> Context {
+        // TODO: remove this
+        let start = Point {
+            offset: start,
+            line: 1,
+            column: 1,
+        };
+        let end = Point {
+            offset: end,
+            line: 1,
+            column: 1,
+        };
         let span = Span { start, end };
+
+        Context { span, kind }
+    }
+
+    fn from_located_span<A>(
+        kind: ast::Kind,
+        start: nom_locate::LocatedSpan<A>,
+        end: nom_locate::LocatedSpan<A>,
+    ) -> Context
+    where
+        A: nom::AsBytes,
+    {
+        let start = Point::from_located_span(start);
+        let end = Point::from_located_span(end);
+        let span = Span { start, end };
+
         Context { span, kind }
     }
 }
 
 macro_rules! parser_impl {
-    ($parser:ident, $result:ty) => {
+    ($parser:ident, $result:ty, $function:expr) => {
+        #[allow(missing_copy_implementations, missing_docs)]
+        #[derive(Debug)]
+        pub struct $parser;
+
         impl Parse for $result {
-            type Parser = ::parser::norm::$parser;
+            type Parser = $parser;
 
             fn new_parser() -> Self::Parser {
-                ::parser::norm::$parser::new()
+                $parser
             }
         }
 
-        impl Parser<$result> for ::parser::norm::$parser {
-            fn parse(&mut self, source: &str) -> Result<$result, Error> {
-                ::parser::norm::$parser::parse(self, source).map_err(Into::into)
+        impl Parser<$result> for $parser {
+            fn parse(&self, source: &str) -> Result<$result, Error> {
+                $function(rules::Span::new(nom::types::CompleteStr(source)))
+                    .map_err(Into::into)
+                    .and_then(|(rest, result)| {
+                        if rest.fragment.is_empty() {
+                            Ok(result)
+                        } else {
+                            Err(Error::Superfluous { extra: (*rest.fragment).to_owned() })
+                        }
+                    })
             }
         }
     };
 }
 
-parser_impl!(ModuleParser, ast::Module<Context>);
-parser_impl!(IdentifierParser, ast::Identifier<Context>);
-parser_impl!(ExpressionParser, ast::Expression<Context>);
-parser_impl!(TupleParser, ast::Tuple<Context>);
-parser_impl!(RecordParser, ast::Record<Context>);
-parser_impl!(LambdaParser, ast::Lambda<Context>);
-parser_impl!(StatementParser, ast::Statement<Context>);
-parser_impl!(SelectParser, ast::Select<Context>);
-parser_impl!(ApplyParser, ast::Apply<Context>);
-parser_impl!(ParameterParser, ast::Parameter<Context>);
+parser_impl!(
+    ModuleParser,
+    ast::Module<Context>,
+    rules::parse_module
+);
+parser_impl!(
+    IdentifierParser,
+    ast::Identifier<Context>,
+    rules::parse_identifier
+);
+parser_impl!(
+    ExpressionParser,
+    ast::Expression<Context>,
+    rules::parse_expression
+);
+parser_impl!(
+    NumberLiteralParser,
+    ast::NumberLiteral<Context>,
+    rules::parse_number_literal
+);
+parser_impl!(
+    StringLiteralParser,
+    ast::StringLiteral<Context>,
+    rules::parse_string_literal
+);
+parser_impl!(TupleParser, ast::Tuple<Context>, rules::parse_tuple);
+parser_impl!(
+    RecordParser,
+    ast::Record<Context>,
+    rules::parse_record
+);
+parser_impl!(
+    LambdaParser,
+    ast::Lambda<Context>,
+    rules::parse_lambda
+);
+parser_impl!(
+    StatementParser,
+    ast::Statement<Context>,
+    rules::parse_statement
+);
+parser_impl!(
+    VariableParser,
+    ast::Variable<Context>,
+    rules::parse_variable
+);
+parser_impl!(
+    SelectParser,
+    ast::Select<Context>,
+    rules::parse_select
+);
+parser_impl!(ApplyParser, ast::Apply<Context>, rules::parse_apply);
+parser_impl!(
+    ParameterParser,
+    ast::Parameter<Context>,
+    rules::parse_parameter
+);
 
-impl<T> From<lalrpop_util::ParseError<usize, T, Error>> for Error
-where
-    T: fmt::Display,
-{
-    fn from(error: lalrpop_util::ParseError<usize, T, Error>) -> Self {
-        match error {
-            lalrpop_util::ParseError::InvalidToken { location } => Error::InvalidToken { location },
-            lalrpop_util::ParseError::UnrecognizedToken { token, expected } => {
-                let token = token.map(|(s, t, e)| (s, format!("{}", t), e));
-                Error::UnrecognizedToken { token, expected }
-            }
-            lalrpop_util::ParseError::ExtraToken { token } => {
-                let token = (token.0, format!("{}", token.1), token.2);
-                Error::ExtraToken { token }
-            }
-            lalrpop_util::ParseError::User { error } => error,
+impl fmt::Display for Point {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}:{}", self.line, self.column)
+    }
+}
+
+impl fmt::Display for Needed {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match *self {
+            Needed::Unknown => f.write_str("an unknown amount of additional input"),
+            Needed::Size(n) => write!(f, "at least {} more bytes", n),
+        }
+    }
+}
+
+impl<'a> From<nom::Err<rules::Span<'a>>> for Error {
+    fn from(err: nom::Err<rules::Span<'a>>) -> Self {
+        match err {
+            nom::Err::Incomplete(nom::Needed::Unknown) =>
+            Error::Incomplete { needed: Needed::Unknown },
+            nom::Err::Incomplete(nom::Needed::Size(n)) =>
+            Error::Incomplete { needed: Needed::Size(n) },
+            nom::Err::Error(nom::Context::Code(input, kind)) => {
+                Error::Unrecognized { at: Point::from_located_span(input), message: kind.description().to_owned() }
+            },
+            nom::Err::Failure(nom::Context::Code(input, kind)) => {
+                Error::Unrecognized { at: Point::from_located_span(input), message: kind.description().to_owned() }
+            },
         }
     }
 }
@@ -139,7 +262,7 @@ where
 mod tests {
     use env_logger;
 
-    use super::norm;
+    use super::*;
     use ast;
     use ast::map_context::MapContext;
 
@@ -147,7 +270,7 @@ mod tests {
     fn e2e() {
         let _ = env_logger::try_init();
 
-        let actual = norm::ModuleParser::new().parse(
+        let actual = ModuleParser.parse(
             r#"
 /* A record describing a person */
 Person = { name: String, age: Int };
@@ -175,8 +298,7 @@ main = || {
             context: (),
             value: "whatever".to_owned(),
         });
-        let actual = norm::IdentifierParser::new()
-            .parse(r#"whatever"#)
+        let actual = IdentifierParser.parse(r#"whatever"#)
             .map(|r| r.map_context(&mut |_| ()));
         assert_eq!(expected, actual);
     }
@@ -189,7 +311,7 @@ main = || {
             context: (),
             value: "なんでも".to_owned(),
         });
-        let actual = norm::IdentifierParser::new()
+        let actual = IdentifierParser
             .parse(r#"なんでも"#)
             .map(|r| r.map_context(&mut |_| ()));
         assert_eq!(expected, actual);
@@ -199,11 +321,11 @@ main = || {
     fn number() {
         let _ = env_logger::try_init();
 
-        let expected = Ok(ast::Expression::Number(ast::NumberLiteral {
+        let expected = Ok(ast::NumberLiteral {
             context: (),
             value: ast::NumberValue::F64(1.0),
-        }));
-        let actual = norm::ExpressionParser::new()
+        });
+        let actual = NumberLiteralParser
             .parse(r#"1f64"#)
             .map(|r| r.map_context(&mut |_| ()));
         assert_eq!(expected, actual);
@@ -213,11 +335,11 @@ main = || {
     fn number_negative() {
         let _ = env_logger::try_init();
 
-        let expected = Ok(ast::Expression::Number(ast::NumberLiteral {
+        let expected = Ok(ast::NumberLiteral {
             context: (),
             value: ast::NumberValue::F64(-1.0),
-        }));
-        let actual = norm::ExpressionParser::new()
+        });
+        let actual = NumberLiteralParser
             .parse(r#"-1f64"#)
             .map(|r| r.map_context(&mut |_| ()));
         assert_eq!(expected, actual);
@@ -227,11 +349,11 @@ main = || {
     fn number_zero() {
         let _ = env_logger::try_init();
 
-        let expected = Ok(ast::Expression::Number(ast::NumberLiteral {
+        let expected = Ok(ast::NumberLiteral {
             context: (),
             value: ast::NumberValue::F64(0.0),
-        }));
-        let actual = norm::ExpressionParser::new()
+        });
+        let actual = NumberLiteralParser
             .parse(r#"0f64"#)
             .map(|r| r.map_context(&mut |_| ()));
         assert_eq!(expected, actual);
@@ -241,11 +363,11 @@ main = || {
     fn number_zero_negative() {
         let _ = env_logger::try_init();
 
-        let expected = Ok(ast::Expression::Number(ast::NumberLiteral {
+        let expected = Ok(ast::NumberLiteral {
             context: (),
             value: ast::NumberValue::F64(-0.0),
-        }));
-        let actual = norm::ExpressionParser::new()
+        });
+        let actual = NumberLiteralParser
             .parse(r#"-0f64"#)
             .map(|r| r.map_context(&mut |_| ()));
         assert_eq!(expected, actual);
@@ -255,11 +377,11 @@ main = || {
     fn number_fraction() {
         let _ = env_logger::try_init();
 
-        let expected = Ok(ast::Expression::Number(ast::NumberLiteral {
+        let expected = Ok(ast::NumberLiteral {
             context: (),
             value: ast::NumberValue::F64(1.5),
-        }));
-        let actual = norm::ExpressionParser::new()
+        });
+        let actual = NumberLiteralParser
             .parse(r#"1.5f64"#)
             .map(|r| r.map_context(&mut |_| ()));
         assert_eq!(expected, actual);
@@ -269,11 +391,11 @@ main = || {
     fn number_fraction_negative() {
         let _ = env_logger::try_init();
 
-        let expected = Ok(ast::Expression::Number(ast::NumberLiteral {
+        let expected = Ok(ast::NumberLiteral {
             context: (),
             value: ast::NumberValue::F64(-1.5),
-        }));
-        let actual = norm::ExpressionParser::new()
+        });
+        let actual = NumberLiteralParser
             .parse(r#"-1.5f64"#)
             .map(|r| r.map_context(&mut |_| ()));
         assert_eq!(expected, actual);
@@ -283,11 +405,11 @@ main = || {
     fn number_scientific() {
         let _ = env_logger::try_init();
 
-        let expected = Ok(ast::Expression::Number(ast::NumberLiteral {
+        let expected = Ok(ast::NumberLiteral {
             context: (),
             value: ast::NumberValue::F64(1500.0),
-        }));
-        let actual = norm::ExpressionParser::new()
+        });
+        let actual = NumberLiteralParser
             .parse(r#"1.5000e3f64"#)
             .map(|r| r.map_context(&mut |_| ()));
         assert_eq!(expected, actual);
@@ -297,11 +419,11 @@ main = || {
     fn number_scientific_negative() {
         let _ = env_logger::try_init();
 
-        let expected = Ok(ast::Expression::Number(ast::NumberLiteral {
+        let expected = Ok(ast::NumberLiteral {
             context: (),
             value: ast::NumberValue::F64(-1500.0),
-        }));
-        let actual = norm::ExpressionParser::new()
+        });
+        let actual = NumberLiteralParser
             .parse(r#"-1.5000e3f64"#)
             .map(|r| r.map_context(&mut |_| ()));
         assert_eq!(expected, actual);
@@ -311,11 +433,11 @@ main = || {
     fn number_scientific_uppercase() {
         let _ = env_logger::try_init();
 
-        let expected = Ok(ast::Expression::Number(ast::NumberLiteral {
+        let expected = Ok(ast::NumberLiteral {
             context: (),
             value: ast::NumberValue::F64(1500.0),
-        }));
-        let actual = norm::ExpressionParser::new()
+        });
+        let actual = NumberLiteralParser
             .parse(r#"1.5000E3f64"#)
             .map(|r| r.map_context(&mut |_| ()));
         assert_eq!(expected, actual);
@@ -325,11 +447,11 @@ main = || {
     fn number_scientific_uppercase_negative() {
         let _ = env_logger::try_init();
 
-        let expected = Ok(ast::Expression::Number(ast::NumberLiteral {
+        let expected = Ok(ast::NumberLiteral {
             context: (),
             value: ast::NumberValue::F64(-1500.0),
-        }));
-        let actual = norm::ExpressionParser::new()
+        });
+        let actual = NumberLiteralParser
             .parse(r#"-1.5000E3f64"#)
             .map(|r| r.map_context(&mut |_| ()));
         assert_eq!(expected, actual);
@@ -339,11 +461,11 @@ main = || {
     fn number_scientific_small() {
         let _ = env_logger::try_init();
 
-        let expected = Ok(ast::Expression::Number(ast::NumberLiteral {
+        let expected = Ok(ast::NumberLiteral {
             context: (),
             value: ast::NumberValue::F64(0.0015),
-        }));
-        let actual = norm::ExpressionParser::new()
+        });
+        let actual = NumberLiteralParser
             .parse(r#"1.5000e-3f64"#)
             .map(|r| r.map_context(&mut |_| ()));
         assert_eq!(expected, actual);
@@ -353,11 +475,11 @@ main = || {
     fn number_scientific_padded_exponent() {
         let _ = env_logger::try_init();
 
-        let expected = Ok(ast::Expression::Number(ast::NumberLiteral {
+        let expected = Ok(ast::NumberLiteral {
             context: (),
             value: ast::NumberValue::F64(1500.0),
-        }));
-        let actual = norm::ExpressionParser::new()
+        });
+        let actual = NumberLiteralParser
             .parse(r#"1.5000e0003f64"#)
             .map(|r| r.map_context(&mut |_| ()));
         assert_eq!(expected, actual);
@@ -367,11 +489,11 @@ main = || {
     fn number_scientific_explicit() {
         let _ = env_logger::try_init();
 
-        let expected = Ok(ast::Expression::Number(ast::NumberLiteral {
+        let expected = Ok(ast::NumberLiteral {
             context: (),
             value: ast::NumberValue::F64(1500.0),
-        }));
-        let actual = norm::ExpressionParser::new()
+        });
+        let actual = NumberLiteralParser
             .parse(r#"1.5000e+3f64"#)
             .map(|r| r.map_context(&mut |_| ()));
         assert_eq!(expected, actual);
@@ -381,11 +503,11 @@ main = || {
     fn number_scientific_zero_exponent() {
         let _ = env_logger::try_init();
 
-        let expected = Ok(ast::Expression::Number(ast::NumberLiteral {
+        let expected = Ok(ast::NumberLiteral {
             context: (),
             value: ast::NumberValue::F64(1.5),
-        }));
-        let actual = norm::ExpressionParser::new()
+        });
+        let actual = NumberLiteralParser
             .parse(r#"1.5000e0f64"#)
             .map(|r| r.map_context(&mut |_| ()));
         assert_eq!(expected, actual);
@@ -395,11 +517,11 @@ main = || {
     fn number_scientific_explicit_zero_exponent() {
         let _ = env_logger::try_init();
 
-        let expected = Ok(ast::Expression::Number(ast::NumberLiteral {
+        let expected = Ok(ast::NumberLiteral {
             context: (),
             value: ast::NumberValue::F64(1.5),
-        }));
-        let actual = norm::ExpressionParser::new()
+        });
+        let actual = NumberLiteralParser
             .parse(r#"1.5000e+0f64"#)
             .map(|r| r.map_context(&mut |_| ()));
         assert_eq!(expected, actual);
@@ -413,7 +535,7 @@ main = || {
             context: (),
             value: "abc".to_owned(),
         });
-        let actual = norm::StringParser::new()
+        let actual = StringLiteralParser
             .parse(r#""abc""#)
             .map(|r| r.map_context(&mut |_| ()));
         assert_eq!(expected, actual);
@@ -427,7 +549,7 @@ main = || {
             context: (),
             value: "なんでも".to_owned(),
         });
-        let actual = norm::StringParser::new()
+        let actual = StringLiteralParser
             .parse(r#""なんでも""#)
             .map(|r| r.map_context(&mut |_| ()));
         assert_eq!(expected, actual);
@@ -441,7 +563,7 @@ main = || {
             context: (),
             value: "\"\\/\u{0008}\u{000C}\n\r\t\u{1234}".to_owned(),
         });
-        let actual = norm::StringParser::new()
+        let actual = StringLiteralParser
             .parse(r#""\"\\/\b\f\n\r\t\u{1234}""#)
             .map(|r| r.map_context(&mut |_| ()));
         assert_eq!(expected, actual);
@@ -464,7 +586,7 @@ main = || {
                 }),
             ],
         });
-        let actual = norm::TupleParser::new()
+        let actual = TupleParser
             .parse(r#"(1f64, 2f64)"#)
             .map(|r| r.map_context(&mut |_| ()));
         assert_eq!(expected, actual);
@@ -487,7 +609,7 @@ main = || {
                 }),
             ],
         });
-        let actual = norm::TupleParser::new()
+        let actual = TupleParser
             .parse(r#"(1f64, 2f64,)"#)
             .map(|r| r.map_context(&mut |_| ()));
         assert_eq!(expected, actual);
@@ -504,7 +626,7 @@ main = || {
                 value: ast::NumberValue::F64(1.0),
             })],
         });
-        let actual = norm::TupleParser::new()
+        let actual = TupleParser
             .parse(r#"(1f64)"#)
             .map(|r| r.map_context(&mut |_| ()));
         assert_eq!(expected, actual);
@@ -521,7 +643,7 @@ main = || {
                 value: ast::NumberValue::F64(1.0),
             })],
         });
-        let actual = norm::TupleParser::new()
+        let actual = TupleParser
             .parse(r#"(1f64,)"#)
             .map(|r| r.map_context(&mut |_| ()));
         assert_eq!(expected, actual);
@@ -535,7 +657,7 @@ main = || {
             context: (),
             fields: vec![],
         });
-        let actual = norm::TupleParser::new()
+        let actual = TupleParser
             .parse(r#"()"#)
             .map(|r| r.map_context(&mut |_| ()));
         assert_eq!(expected, actual);
@@ -545,7 +667,7 @@ main = || {
     fn tuple_empty_no_comma() {
         let _ = env_logger::try_init();
 
-        let actual = norm::TupleParser::new()
+        let actual = TupleParser
             .parse(r#"(,)"#)
             .map(|r| r.map_context(&mut |_| ()));
         assert!(actual.is_err());
@@ -582,7 +704,7 @@ main = || {
             .into_iter()
             .collect(),
         });
-        let actual = norm::RecordParser::new()
+        let actual = RecordParser
             .parse(r#"{a: 1f64, b: "c"}"#)
             .map(|r| r.map_context(&mut |_| ()));
         assert_eq!(expected, actual);
@@ -619,7 +741,7 @@ main = || {
             .into_iter()
             .collect(),
         });
-        let actual = norm::RecordParser::new()
+        let actual = RecordParser
             .parse(r#"{a: 1f64, b: "c",}"#)
             .map(|r| r.map_context(&mut |_| ()));
         assert_eq!(expected, actual);
@@ -644,7 +766,7 @@ main = || {
             .into_iter()
             .collect(),
         });
-        let actual = norm::RecordParser::new()
+        let actual = RecordParser
             .parse(r#"{a: 1f64}"#)
             .map(|r| r.map_context(&mut |_| ()));
         assert_eq!(expected, actual);
@@ -669,7 +791,7 @@ main = || {
             .into_iter()
             .collect(),
         });
-        let actual = norm::RecordParser::new()
+        let actual = RecordParser
             .parse(r#"{a: 1f64,}"#)
             .map(|r| r.map_context(&mut |_| ()));
         assert_eq!(expected, actual);
@@ -683,7 +805,7 @@ main = || {
             context: (),
             fields: vec![].into_iter().collect(),
         });
-        let actual = norm::RecordParser::new()
+        let actual = RecordParser
             .parse(r#"{}"#)
             .map(|r| r.map_context(&mut |_| ()));
         assert_eq!(expected, actual);
@@ -693,7 +815,7 @@ main = || {
     fn record_empty_no_trailing_comma() {
         let _ = env_logger::try_init();
 
-        let actual = norm::RecordParser::new()
+        let actual = RecordParser
             .parse(r#"{,}"#)
             .map(|r| r.map_context(&mut |_| ()));
         assert!(actual.is_err());
@@ -737,7 +859,7 @@ main = || {
                 })],
             })),
         });
-        let actual = norm::LambdaParser::new()
+        let actual = LambdaParser
             .parse(r#"|a, b| { a(b) }"#)
             .map(|r| r.map_context(&mut |_| ()));
         assert_eq!(expected, actual);
@@ -811,7 +933,7 @@ main = || {
                 })],
             })),
         });
-        let actual = norm::LambdaParser::new()
+        let actual = LambdaParser
             .parse(r#"|a, b| { c = |b| { a(b) }; c(b) }"#)
             .map(|r| r.map_context(&mut |_| ()));
         assert_eq!(expected, actual);
@@ -886,7 +1008,7 @@ main = || {
                 })],
             })),
         });
-        let actual = norm::LambdaParser::new()
+        let actual = LambdaParser
             .parse(r#"|a, b| { /* define c */ c = |b| { a(b) }; /* call c */ c(b) }"#)
             .map(|r| r.map_context(&mut |_| ()));
         assert_eq!(expected, actual);
@@ -936,7 +1058,7 @@ main = || {
                 })],
             })),
         });
-        let actual = norm::LambdaParser::new()
+        let actual = LambdaParser
             .parse(r#"|a: Int, b: Int| { a(b) }"#)
             .map(|r| r.map_context(&mut |_| ()));
         assert_eq!(expected, actual);
@@ -992,7 +1114,7 @@ main = || {
                 })],
             })),
         });
-        let actual = norm::LambdaParser::new()
+        let actual = LambdaParser
             .parse(r#"|a, b| { a(b); a(b) }"#)
             .map(|r| r.map_context(&mut |_| ()));
         assert_eq!(expected, actual);
@@ -1013,7 +1135,7 @@ main = || {
                 value: "b".to_owned(),
             })],
         });
-        let actual = norm::ApplyParser::new()
+        let actual = ApplyParser
             .parse(r#"a(b)"#)
             .map(|r| r.map_context(&mut |_| ()));
         assert_eq!(expected, actual);
