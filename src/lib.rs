@@ -8,12 +8,12 @@
 //! use norm::parser::Parse;
 //!
 //! let source = r#"
-//! Int = 0;
+//! Int = 0u32;
 //! pickFirst = |a: Int, b: Int| Int {
 //!   capture = |x: Int| Int { a };
 //!   capture(b)
 //! };
-//! main = || Int { pickFirst(1, 2) };
+//! main = || Int { pickFirst(42u32, 62u32) };
 //! "#;
 //!
 //! let module = norm::ast::Module::parse(source).unwrap();
@@ -22,6 +22,14 @@
 //! ir.add_module(&module, &[]);
 //! ir.resolve_references();
 //! ir.check_types();
+//!
+//! /*
+//! let mut module = norm::codegen::Codegen::new(&ir).compile();
+//! let main = module.function::<norm::codegen::module::Function0<u32>>("main").unwrap();
+//!
+//! let result = main();
+//! assert_eq!(42, result);
+//! */
 //! ```
 #![deny(nonstandard_style, warnings, unused)]
 #![deny(

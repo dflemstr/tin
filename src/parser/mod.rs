@@ -154,13 +154,13 @@ Person = { name: String, age: Int };
 
 /* Makes any person old */
 makeOld = |person: Person| {
-  { name: person.name, age: 90 }
+  { name: person.name, age: 90f64 }
 };
 
 /* Application main entry point */
 main = || {
   /* Print a debug representation of the old person */
-  print(makeOld({ name: "David", age: 27 }))
+  print(makeOld({ name: "David", age: 27f64 }))
 };
 "#,
         );
@@ -204,7 +204,7 @@ main = || {
             value: ast::NumberValue::F64(1.0),
         }));
         let actual = norm::ExpressionParser::new()
-            .parse(r#"1"#)
+            .parse(r#"1f64"#)
             .map(|r| r.map_context(&mut |_| ()));
         assert_eq!(expected, actual);
     }
@@ -218,7 +218,7 @@ main = || {
             value: ast::NumberValue::F64(-1.0),
         }));
         let actual = norm::ExpressionParser::new()
-            .parse(r#"-1"#)
+            .parse(r#"-1f64"#)
             .map(|r| r.map_context(&mut |_| ()));
         assert_eq!(expected, actual);
     }
@@ -232,7 +232,7 @@ main = || {
             value: ast::NumberValue::F64(0.0),
         }));
         let actual = norm::ExpressionParser::new()
-            .parse(r#"0"#)
+            .parse(r#"0f64"#)
             .map(|r| r.map_context(&mut |_| ()));
         assert_eq!(expected, actual);
     }
@@ -246,7 +246,7 @@ main = || {
             value: ast::NumberValue::F64(-0.0),
         }));
         let actual = norm::ExpressionParser::new()
-            .parse(r#"-0"#)
+            .parse(r#"-0f64"#)
             .map(|r| r.map_context(&mut |_| ()));
         assert_eq!(expected, actual);
     }
@@ -260,7 +260,7 @@ main = || {
             value: ast::NumberValue::F64(1.5),
         }));
         let actual = norm::ExpressionParser::new()
-            .parse(r#"1.5"#)
+            .parse(r#"1.5f64"#)
             .map(|r| r.map_context(&mut |_| ()));
         assert_eq!(expected, actual);
     }
@@ -274,7 +274,7 @@ main = || {
             value: ast::NumberValue::F64(-1.5),
         }));
         let actual = norm::ExpressionParser::new()
-            .parse(r#"-1.5"#)
+            .parse(r#"-1.5f64"#)
             .map(|r| r.map_context(&mut |_| ()));
         assert_eq!(expected, actual);
     }
@@ -288,7 +288,7 @@ main = || {
             value: ast::NumberValue::F64(1500.0),
         }));
         let actual = norm::ExpressionParser::new()
-            .parse(r#"1.5000e3"#)
+            .parse(r#"1.5000e3f64"#)
             .map(|r| r.map_context(&mut |_| ()));
         assert_eq!(expected, actual);
     }
@@ -302,7 +302,7 @@ main = || {
             value: ast::NumberValue::F64(-1500.0),
         }));
         let actual = norm::ExpressionParser::new()
-            .parse(r#"-1.5000e3"#)
+            .parse(r#"-1.5000e3f64"#)
             .map(|r| r.map_context(&mut |_| ()));
         assert_eq!(expected, actual);
     }
@@ -316,7 +316,7 @@ main = || {
             value: ast::NumberValue::F64(1500.0),
         }));
         let actual = norm::ExpressionParser::new()
-            .parse(r#"1.5000E3"#)
+            .parse(r#"1.5000E3f64"#)
             .map(|r| r.map_context(&mut |_| ()));
         assert_eq!(expected, actual);
     }
@@ -330,7 +330,7 @@ main = || {
             value: ast::NumberValue::F64(-1500.0),
         }));
         let actual = norm::ExpressionParser::new()
-            .parse(r#"-1.5000E3"#)
+            .parse(r#"-1.5000E3f64"#)
             .map(|r| r.map_context(&mut |_| ()));
         assert_eq!(expected, actual);
     }
@@ -344,7 +344,7 @@ main = || {
             value: ast::NumberValue::F64(0.0015),
         }));
         let actual = norm::ExpressionParser::new()
-            .parse(r#"1.5000e-3"#)
+            .parse(r#"1.5000e-3f64"#)
             .map(|r| r.map_context(&mut |_| ()));
         assert_eq!(expected, actual);
     }
@@ -358,7 +358,7 @@ main = || {
             value: ast::NumberValue::F64(1500.0),
         }));
         let actual = norm::ExpressionParser::new()
-            .parse(r#"1.5000e0003"#)
+            .parse(r#"1.5000e0003f64"#)
             .map(|r| r.map_context(&mut |_| ()));
         assert_eq!(expected, actual);
     }
@@ -372,7 +372,7 @@ main = || {
             value: ast::NumberValue::F64(1500.0),
         }));
         let actual = norm::ExpressionParser::new()
-            .parse(r#"1.5000e+3"#)
+            .parse(r#"1.5000e+3f64"#)
             .map(|r| r.map_context(&mut |_| ()));
         assert_eq!(expected, actual);
     }
@@ -386,7 +386,7 @@ main = || {
             value: ast::NumberValue::F64(1.5),
         }));
         let actual = norm::ExpressionParser::new()
-            .parse(r#"1.5000e0"#)
+            .parse(r#"1.5000e0f64"#)
             .map(|r| r.map_context(&mut |_| ()));
         assert_eq!(expected, actual);
     }
@@ -400,7 +400,7 @@ main = || {
             value: ast::NumberValue::F64(1.5),
         }));
         let actual = norm::ExpressionParser::new()
-            .parse(r#"1.5000e+0"#)
+            .parse(r#"1.5000e+0f64"#)
             .map(|r| r.map_context(&mut |_| ()));
         assert_eq!(expected, actual);
     }
@@ -465,7 +465,7 @@ main = || {
             ],
         });
         let actual = norm::TupleParser::new()
-            .parse(r#"(1, 2)"#)
+            .parse(r#"(1f64, 2f64)"#)
             .map(|r| r.map_context(&mut |_| ()));
         assert_eq!(expected, actual);
     }
@@ -488,7 +488,7 @@ main = || {
             ],
         });
         let actual = norm::TupleParser::new()
-            .parse(r#"(1, 2,)"#)
+            .parse(r#"(1f64, 2f64,)"#)
             .map(|r| r.map_context(&mut |_| ()));
         assert_eq!(expected, actual);
     }
@@ -505,7 +505,7 @@ main = || {
             })],
         });
         let actual = norm::TupleParser::new()
-            .parse(r#"(1)"#)
+            .parse(r#"(1f64)"#)
             .map(|r| r.map_context(&mut |_| ()));
         assert_eq!(expected, actual);
     }
@@ -522,7 +522,7 @@ main = || {
             })],
         });
         let actual = norm::TupleParser::new()
-            .parse(r#"(1,)"#)
+            .parse(r#"(1f64,)"#)
             .map(|r| r.map_context(&mut |_| ()));
         assert_eq!(expected, actual);
     }
@@ -582,7 +582,7 @@ main = || {
             .collect(),
         });
         let actual = norm::RecordParser::new()
-            .parse(r#"{a: 1, b: "c"}"#)
+            .parse(r#"{a: 1f64, b: "c"}"#)
             .map(|r| r.map_context(&mut |_| ()));
         assert_eq!(expected, actual);
     }
@@ -618,7 +618,7 @@ main = || {
             .collect(),
         });
         let actual = norm::RecordParser::new()
-            .parse(r#"{a: 1, b: "c",}"#)
+            .parse(r#"{a: 1f64, b: "c",}"#)
             .map(|r| r.map_context(&mut |_| ()));
         assert_eq!(expected, actual);
     }
@@ -642,7 +642,7 @@ main = || {
             .collect(),
         });
         let actual = norm::RecordParser::new()
-            .parse(r#"{a: 1}"#)
+            .parse(r#"{a: 1f64}"#)
             .map(|r| r.map_context(&mut |_| ()));
         assert_eq!(expected, actual);
     }
@@ -666,7 +666,7 @@ main = || {
             .collect(),
         });
         let actual = norm::RecordParser::new()
-            .parse(r#"{a: 1,}"#)
+            .parse(r#"{a: 1f64,}"#)
             .map(|r| r.map_context(&mut |_| ()));
         assert_eq!(expected, actual);
     }

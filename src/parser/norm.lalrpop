@@ -79,8 +79,33 @@ pub Field: (ast::Identifier<parser::Context>, ast::Expression<parser::Context>) 
 }
 
 pub Number: ast::NumberLiteral<parser::Context> = {
-    <lo:@L> <v:r"-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?"> <hi:@R> =>
-        ast::NumberLiteral { context: parser::Context::new(ast::Kind::NumberLiteral, lo, hi), value: ast::NumberValue::F64(f64::from_str(v).unwrap()) },
+    <lo:@L> <v:r"-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?(?:u8|u16|u32|u64|i8|i16|i32|i64|f32|f64)"> <hi:@R> =>
+        ast::NumberLiteral {
+            context: parser::Context::new(ast::Kind::NumberLiteral, lo, hi),
+            value: if v.ends_with("u8") {
+                ast::NumberValue::U8(u8::from_str(&v[..v.len() - 2]).unwrap())
+            } else if v.ends_with("u16") {
+                ast::NumberValue::U16(u16::from_str(&v[..v.len() - 3]).unwrap())
+            } else if v.ends_with("u32") {
+                ast::NumberValue::U32(u32::from_str(&v[..v.len() - 3]).unwrap())
+            } else if v.ends_with("u64") {
+                ast::NumberValue::U64(u64::from_str(&v[..v.len() - 3]).unwrap())
+            } else if v.ends_with("i8") {
+                ast::NumberValue::I8(i8::from_str(&v[..v.len() - 2]).unwrap())
+            } else if v.ends_with("i16") {
+                ast::NumberValue::I16(i16::from_str(&v[..v.len() - 3]).unwrap())
+            } else if v.ends_with("i32") {
+                ast::NumberValue::I32(i32::from_str(&v[..v.len() - 3]).unwrap())
+            } else if v.ends_with("i64") {
+                ast::NumberValue::I64(i64::from_str(&v[..v.len() - 3]).unwrap())
+            } else if v.ends_with("f32") {
+                ast::NumberValue::F32(f32::from_str(&v[..v.len() - 3]).unwrap())
+            } else if v.ends_with("f64") {
+                ast::NumberValue::F64(f64::from_str(&v[..v.len() - 3]).unwrap())
+            } else {
+                unreachable!()
+            }
+        },
 }
 
 pub String: ast::StringLiteral<parser::Context> = {

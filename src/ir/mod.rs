@@ -665,12 +665,12 @@ mod tests {
         let _ = env_logger::try_init();
 
         let source = r#"
-Int = 0;
+Int = 0u32;
 pickFirst = |a: Int, b: Int| Int {
   capture = |x: Int| Int { a };
   capture(b)
 };
-main = || Int { pickFirst(1, 2) };
+main = || Int { pickFirst(1u32, 2u32) };
 "#;
 
         let ast_module = ast::Module::parse(source)?;

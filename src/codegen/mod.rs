@@ -263,16 +263,16 @@ mod tests {
         let _ = env_logger::try_init();
 
         let source = r#"
-Int = 0;
-main = || Int { 42 };
+Int = 0u32;
+main = || Int { 42u32 };
 "#;
 
         let mut module = compile_module("immediate", source)?;
 
-        let main = module.function::<module::Function0<f64>>("main").unwrap();
+        let main = module.function::<module::Function0<u32>>("main").unwrap();
 
         let result = main();
-        assert_eq!(42.0, result);
+        assert_eq!(42, result);
         Ok(())
     }
 
@@ -281,16 +281,16 @@ main = || Int { 42 };
         let _ = env_logger::try_init();
 
         let source = r#"
-Int = 0;
-main = || Int { a = 43; a };
+Int = 0u32;
+main = || Int { a = 43u32; a };
 "#;
 
         let mut module = compile_module("variable", source)?;
 
-        let main = module.function::<module::Function0<f64>>("main").unwrap();
+        let main = module.function::<module::Function0<u32>>("main").unwrap();
 
         let result = main();
-        assert_eq!(43.0, result);
+        assert_eq!(43, result);
         Ok(())
     }
 
@@ -299,18 +299,18 @@ main = || Int { a = 43; a };
         let _ = env_logger::try_init();
 
         let source = r#"
-Int = 0;
+Int = 0u32;
 main = |a: Int| Int { a };
 "#;
 
         let mut module = compile_module("parameter1", source)?;
 
         let main = module
-            .function::<module::Function1<f64, f64>>("main")
+            .function::<module::Function1<u32, u32>>("main")
             .unwrap();
 
-        let result = main(43.0);
-        assert_eq!(43.0, result);
+        let result = main(43);
+        assert_eq!(43, result);
         Ok(())
     }
 
@@ -319,18 +319,18 @@ main = |a: Int| Int { a };
         let _ = env_logger::try_init();
 
         let source = r#"
-Int = 0;
+Int = 0u32;
 main = |a: Int, b: Int| Int { b };
 "#;
 
         let mut module = compile_module("parameter2", source)?;
 
         let main = module
-            .function::<module::Function2<f64, f64, f64>>("main")
+            .function::<module::Function2<u32, u32, u32>>("main")
             .unwrap();
 
-        let result = main(1.0, 43.0);
-        assert_eq!(43.0, result);
+        let result = main(1, 43);
+        assert_eq!(43, result);
         Ok(())
     }
 
@@ -339,18 +339,18 @@ main = |a: Int, b: Int| Int { b };
         let _ = env_logger::try_init();
 
         let source = r#"
-Int = 0;
+Int = 0u32;
 main = |a: Int, b: Int, c: Int| Int { c };
 "#;
 
         let mut module = compile_module("parameter3", source)?;
 
         let main = module
-            .function::<module::Function3<f64, f64, f64, f64>>("main")
+            .function::<module::Function3<u32, u32, u32, u32>>("main")
             .unwrap();
 
-        let result = main(1.0, 2.0, 43.0);
-        assert_eq!(43.0, result);
+        let result = main(1, 2, 43);
+        assert_eq!(43, result);
         Ok(())
     }
 
@@ -359,18 +359,18 @@ main = |a: Int, b: Int, c: Int| Int { c };
         let _ = env_logger::try_init();
 
         let source = r#"
-Int = 0;
+Int = 0u32;
 main = |a: Int, b: Int, c: Int, d: Int| Int { d };
 "#;
 
         let mut module = compile_module("parameter4", source)?;
 
         let main = module
-            .function::<module::Function4<f64, f64, f64, f64, f64>>("main")
+            .function::<module::Function4<u32, u32, u32, u32, u32>>("main")
             .unwrap();
 
-        let result = main(1.0, 2.0, 3.0, 43.0);
-        assert_eq!(43.0, result);
+        let result = main(1, 2, 3, 43);
+        assert_eq!(43, result);
         Ok(())
     }
 
@@ -379,18 +379,18 @@ main = |a: Int, b: Int, c: Int, d: Int| Int { d };
         let _ = env_logger::try_init();
 
         let source = r#"
-Int = 0;
+Int = 0u32;
 main = |a: Int, b: Int, c: Int, d: Int, e: Int| Int { e };
 "#;
 
         let mut module = compile_module("parameter5", source)?;
 
         let main = module
-            .function::<module::Function5<f64, f64, f64, f64, f64, f64>>("main")
+            .function::<module::Function5<u32, u32, u32, u32, u32, u32>>("main")
             .unwrap();
 
-        let result = main(1.0, 2.0, 3.0, 4.0, 43.0);
-        assert_eq!(43.0, result);
+        let result = main(1, 2, 3, 4, 43);
+        assert_eq!(43, result);
         Ok(())
     }
 
@@ -399,18 +399,18 @@ main = |a: Int, b: Int, c: Int, d: Int, e: Int| Int { e };
         let _ = env_logger::try_init();
 
         let source = r#"
-Int = 0;
+Int = 0u32;
 main = |a: Int, b: Int, c: Int, d: Int, e: Int, f: Int| Int { f };
 "#;
 
         let mut module = compile_module("parameter6", source)?;
 
         let main = module
-            .function::<module::Function6<f64, f64, f64, f64, f64, f64, f64>>("main")
+            .function::<module::Function6<u32, u32, u32, u32, u32, u32, u32>>("main")
             .unwrap();
 
-        let result = main(1.0, 2.0, 3.0, 4.0, 5.0, 43.0);
-        assert_eq!(43.0, result);
+        let result = main(1, 2, 3, 4, 5, 43);
+        assert_eq!(43, result);
         Ok(())
     }
 
@@ -419,7 +419,7 @@ main = |a: Int, b: Int, c: Int, d: Int, e: Int, f: Int| Int { f };
         let _ = env_logger::try_init();
 
         let source = r#"
-Int = 0;
+Int = 0u32;
 other = |x: Int| Int { x };
 main = |y: Int| Int { a = other(y); other(other(a)) };
 "#;
@@ -427,11 +427,11 @@ main = |y: Int| Int { a = other(y); other(other(a)) };
         let mut module = compile_module("apply", source)?;
 
         let main = module
-            .function::<module::Function1<f64, f64>>("main")
+            .function::<module::Function1<u32, u32>>("main")
             .unwrap();
 
-        let result = main(43.0);
-        assert_eq!(43.0, result);
+        let result = main(43);
+        assert_eq!(43, result);
         Ok(())
     }
 
@@ -440,16 +440,16 @@ main = |y: Int| Int { a = other(y); other(other(a)) };
         let _ = env_logger::try_init();
 
         let source = r#"
-Int = 0;
-main = || Int { a = { x: 1, y: 2, z: 3}; a.y };
+Int = 0u32;
+main = || Int { a = { x: 1u32, y: 2u32, z: 3u32}; a.y };
 "#;
 
         let mut module = compile_module("record", source)?;
 
-        let main = module.function::<module::Function0<f64>>("main").unwrap();
+        let main = module.function::<module::Function0<u32>>("main").unwrap();
 
         let result = main();
-        assert_eq!(2.0, result);
+        assert_eq!(2, result);
         Ok(())
     }
 
