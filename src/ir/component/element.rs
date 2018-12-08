@@ -95,5 +95,5 @@ pub struct Closure {
 
 #[derive(Debug, VisitEntities)]
 pub struct Module {
-    pub definitions: collections::HashMap<String, specs::Entity>,
+    pub variables: collections::HashMap<String, specs::Entity>,
 }

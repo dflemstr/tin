@@ -34,8 +34,8 @@ pub enum Kind {
 pub struct Module<C> {
     /// This node's AST context.
     pub context: C,
-    /// Definitions that are part of this module, in declaration order.
-    pub definitions: Vec<Variable<C>>,
+    /// Variable variables that are part of this module, in declaration order.
+    pub variables: Vec<Variable<C>>,
 }
 
 /// An identifier.
@@ -148,9 +148,9 @@ pub struct Lambda<C> {
 #[derive(Clone, Debug, PartialEq)]
 pub enum Statement<C> {
     /// A statement that defines a new identifier.
-    Definition(Variable<C>),
+    Variable(Variable<C>),
     /// A statement that is an expression (for return values or side effects).
-    Evaluation(Expression<C>),
+    Expression(Expression<C>),
 }
 
 /// A variable definition.

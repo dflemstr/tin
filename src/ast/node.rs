@@ -140,15 +140,15 @@ where
 {
     fn context(&self) -> &C {
         match *self {
-            ast::Statement::Definition(ref v) => v.context(),
-            ast::Statement::Evaluation(ref v) => v.context(),
+            ast::Statement::Variable(ref v) => v.context(),
+            ast::Statement::Expression(ref v) => v.context(),
         }
     }
 
     fn context_mut(&mut self) -> &mut C {
         match *self {
-            ast::Statement::Definition(ref mut v) => v.context_mut(),
-            ast::Statement::Evaluation(ref mut v) => v.context_mut(),
+            ast::Statement::Variable(ref mut v) => v.context_mut(),
+            ast::Statement::Expression(ref mut v) => v.context_mut(),
         }
     }
 }

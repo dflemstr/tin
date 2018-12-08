@@ -1,4 +1,4 @@
-//! Intermediate representation definitions for the compiler and interpreter.
+//! Intermediate representation variables for the compiler and interpreter.
 
 use std::collections;
 use std::fmt;
@@ -25,7 +25,7 @@ impl Ir {
         Ir { world }
     }
 
-    /// Adds all of the definitions in the specified AST module to the IR world.
+    /// Adds all of the variables in the specified AST module to the IR world.
     pub fn add_module(
         &mut self,
         ast: &ast::Module<parser::Context>,
@@ -33,31 +33,31 @@ impl Ir {
     ) -> specs::Entity {
         use specs::world::Builder;
 
-        let mut definitions = collections::HashMap::new();
-        for variable in &ast.definitions {
+        let mut variables = collections::HashMap::new();
+        for variable in &ast.variables {
             let entity = self.add_variable(variable, &symbol);
-            definitions.insert(variable.name.value.clone(), entity);
+            variables.insert(variable.name.value.clone(), entity);
         }
 
-        for variable in &ast.definitions {
+        for variable in &ast.variables {
             Ir::set_variable_scope(
                 &self.world.read_storage(),
                 &mut self.world.write_storage(),
-                definitions[&variable.name.value],
+                variables[&variable.name.value],
                 variable,
-                &definitions,
+                &variables,
             );
         }
 
         let element = component::element::Element::Module(component::element::Module {
-            definitions: definitions.clone(),
+            variables: variables.clone(),
         });
 
         self.world
             .create_entity()
             .with(element)
             .with(component::symbol::Symbol::new(symbol.to_vec()))
-            .with(component::scope::Scope { definitions })
+            .with(component::scope::Scope { variables })
             .build()
     }
 
@@ -80,7 +80,7 @@ impl Ir {
         self.world.maintain();
     }
 
-    /// Checks and infers types for all known definitions.
+    /// Checks and infers types for all known variables.
     ///
     /// `resolve_references` should be called before this; types will not be inferred for unresolved
     /// references.
@@ -119,9 +119,9 @@ impl Ir {
         scopes: &mut specs::WriteStorage<component::scope::Scope>,
         entity: specs::Entity,
         _identifier: &ast::Identifier<parser::Context>,
-        definitions: &collections::HashMap<String, specs::Entity>,
+        variables: &collections::HashMap<String, specs::Entity>,
     ) {
-        Ir::set_scope(scopes, entity, definitions);
+        Ir::set_scope(scopes, entity, variables);
     }
 
     fn add_expression(
@@ -146,32 +146,32 @@ impl Ir {
         scopes: &mut specs::WriteStorage<component::scope::Scope>,
         entity: specs::Entity,
         expression: &ast::Expression<parser::Context>,
-        definitions: &collections::HashMap<String, specs::Entity>,
+        variables: &collections::HashMap<String, specs::Entity>,
     ) {
         match *expression {
             ast::Expression::Number(ref v) => {
-                Ir::set_number_scope(elements, scopes, entity, v, definitions)
+                Ir::set_number_scope(elements, scopes, entity, v, variables)
             }
             ast::Expression::String(ref v) => {
-                Ir::set_string_scope(elements, scopes, entity, v, definitions)
+                Ir::set_string_scope(elements, scopes, entity, v, variables)
             }
             ast::Expression::Tuple(ref v) => {
-                Ir::set_tuple_scope(elements, scopes, entity, v, definitions)
+                Ir::set_tuple_scope(elements, scopes, entity, v, variables)
             }
             ast::Expression::Record(ref v) => {
-                Ir::set_record_scope(elements, scopes, entity, v, definitions)
+                Ir::set_record_scope(elements, scopes, entity, v, variables)
             }
             ast::Expression::Identifier(ref v) => {
-                Ir::set_identifier_scope(elements, scopes, entity, v, definitions)
+                Ir::set_identifier_scope(elements, scopes, entity, v, variables)
             }
             ast::Expression::Lambda(ref v) => {
-                Ir::set_lambda_scope(elements, scopes, entity, v, definitions)
+                Ir::set_lambda_scope(elements, scopes, entity, v, variables)
             }
             ast::Expression::Select(ref v) => {
-                Ir::set_select_scope(elements, scopes, entity, v, definitions)
+                Ir::set_select_scope(elements, scopes, entity, v, variables)
             }
             ast::Expression::Apply(ref v) => {
-                Ir::set_apply_scope(elements, scopes, entity, v, definitions)
+                Ir::set_apply_scope(elements, scopes, entity, v, variables)
             }
         }
     }
@@ -210,9 +210,9 @@ impl Ir {
         scopes: &mut specs::WriteStorage<component::scope::Scope>,
         entity: specs::Entity,
         _number: &ast::NumberLiteral<parser::Context>,
-        definitions: &collections::HashMap<String, specs::Entity>,
+        variables: &collections::HashMap<String, specs::Entity>,
     ) {
-        Ir::set_scope(scopes, entity, definitions);
+        Ir::set_scope(scopes, entity, variables);
     }
 
     fn add_string(
@@ -234,9 +234,9 @@ impl Ir {
         scopes: &mut specs::WriteStorage<component::scope::Scope>,
         entity: specs::Entity,
         _string: &ast::StringLiteral<parser::Context>,
-        definitions: &collections::HashMap<String, specs::Entity>,
+        variables: &collections::HashMap<String, specs::Entity>,
     ) {
-        Ir::set_scope(scopes, entity, definitions);
+        Ir::set_scope(scopes, entity, variables);
     }
 
     fn add_tuple(
@@ -264,18 +264,18 @@ impl Ir {
         scopes: &mut specs::WriteStorage<component::scope::Scope>,
         entity: specs::Entity,
         tuple: &ast::Tuple<parser::Context>,
-        definitions: &collections::HashMap<String, specs::Entity>,
+        variables: &collections::HashMap<String, specs::Entity>,
     ) {
         match elements.get(entity) {
             Some(component::element::Element::Tuple(component::element::Tuple { ref fields })) => {
                 for (idx, field) in tuple.fields.iter().enumerate() {
-                    Ir::set_expression_scope(elements, scopes, fields[idx], field, definitions);
+                    Ir::set_expression_scope(elements, scopes, fields[idx], field, variables);
                 }
             }
             _ => unreachable!(),
         }
 
-        Ir::set_scope(scopes, entity, definitions);
+        Ir::set_scope(scopes, entity, variables);
     }
 
     fn add_record(
@@ -303,7 +303,7 @@ impl Ir {
         scopes: &mut specs::WriteStorage<component::scope::Scope>,
         entity: specs::Entity,
         record: &ast::Record<parser::Context>,
-        definitions: &collections::HashMap<String, specs::Entity>,
+        variables: &collections::HashMap<String, specs::Entity>,
     ) {
         match elements.get(entity) {
             Some(component::element::Element::Record(component::element::Record {
@@ -315,14 +315,14 @@ impl Ir {
                         scopes,
                         fields[&name.value],
                         field,
-                        definitions,
+                        variables,
                     );
                 }
             }
             _ => unreachable!(),
         }
 
-        Ir::set_scope(scopes, entity, definitions);
+        Ir::set_scope(scopes, entity, variables);
     }
 
     fn add_lambda(
@@ -370,7 +370,7 @@ impl Ir {
         scopes: &mut specs::WriteStorage<component::scope::Scope>,
         entity: specs::Entity,
         lambda: &ast::Lambda<parser::Context>,
-        definitions: &collections::HashMap<String, specs::Entity>,
+        variables: &collections::HashMap<String, specs::Entity>,
     ) {
         match elements.get(entity) {
             Some(component::element::Element::Closure(component::element::Closure {
@@ -386,7 +386,7 @@ impl Ir {
                         scopes,
                         parameters[idx],
                         parameter,
-                        definitions,
+                        variables,
                     );
                 }
 
@@ -396,50 +396,42 @@ impl Ir {
                         scopes,
                         *signature,
                         lambda.signature.as_ref().unwrap(),
-                        definitions,
+                        variables,
                     );
                 }
 
-                let mut definitions = definitions.clone();
+                let mut variables = variables.clone();
 
                 for (idx, parameter) in lambda.parameters.iter().enumerate() {
-                    definitions.insert(parameter.name.value.clone(), parameters[idx]);
+                    variables.insert(parameter.name.value.clone(), parameters[idx]);
                 }
 
                 // TODO: Captures
                 //for capture in captures {
-                //    definitions.insert(name.clone(), *capture);
+                //    variables.insert(name.clone(), *capture);
                 //}
 
                 for (idx, statement) in statements.iter().enumerate() {
                     match lambda.statements[idx] {
-                        ast::Statement::Definition(ref variable) => {
+                        ast::Statement::Variable(ref variable) => {
                             Ir::set_variable_scope(
-                                elements,
-                                scopes,
-                                *statement,
-                                variable,
-                                &definitions,
+                                elements, scopes, *statement, variable, &variables,
                             );
-                            definitions.insert(variable.name.value.clone(), *statement);
+                            variables.insert(variable.name.value.clone(), *statement);
                         }
-                        ast::Statement::Evaluation(ref expr) => {
+                        ast::Statement::Expression(ref expr) => {
                             Ir::set_expression_scope(
-                                elements,
-                                scopes,
-                                *statement,
-                                expr,
-                                &definitions,
+                                elements, scopes, *statement, expr, &variables,
                             );
                         }
                     }
                 }
-                Ir::set_expression_scope(elements, scopes, *result, &*lambda.result, &definitions)
+                Ir::set_expression_scope(elements, scopes, *result, &*lambda.result, &variables)
             }
             _ => unreachable!(),
         }
 
-        Ir::set_scope(scopes, entity, definitions);
+        Ir::set_scope(scopes, entity, variables);
     }
 
     fn add_statement(
@@ -448,8 +440,8 @@ impl Ir {
         symbol: &[component::symbol::Part],
     ) -> specs::Entity {
         match *statement {
-            ast::Statement::Definition(ref variable) => self.add_variable(variable, symbol),
-            ast::Statement::Evaluation(ref expression) => self.add_expression(expression, symbol),
+            ast::Statement::Variable(ref variable) => self.add_variable(variable, symbol),
+            ast::Statement::Expression(ref expression) => self.add_expression(expression, symbol),
         }
     }
 
@@ -479,7 +471,7 @@ impl Ir {
         scopes: &mut specs::WriteStorage<component::scope::Scope>,
         entity: specs::Entity,
         variable: &ast::Variable<parser::Context>,
-        definitions: &collections::HashMap<String, specs::Entity>,
+        variables: &collections::HashMap<String, specs::Entity>,
     ) {
         match elements.get(entity) {
             Some(component::element::Element::Variable(component::element::Variable {
@@ -491,13 +483,13 @@ impl Ir {
                     scopes,
                     *initializer,
                     &variable.initializer,
-                    definitions,
+                    variables,
                 );
             }
             _ => unreachable!(),
         }
 
-        Ir::set_scope(scopes, entity, definitions);
+        Ir::set_scope(scopes, entity, variables);
     }
 
     fn add_select(
@@ -522,19 +514,19 @@ impl Ir {
         scopes: &mut specs::WriteStorage<component::scope::Scope>,
         entity: specs::Entity,
         select: &ast::Select<parser::Context>,
-        definitions: &collections::HashMap<String, specs::Entity>,
+        variables: &collections::HashMap<String, specs::Entity>,
     ) {
         match elements.get(entity) {
             Some(component::element::Element::Select(component::element::Select {
                 record,
                 ..
             })) => {
-                Ir::set_expression_scope(elements, scopes, *record, &*select.record, definitions);
+                Ir::set_expression_scope(elements, scopes, *record, &*select.record, variables);
             }
             _ => unreachable!(),
         }
 
-        Ir::set_scope(scopes, entity, definitions);
+        Ir::set_scope(scopes, entity, variables);
     }
 
     fn add_apply(
@@ -566,20 +558,14 @@ impl Ir {
         scopes: &mut specs::WriteStorage<component::scope::Scope>,
         entity: specs::Entity,
         apply: &ast::Apply<parser::Context>,
-        definitions: &collections::HashMap<String, specs::Entity>,
+        variables: &collections::HashMap<String, specs::Entity>,
     ) {
         match elements.get(entity) {
             Some(component::element::Element::Apply(component::element::Apply {
                 function,
                 parameters,
             })) => {
-                Ir::set_expression_scope(
-                    elements,
-                    scopes,
-                    *function,
-                    &*apply.function,
-                    definitions,
-                );
+                Ir::set_expression_scope(elements, scopes, *function, &*apply.function, variables);
 
                 for (i, parameter) in parameters.iter().enumerate() {
                     Ir::set_expression_scope(
@@ -587,14 +573,14 @@ impl Ir {
                         scopes,
                         *parameter,
                         &apply.parameters[i],
-                        definitions,
+                        variables,
                     );
                 }
             }
             _ => unreachable!(),
         }
 
-        Ir::set_scope(scopes, entity, definitions);
+        Ir::set_scope(scopes, entity, variables);
     }
 
     fn add_parameter(
@@ -622,7 +608,7 @@ impl Ir {
         scopes: &mut specs::WriteStorage<component::scope::Scope>,
         entity: specs::Entity,
         parameter: &ast::Parameter<parser::Context>,
-        definitions: &collections::HashMap<String, specs::Entity>,
+        variables: &collections::HashMap<String, specs::Entity>,
     ) {
         match elements.get(entity) {
             Some(component::element::Element::Parameter(component::element::Parameter {
@@ -635,24 +621,24 @@ impl Ir {
                         scopes,
                         *signature,
                         parameter.signature.as_ref().unwrap(),
-                        definitions,
+                        variables,
                     );
                 }
             }
             _ => unreachable!(),
         }
 
-        Ir::set_scope(scopes, entity, definitions);
+        Ir::set_scope(scopes, entity, variables);
     }
 
     fn set_scope(
         scopes: &mut specs::WriteStorage<component::scope::Scope>,
         entity: specs::Entity,
-        definitions: &collections::HashMap<String, specs::Entity>,
+        variables: &collections::HashMap<String, specs::Entity>,
     ) {
-        let definitions = definitions.clone();
+        let variables = variables.clone();
         scopes
-            .insert(entity, component::scope::Scope { definitions })
+            .insert(entity, component::scope::Scope { variables })
             .unwrap();
     }
 }

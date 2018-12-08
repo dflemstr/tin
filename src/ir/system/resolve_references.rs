@@ -25,7 +25,7 @@ impl<'a> specs::System<'a> for ResolveReferencesSystem {
                 scope
             );
             if let element::Element::Reference(element::Reference(ref ident)) = element {
-                if let Some(to) = scope.definitions.get(ident) {
+                if let Some(to) = scope.variables.get(ident) {
                     let to = *to;
                     debug!("resolved reference {:?} to {:?}", ident, to);
                     replacements

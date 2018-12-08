@@ -91,8 +91,8 @@ impl InferLayoutsSystem {
                 signature,
                 result,
             }) => self.infer_closure_layout(parameters, signature, result, layouts),
-            element::Element::Module(element::Module { ref definitions }) => {
-                self.infer_module_layout(definitions, layouts)
+            element::Element::Module(element::Module { ref variables }) => {
+                self.infer_module_layout(variables, layouts)
             }
         }
     }
@@ -354,7 +354,7 @@ impl InferLayoutsSystem {
 
     fn infer_module_layout<D>(
         &self,
-        definitions: &collections::HashMap<String, specs::Entity>,
+        variables: &collections::HashMap<String, specs::Entity>,
         layouts: &specs::Storage<layout::Layout, D>,
     ) -> Option<layout::Layout>
     where
@@ -362,7 +362,7 @@ impl InferLayoutsSystem {
     {
         None
         /*
-definitions
+variables
     .iter()
     .map(|(k, v)| types.get(*v).map(|t| (k.clone(), t.clone())))
     .collect::<Option<collections::HashMap<_, _>>>()

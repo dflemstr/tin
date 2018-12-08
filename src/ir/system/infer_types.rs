@@ -75,8 +75,8 @@ where
             signature,
             result,
         }) => infer_closure_type(parameters, signature, result, types),
-        element::Element::Module(element::Module { ref definitions }) => {
-            infer_module_type(definitions, types)
+        element::Element::Module(element::Module { ref variables }) => {
+            infer_module_type(variables, types)
         }
     }
 }
@@ -285,13 +285,13 @@ where
 }
 
 fn infer_module_type<D>(
-    definitions: &collections::HashMap<String, specs::Entity>,
+    variables: &collections::HashMap<String, specs::Entity>,
     types: &specs::Storage<ty::Type, D>,
 ) -> Option<ty::Type>
 where
     D: ops::Deref<Target = specs::storage::MaskedStorage<ty::Type>>,
 {
-    definitions
+    variables
         .iter()
         .map(|(k, v)| types.get(*v).map(|t| (k.clone(), t.clone())))
         .collect::<Option<collections::HashMap<_, _>>>()

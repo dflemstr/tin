@@ -204,8 +204,8 @@ impl<'a> dot::GraphWalk<'a, Node, Edge<'a>> for Graph<'a> {
                             label: Label::ClosureResult,
                         });
                     }
-                    element::Element::Module(element::Module { definitions }) => {
-                        for (name, variable) in definitions {
+                    element::Element::Module(element::Module { variables }) => {
+                        for (name, variable) in variables {
                             edges.push(Edge {
                                 source: entity,
                                 target: *variable,
@@ -293,10 +293,10 @@ impl<'a> dot::Labeller<'a, Node, Edge<'a>> for Graph<'a> {
                     captures.len()
                 ).unwrap(),
 
-                element::Element::Module(element::Module { definitions }) => write!(
+                element::Element::Module(element::Module { variables }) => write!(
                     result,
-                    "module <br/> <b>{:?}</b> definitions",
-                    definitions.len()
+                    "module <br/> <b>{:?}</b> variables",
+                    variables.len()
                 ).unwrap(),
             }
         } else {

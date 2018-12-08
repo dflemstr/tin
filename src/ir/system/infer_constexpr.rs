@@ -78,8 +78,8 @@ where
                 && statements.iter().all(|s| constexprs.contains(*s))
                 && constexprs.contains(result)
         }
-        element::Element::Module(element::Module { ref definitions }) => {
-            definitions.values().all(|v| constexprs.contains(*v))
+        element::Element::Module(element::Module { ref variables }) => {
+            variables.values().all(|v| constexprs.contains(*v))
         }
     }
 }

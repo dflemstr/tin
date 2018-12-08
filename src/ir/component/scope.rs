@@ -8,5 +8,5 @@ use specs::VecStorage;
 #[derive(Component, Clone, Debug, VisitEntities)]
 #[storage(VecStorage)]
 pub struct Scope {
-    pub definitions: collections::HashMap<String, specs::Entity>,
+    pub variables: collections::HashMap<String, specs::Entity>,
 }

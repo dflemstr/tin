@@ -30,16 +30,13 @@ where
         F: FnMut(C1) -> C2,
     {
         let context = mapping(self.context);
-        let definitions = self
-            .definitions
+        let variables = self
+            .variables
             .into_iter()
             .map(|v| v.map_context(mapping))
             .collect();
 
-        ast::Module {
-            context,
-            definitions,
-        }
+        ast::Module { context, variables }
     }
 }
 
@@ -208,8 +205,8 @@ where
         F: FnMut(C1) -> C2,
     {
         match self {
-            ast::Statement::Definition(v) => ast::Statement::Definition(v.map_context(mapping)),
-            ast::Statement::Evaluation(e) => ast::Statement::Evaluation(e.map_context(mapping)),
+            ast::Statement::Variable(v) => ast::Statement::Variable(v.map_context(mapping)),
+            ast::Statement::Expression(e) => ast::Statement::Expression(e.map_context(mapping)),
         }
     }
 }

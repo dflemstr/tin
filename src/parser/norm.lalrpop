@@ -36,7 +36,7 @@ SemiRequired<A>: Vec<A> = {
 
 pub Module: ast::Module<parser::Context> = {
     <lo:@L> <ds:SemiRequired<(Comment? <Definition>)>> <hi:@R> =>
-        ast::Module { context: parser::Context::new(ast::Kind::Module, lo, hi), definitions: ds },
+        ast::Module { context: parser::Context::new(ast::Kind::Module, lo, hi), variables: ds },
 }
 
 Comment: () = {
@@ -85,7 +85,7 @@ pub Number: ast::NumberLiteral<parser::Context> = {
 
 pub String: ast::StringLiteral<parser::Context> = {
     <lo:@L> <v:r#""(?:[^"\\]|\\(?:["\\/bfnrt]|u\{[a-fA-F0-9]{1,6}\}))*""#> <hi:@R> =>
-        ast::StringLiteral { context: parser::Context::new(ast::Kind::StringLiteral, lo, hi), value: parser::parse_escaped_string(v).into_owned() },
+        ast::StringLiteral { context: parser::Context::new(ast::Kind::StringLiteral, lo, hi), value: parser::util::parse_escaped_string(v).into_owned() },
 }
 
 pub Lambda: ast::Lambda<parser::Context> = {
@@ -94,8 +94,8 @@ pub Lambda: ast::Lambda<parser::Context> = {
 }
 
 pub Statement: ast::Statement<parser::Context> = {
-    <Definition> => ast::Statement::Definition(<>),
-    <Expression> => ast::Statement::Evaluation(<>),
+    <Definition> => ast::Statement::Variable(<>),
+    <Expression> => ast::Statement::Expression(<>),
 }
 
 pub Select: ast::Select<parser::Context> = {
