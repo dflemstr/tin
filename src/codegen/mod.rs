@@ -127,7 +127,8 @@ impl<'a> Codegen<'a> {
                 }
 
                 (sy, ctx)
-            }).collect::<Vec<_>>();
+            })
+            .collect::<Vec<_>>();
 
         let mut declared_functions = Vec::new();
         let mut function_ids = collections::HashMap::new();
@@ -139,7 +140,8 @@ impl<'a> Codegen<'a> {
                     &fn_name,
                     cranelift_module::Linkage::Export,
                     &ctx.func.signature,
-                ).unwrap();
+                )
+                .unwrap();
             declared_functions.push((fn_id, ctx));
             function_ids.insert(fn_name, fn_id);
         }
@@ -458,8 +460,7 @@ main = || Int { a = { x: 1u32, y: 2u32, z: 3u32}; a.y };
 
         let ast_module = ast::Module::parse(source)?;
         let mut ir = ir::Ir::new();
-        ir.add_module(&ast_module, &[]);
-        ir.resolve_references();
+        ir.module(&ast_module);
         ir.check_types();
         test_util::render_graph(&format!(concat!(module_path!(), "::{}"), name), &ir)?;
         let compiler = Codegen::new(&ir);

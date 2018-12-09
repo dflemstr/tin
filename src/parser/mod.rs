@@ -578,7 +578,8 @@ main = || {
                         value: "c".to_owned(),
                     }),
                 ),
-            ].into_iter()
+            ]
+            .into_iter()
             .collect(),
         });
         let actual = norm::RecordParser::new()
@@ -614,7 +615,8 @@ main = || {
                         value: "c".to_owned(),
                     }),
                 ),
-            ].into_iter()
+            ]
+            .into_iter()
             .collect(),
         });
         let actual = norm::RecordParser::new()
@@ -638,7 +640,8 @@ main = || {
                     context: (),
                     value: ast::NumberValue::F64(1.0),
                 }),
-            )].into_iter()
+            )]
+            .into_iter()
             .collect(),
         });
         let actual = norm::RecordParser::new()
@@ -662,7 +665,8 @@ main = || {
                     context: (),
                     value: ast::NumberValue::F64(1.0),
                 }),
-            )].into_iter()
+            )]
+            .into_iter()
             .collect(),
         });
         let actual = norm::RecordParser::new()

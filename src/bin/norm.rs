@@ -18,8 +18,7 @@ fn main() -> Result<(), failure::Error> {
     let ast = norm::ast::Module::parse(&source)?;
 
     let mut ir = norm::ir::Ir::new();
-    ir.add_module(&ast, &[]);
-    ir.resolve_references();
+    ir.module(&ast);
     ir.check_types();
 
     let codegen = norm::codegen::Codegen::new(&ir);

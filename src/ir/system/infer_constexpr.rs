@@ -51,7 +51,6 @@ where
         element::Element::Record(element::Record { ref fields }) => {
             fields.values().all(|v| constexprs.contains(*v))
         }
-        element::Element::Reference(_) => false,
         element::Element::Variable(element::Variable {
             name: _,
             initializer,

@@ -50,7 +50,6 @@ where
         element::Element::Record(element::Record { ref fields }) => {
             infer_record_type(fields, types)
         }
-        element::Element::Reference(_) => None,
         element::Element::Variable(element::Variable {
             name: _,
             initializer,

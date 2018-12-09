@@ -86,7 +86,6 @@ impl<'a, 'f> FunctionTranslator<'a, 'f> {
             element::Element::StringValue(ref v) => self.eval_string_value(entity, v),
             element::Element::Tuple(ref v) => self.eval_tuple(entity, v),
             element::Element::Record(ref v) => self.eval_record(entity, v),
-            element::Element::Reference(ref v) => self.eval_reference(entity, v),
             element::Element::Variable(ref v) => self.eval_variable(entity, v),
             element::Element::Select(ref v) => self.eval_select(entity, v),
             element::Element::Apply(ref v) => self.eval_apply(entity, v),
@@ -127,7 +126,8 @@ impl<'a, 'f> FunctionTranslator<'a, 'f> {
                 &format!("__data_{}", entity.id()),
                 cranelift_module::Linkage::Local,
                 false,
-            ).unwrap();
+            )
+            .unwrap();
         let local_id = self
             .module
             .declare_data_in_func(symbol, &mut self.builder.func);
@@ -243,7 +243,8 @@ impl<'a, 'f> FunctionTranslator<'a, 'f> {
                 &self.symbols.get(apply.function).unwrap().to_string(),
                 cranelift_module::Linkage::Import,
                 &sig,
-            ).unwrap();
+            )
+            .unwrap();
         let local_callee = self
             .module
             .declare_func_in_func(callee, &mut self.builder.func);
@@ -278,7 +279,8 @@ impl<'a, 'f> FunctionTranslator<'a, 'f> {
                 builtin::ALLOC_SYMBOL,
                 cranelift_module::Linkage::Import,
                 &self.alloc_signature,
-            ).unwrap();
+            )
+            .unwrap();
 
         let local_callee = self
             .module

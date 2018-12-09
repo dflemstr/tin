@@ -12,7 +12,6 @@ pub enum Element {
     StringValue(StringValue),
     Tuple(Tuple),
     Record(Record),
-    Reference(Reference),
     Variable(Variable),
     Select(Select),
     Apply(Apply),

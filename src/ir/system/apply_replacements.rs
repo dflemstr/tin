@@ -6,7 +6,6 @@ use specs_visitor;
 use ir::component::element;
 use ir::component::layout;
 use ir::component::replacement;
-use ir::component::scope;
 use ir::component::symbol;
 use ir::component::ty;
 
@@ -22,15 +21,14 @@ impl<'a> specs::System<'a> for ApplyReplacementsSystem {
         specs::ReadStorage<'a, replacement::Replacement>,
         specs::WriteStorage<'a, element::Element>,
         specs::WriteStorage<'a, layout::Layout>,
-        specs::WriteStorage<'a, scope::Scope>,
         specs::WriteStorage<'a, symbol::Symbol>,
         specs::WriteStorage<'a, ty::Type>,
     );
 
     fn run(
         &mut self,
-        (entities, replacements, mut elements, mut layouts, mut scopes, mut symbols, mut types): Self::SystemData,
-){
+        (entities, replacements, mut elements, mut layouts, mut symbols, mut types): Self::SystemData,
+    ) {
         use specs::prelude::ParallelIterator;
         use specs::ParJoin;
 
@@ -55,11 +53,6 @@ impl<'a> specs::System<'a> for ApplyReplacementsSystem {
         (&mut layouts).par_join().for_each(|layout| {
             use specs_visitor::VisitEntities;
             layout.accept_mut(&visitor);
-        });
-
-        (&mut scopes).par_join().for_each(|scope| {
-            use specs_visitor::VisitEntities;
-            scope.accept_mut(&visitor);
         });
 
         (&mut symbols).par_join().for_each(|symbol| {

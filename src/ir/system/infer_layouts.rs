@@ -29,7 +29,8 @@ impl<'a> specs::System<'a> for InferLayoutsSystem {
                 .flat_map(|(entity, element, _)| {
                     self.infer_layout(element, &elements, &layouts)
                         .map(|layout| (entity, layout))
-                }).collect::<Vec<_>>();
+                })
+                .collect::<Vec<_>>();
             debug!("inferred new layouts: {:?}", new_layouts);
             if new_layouts.is_empty() {
                 break;
@@ -66,7 +67,6 @@ impl InferLayoutsSystem {
             element::Element::Record(element::Record { ref fields }) => {
                 self.infer_record_layout(fields, layouts)
             }
-            element::Element::Reference(_) => None,
             element::Element::Variable(element::Variable {
                 name: _,
                 initializer,
@@ -178,7 +178,8 @@ impl InferLayoutsSystem {
                         let offset = align_up(size, l.alignment);
                         size = offset + l.size;
                         (n.clone(), offset)
-                    }).collect::<collections::HashMap<_, _>>();
+                    })
+                    .collect::<collections::HashMap<_, _>>();
 
                 Some(layout::Layout::named_fields(
                     size,
@@ -239,46 +240,46 @@ impl InferLayoutsSystem {
     {
         None
         /*
-    match types.get(function) {
-        None => {
-            trace!("inference failure: missing function type for apply");
-            None
-        }
-        Some(f) => match f {
-            ty::Type::Function(ty::Function {
-                parameters: ref formal_parameters,
-                result,
-            }) => {
-                if let Some(parameters) = parameters
-                    .iter()
-                    .map(|p| types.get(*p).cloned())
-                    .collect::<Option<Vec<_>>>()
-                {
-                    if parameters == *formal_parameters {
-                        Some((**result).clone())
-                    } else {
-                        Some(ty::Type::Conflict(ty::Conflict {
-                            expected: Box::new(ty::Type::Function(ty::Function {
-                                parameters,
-                                result: Box::new(ty::Type::Any),
-                            })),
-                            actual: Box::new(f.clone()),
-                        }))
-                    }
-                } else {
-                    None
-                }
+        match types.get(function) {
+            None => {
+                trace!("inference failure: missing function type for apply");
+                None
             }
-            something => Some(ty::Type::Conflict(ty::Conflict {
-                expected: Box::new(ty::Type::Function(ty::Function {
-                    parameters: vec![ty::Type::Any],
-                    result: Box::new(ty::Type::Any),
+            Some(f) => match f {
+                ty::Type::Function(ty::Function {
+                    parameters: ref formal_parameters,
+                    result,
+                }) => {
+                    if let Some(parameters) = parameters
+                        .iter()
+                        .map(|p| types.get(*p).cloned())
+                        .collect::<Option<Vec<_>>>()
+                    {
+                        if parameters == *formal_parameters {
+                            Some((**result).clone())
+                        } else {
+                            Some(ty::Type::Conflict(ty::Conflict {
+                                expected: Box::new(ty::Type::Function(ty::Function {
+                                    parameters,
+                                    result: Box::new(ty::Type::Any),
+                                })),
+                                actual: Box::new(f.clone()),
+                            }))
+                        }
+                    } else {
+                        None
+                    }
+                }
+                something => Some(ty::Type::Conflict(ty::Conflict {
+                    expected: Box::new(ty::Type::Function(ty::Function {
+                        parameters: vec![ty::Type::Any],
+                        result: Box::new(ty::Type::Any),
+                    })),
+                    actual: Box::new(something.clone()),
                 })),
-                actual: Box::new(something.clone()),
-            })),
-        },
-    }
-    */
+            },
+        }
+        */
     }
 
     fn infer_parameter_layout<D>(
@@ -291,14 +292,14 @@ impl InferLayoutsSystem {
     {
         None
         /*
-    if let Some(signature) = signature {
-        types.get(signature).cloned()
-    } else {
-        trace!("inference failure: no signature for parameter");
-        // TODO: implement surjective type inference
-        None
-    }
-    */
+        if let Some(signature) = signature {
+            types.get(signature).cloned()
+        } else {
+            trace!("inference failure: no signature for parameter");
+            // TODO: implement surjective type inference
+            None
+        }
+        */
     }
 
     fn infer_capture_layout<D>(
@@ -324,32 +325,32 @@ impl InferLayoutsSystem {
     {
         None
         /*
-    if let Some(parameters) = parameters
-        .iter()
-        .map(|p| types.get(*p).cloned())
-        .collect::<Option<Vec<_>>>()
-    {
-    if let Some(signature) = signature {
-        if let Some(result) = types.get(signature).cloned() {
-            let result = Box::new(result);
-            Some(ty::Type::Function(ty::Function { parameters, result }))
+            if let Some(parameters) = parameters
+                .iter()
+                .map(|p| types.get(*p).cloned())
+                .collect::<Option<Vec<_>>>()
+            {
+            if let Some(signature) = signature {
+                if let Some(result) = types.get(signature).cloned() {
+                    let result = Box::new(result);
+                    Some(ty::Type::Function(ty::Function { parameters, result }))
+                } else {
+                    trace!("inference failure: no signature for closure");
+                    None
+                }
+            } else if let Some(result) = types.get(result).cloned() {
+                let result = Box::new(result);
+                Some(ty::Type::Function(ty::Function { parameters, result }))
+            } else {
+                trace!("inference failure: missing signature type for closure, and no inferrable result type");
+                None
+            }
         } else {
-            trace!("inference failure: no signature for closure");
+            trace!("inference failure: missing parameter type(s) for closure");
+            // TODO: implement surjective type inference
             None
         }
-    } else if let Some(result) = types.get(result).cloned() {
-        let result = Box::new(result);
-        Some(ty::Type::Function(ty::Function { parameters, result }))
-    } else {
-        trace!("inference failure: missing signature type for closure, and no inferrable result type");
-        None
-    }
-} else {
-    trace!("inference failure: missing parameter type(s) for closure");
-    // TODO: implement surjective type inference
-    None
-}
-*/
+        */
     }
 
     fn infer_module_layout<D>(
@@ -362,12 +363,12 @@ impl InferLayoutsSystem {
     {
         None
         /*
-variables
-    .iter()
-    .map(|(k, v)| types.get(*v).map(|t| (k.clone(), t.clone())))
-    .collect::<Option<collections::HashMap<_, _>>>()
-    .map(|fields| ty::Type::Record(ty::Record { fields }))
-    */
+        variables
+            .iter()
+            .map(|(k, v)| types.get(*v).map(|t| (k.clone(), t.clone())))
+            .collect::<Option<collections::HashMap<_, _>>>()
+            .map(|fields| ty::Type::Record(ty::Record { fields }))
+            */
     }
 }
 

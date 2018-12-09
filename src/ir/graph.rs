@@ -115,7 +115,6 @@ impl<'a> dot::GraphWalk<'a, Node, Edge<'a>> for Graph<'a> {
                             });
                         }
                     }
-                    element::Element::Reference(_) => {}
                     element::Element::Variable(element::Variable {
                         name: _,
                         initializer,
@@ -263,9 +262,6 @@ impl<'a> dot::Labeller<'a, Node, Edge<'a>> for Graph<'a> {
                     name,
                     initializer: _,
                 }) => write!(result, "variable <b>{:?}</b>", name).unwrap(),
-                element::Element::Reference(element::Reference(v)) => {
-                    write!(result, "reference <br/> to <b>{:?}</b>", v).unwrap()
-                }
                 element::Element::Select(element::Select {
                     record: _,
                     field: _,
@@ -291,13 +287,15 @@ impl<'a> dot::Labeller<'a, Node, Edge<'a>> for Graph<'a> {
                     "closure <br/> <b>{:?}</b> parameters <br/> <b>{:?}</b> captures",
                     parameters.len(),
                     captures.len()
-                ).unwrap(),
+                )
+                .unwrap(),
 
                 element::Element::Module(element::Module { variables }) => write!(
                     result,
                     "module <br/> <b>{:?}</b> variables",
                     variables.len()
-                ).unwrap(),
+                )
+                .unwrap(),
             }
         } else {
             write!(result, "(unknown)").unwrap();

@@ -4,7 +4,6 @@ pub mod constexpr;
 pub mod element;
 pub mod layout;
 pub mod replacement;
-pub mod scope;
 pub mod symbol;
 pub mod ty;
 
@@ -14,7 +13,6 @@ macro_rules! for_each_component {
         apply_component!(element::Element, $name, $body);
         apply_component!(layout::Layout, $name, $body);
         apply_component!(replacement::Replacement, $name, $body);
-        apply_component!(scope::Scope, $name, $body);
         apply_component!(symbol::Symbol, $name, $body);
         apply_component!(ty::Type, $name, $body);
     };

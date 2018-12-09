@@ -19,8 +19,7 @@
 //! let module = norm::ast::Module::parse(source).unwrap();
 //!
 //! let mut ir = norm::ir::Ir::new();
-//! ir.add_module(&module, &[]);
-//! ir.resolve_references();
+//! ir.module(&module);
 //! ir.check_types();
 //!
 //! /*
@@ -43,10 +42,7 @@
     unused_import_braces,
     unused_qualifications
 )]
-#![cfg_attr(
-    feature = "cargo-clippy",
-    deny(clippy::all, clippy::pedantic)
-)]
+#![cfg_attr(feature = "cargo-clippy", deny(clippy::all, clippy::pedantic))]
 
 extern crate cranelift;
 extern crate cranelift_module;
