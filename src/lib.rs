@@ -5,7 +5,10 @@
 //! # Examples
 //!
 //! ```
-//! use tin::parser::Parse;
+//! # extern crate failure;
+//! # extern crate tin_lang;
+//! # fn main() -> Result<(), failure::Error> {
+//! use tin_lang::parser::Parse;
 //!
 //! let source = r#"
 //! Int = 0u32;
@@ -16,19 +19,21 @@
 //! main = || Int { pickFirst(42u32, 62u32) };
 //! "#;
 //!
-//! let module = tin::ast::Module::parse(source).unwrap();
+//! let module = tin_lang::ast::Module::parse(source).unwrap();
 //!
-//! let mut ir = tin::ir::Ir::new();
+//! let mut ir = tin_lang::ir::Ir::new();
 //! ir.module(&module)?;
 //! ir.check_types();
 //!
 //! /*
-//! let mut module = tin::codegen::Codegen::new(&ir).compile();
-//! let main = module.function::<tin::codegen::module::Function0<u32>>("main").unwrap();
+//! let mut module = tin_lang::codegen::Codegen::new(&ir).compile();
+//! let main = module.function::<tin_lang::codegen::module::Function0<u32>>("main").unwrap();
 //!
 //! let result = main();
 //! assert_eq!(42, result);
 //! */
+//! # Ok(())
+//! # }
 //! ```
 #![deny(nonstandard_style, warnings, unused)]
 #![deny(
