@@ -19,7 +19,7 @@
 //! let module = norm::ast::Module::parse(source).unwrap();
 //!
 //! let mut ir = norm::ir::Ir::new();
-//! ir.module(&module);
+//! ir.module(&module)?;
 //! ir.check_types();
 //!
 //! /*

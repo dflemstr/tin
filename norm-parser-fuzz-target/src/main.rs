@@ -13,7 +13,7 @@ fn main() {
         if let Ok(s) = std::str::from_utf8(data) {
             if let Ok(module) = parser.parse(s) {
                 let mut ir = norm::ir::Ir::new();
-                ir.module(&module);
+                ir.module(&module).unwrap();
                 ir.check_types();
             }
         }

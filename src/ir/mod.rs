@@ -2,6 +2,7 @@
 
 use std::collections;
 use std::fmt;
+use std::mem;
 
 use specs;
 
@@ -17,10 +18,22 @@ pub struct Ir {
     pub(crate) world: specs::World,
 }
 
+/// Errors that may occur while building and interacting with an [`Ir`].
+#[derive(Clone, Debug, Fail, PartialEq)]
+pub enum Error {
+    /// The IR cannot be built because something refers to an identifier that is not defined.
+    #[fail(display = "undefined reference to {:?}", reference)]
+    UndefinedReference {
+        /// The identifier of the undefined reference.
+        reference: String,
+    },
+}
+
 struct ModuleBuilder<'a> {
     world: &'a mut specs::World,
     symbol: Vec<component::symbol::Part>,
-    variables: collections::HashMap<String, specs::Entity>,
+    current_scope: collections::HashMap<String, specs::Entity>,
+    scopes: Vec<collections::HashMap<String, specs::Entity>>,
 }
 
 impl Ir {
@@ -32,11 +45,11 @@ impl Ir {
     }
 
     /// Adds the specified AST module to the IR world.
-    pub fn module(&mut self, module: &ast::Module<parser::Context>) {
+    pub fn module(&mut self, module: &ast::Module<parser::Context>) -> Result<(), Error> {
         use specs::world::Builder;
 
         let entity = self.world.create_entity().build();
-        ModuleBuilder::new(&mut self.world).add_module(entity, module);
+        ModuleBuilder::new(&mut self.world).add_module(entity, module)?;
 
         let mut dispatcher = specs::DispatcherBuilder::new()
             .with(
@@ -49,6 +62,8 @@ impl Ir {
         dispatcher.dispatch(&mut self.world.res);
 
         self.world.maintain();
+
+        Ok(())
     }
 
     /// Checks and infers types for all known variables.
@@ -79,39 +94,44 @@ impl Ir {
 impl<'a> ModuleBuilder<'a> {
     fn new(world: &'a mut specs::World) -> ModuleBuilder<'a> {
         let symbol = Vec::new();
-        let variables = collections::HashMap::new();
+        let current_scope = collections::HashMap::new();
+        let scopes = Vec::new();
 
         ModuleBuilder {
             world,
             symbol,
-            variables,
+            current_scope,
+            scopes,
         }
     }
 
-    fn add_module(&mut self, entity: specs::Entity, ast: &ast::Module<parser::Context>) {
+    fn add_module(
+        &mut self,
+        entity: specs::Entity,
+        ast: &ast::Module<parser::Context>,
+    ) -> Result<(), Error> {
         use specs::world::Builder;
 
-        let old_variables = self.variables.clone();
-
+        let mut variables = collections::HashMap::new();
         for variable in &ast.variables {
-            self.variables.insert(
-                variable.name.value.clone(),
-                self.world.create_entity().build(),
-            );
+            let var_entity = self.world.create_entity().build();
+
+            self.current_scope
+                .insert(variable.name.value.clone(), var_entity);
+
+            variables.insert(variable.name.value.clone(), var_entity);
         }
 
         for variable in &ast.variables {
-            let entity = self.variables[&variable.name.value];
-            self.add_variable(entity, variable);
+            let name = &variable.name.value;
+            self.add_variable(variables[name], variable)?;
         }
 
         self.world
             .write_storage()
             .insert(
                 entity,
-                component::element::Element::Module(component::element::Module {
-                    variables: self.variables.clone(),
-                }),
+                component::element::Element::Module(component::element::Module { variables }),
             )
             .unwrap();
 
@@ -120,31 +140,45 @@ impl<'a> ModuleBuilder<'a> {
             .insert(entity, component::symbol::Symbol::new(self.symbol.clone()))
             .unwrap();
 
-        self.variables = old_variables;
+        Ok(())
     }
 
     fn add_identifier(
         &mut self,
         entity: specs::Entity,
         identifier: &ast::Identifier<parser::Context>,
-    ) {
-        // TODO: handle undefined variable
+    ) -> Result<(), Error> {
+        let name = &identifier.value;
+
+        let definition = self.current_scope.get(name).cloned().or_else(|| {
+            self.scopes
+                .iter()
+                .rev()
+                .flat_map(|scope| scope.get(name).cloned().into_iter())
+                .next()
+        });
+
+        // TODO: handle undefined reference
+        let definition = definition.ok_or_else(|| Error::UndefinedReference {
+            reference: name.clone(),
+        })?;
+
         self.world
             .write_storage()
             .insert(
                 entity,
-                component::replacement::Replacement {
-                    to: self.variables[&identifier.value],
-                },
+                component::replacement::Replacement { to: definition },
             )
             .unwrap();
+
+        Ok(())
     }
 
     fn add_expression(
         &mut self,
         entity: specs::Entity,
         expression: &ast::Expression<parser::Context>,
-    ) {
+    ) -> Result<(), Error> {
         match *expression {
             ast::Expression::Number(ref v) => self.add_number(entity, v),
             ast::Expression::String(ref v) => self.add_string(entity, v),
@@ -157,7 +191,11 @@ impl<'a> ModuleBuilder<'a> {
         }
     }
 
-    fn add_number(&mut self, entity: specs::Entity, number: &ast::NumberLiteral<parser::Context>) {
+    fn add_number(
+        &mut self,
+        entity: specs::Entity,
+        number: &ast::NumberLiteral<parser::Context>,
+    ) -> Result<(), Error> {
         self.world
             .write_storage()
             .insert(
@@ -167,6 +205,8 @@ impl<'a> ModuleBuilder<'a> {
                 )),
             )
             .unwrap();
+
+        Ok(())
     }
 
     fn from_ast_number(number: ast::NumberValue) -> component::element::NumberValue {
@@ -184,7 +224,11 @@ impl<'a> ModuleBuilder<'a> {
         }
     }
 
-    fn add_string(&mut self, entity: specs::Entity, string: &ast::StringLiteral<parser::Context>) {
+    fn add_string(
+        &mut self,
+        entity: specs::Entity,
+        string: &ast::StringLiteral<parser::Context>,
+    ) -> Result<(), Error> {
         self.world
             .write_storage()
             .insert(
@@ -194,9 +238,15 @@ impl<'a> ModuleBuilder<'a> {
                 )),
             )
             .unwrap();
+
+        Ok(())
     }
 
-    fn add_tuple(&mut self, entity: specs::Entity, tuple: &ast::Tuple<parser::Context>) {
+    fn add_tuple(
+        &mut self,
+        entity: specs::Entity,
+        tuple: &ast::Tuple<parser::Context>,
+    ) -> Result<(), Error> {
         use specs::world::Builder;
 
         let fields = tuple
@@ -204,10 +254,10 @@ impl<'a> ModuleBuilder<'a> {
             .iter()
             .map(|f| {
                 let e = self.world.create_entity().build();
-                self.add_expression(e, f);
-                e
+                self.add_expression(e, f)?;
+                Ok(e)
             })
-            .collect();
+            .collect::<Result<_, Error>>()?;
 
         self.world
             .write_storage()
@@ -216,9 +266,15 @@ impl<'a> ModuleBuilder<'a> {
                 component::element::Element::Tuple(component::element::Tuple { fields }),
             )
             .unwrap();
+
+        Ok(())
     }
 
-    fn add_record(&mut self, entity: specs::Entity, record: &ast::Record<parser::Context>) {
+    fn add_record(
+        &mut self,
+        entity: specs::Entity,
+        record: &ast::Record<parser::Context>,
+    ) -> Result<(), Error> {
         use specs::world::Builder;
 
         let fields = record
@@ -226,10 +282,10 @@ impl<'a> ModuleBuilder<'a> {
             .iter()
             .map(|(i, e)| {
                 let en = self.world.create_entity().build();
-                self.add_expression(en, e);
-                (i.value.clone(), en)
+                self.add_expression(en, e)?;
+                Ok((i.value.clone(), en))
             })
-            .collect();
+            .collect::<Result<_, Error>>()?;
 
         self.world
             .write_storage()
@@ -238,30 +294,40 @@ impl<'a> ModuleBuilder<'a> {
                 component::element::Element::Record(component::element::Record { fields }),
             )
             .unwrap();
+
+        Ok(())
     }
 
-    fn add_lambda(&mut self, entity: specs::Entity, lambda: &ast::Lambda<parser::Context>) {
+    fn add_lambda(
+        &mut self,
+        entity: specs::Entity,
+        lambda: &ast::Lambda<parser::Context>,
+    ) -> Result<(), Error> {
         use specs::world::Builder;
 
         // TODO generate unique symbol for anonymous lambdas
 
         let captures = Vec::new();
-        let old_variables = self.variables.clone();
+        self.scopes.push(mem::replace(
+            &mut self.current_scope,
+            collections::HashMap::with_capacity(lambda.parameters.len()),
+        ));
 
         let parameters = lambda
             .parameters
             .iter()
             .map(|p| {
                 let e = self.world.create_entity().build();
-                self.add_parameter(e, p);
-                e
+                self.add_parameter(e, p)?;
+                Ok(e)
             })
-            .collect::<Vec<_>>();
+            .collect::<Result<Vec<_>, Error>>()?;
 
         // Defer inserting parameters as variables until here to ensure that one parameter can't
         // depend on another one.
         for (entity, parameter) in parameters.iter().zip(lambda.parameters.iter()) {
-            self.variables.insert(parameter.name.value.clone(), *entity);
+            self.current_scope
+                .insert(parameter.name.value.clone(), *entity);
         }
 
         let statements = lambda
@@ -272,26 +338,26 @@ impl<'a> ModuleBuilder<'a> {
 
                 match s {
                     ast::Statement::Variable(ref variable) => {
-                        self.variables.insert(variable.name.value.clone(), e);
-                        self.add_variable(e, variable);
+                        self.current_scope.insert(variable.name.value.clone(), e);
+                        self.add_variable(e, variable)?;
                     }
                     ast::Statement::Expression(ref expression) => {
-                        self.add_expression(e, expression);
+                        self.add_expression(e, expression)?;
                     }
                 }
 
-                e
+                Ok(e)
             })
-            .collect::<Vec<_>>();
+            .collect::<Result<Vec<_>, Error>>()?;
 
-        let signature = lambda.signature.as_ref().map(|s| {
+        let signature = transpose(lambda.signature.as_ref().map(|s| {
             let e = self.world.create_entity().build();
-            self.add_expression(e, s);
-            e
-        });
+            self.add_expression(e, s)?;
+            Ok(e)
+        }))?;
 
         let result = self.world.create_entity().build();
-        self.add_expression(result, &*lambda.result);
+        self.add_expression(result, &*lambda.result)?;
 
         self.world
             .write_storage()
@@ -312,10 +378,16 @@ impl<'a> ModuleBuilder<'a> {
             .insert(entity, component::symbol::Symbol::new(self.symbol.clone()))
             .unwrap();
 
-        self.variables = old_variables;
+        self.current_scope = self.scopes.pop().unwrap();
+
+        Ok(())
     }
 
-    fn add_variable(&mut self, entity: specs::Entity, variable: &ast::Variable<parser::Context>) {
+    fn add_variable(
+        &mut self,
+        entity: specs::Entity,
+        variable: &ast::Variable<parser::Context>,
+    ) -> Result<(), Error> {
         use specs::world::Builder;
 
         self.symbol
@@ -324,7 +396,7 @@ impl<'a> ModuleBuilder<'a> {
         let name = variable.name.value.clone();
         let initializer = self.world.create_entity().build();
 
-        self.add_expression(initializer, &variable.initializer);
+        self.add_expression(initializer, &variable.initializer)?;
 
         self.world
             .write_storage()
@@ -343,13 +415,19 @@ impl<'a> ModuleBuilder<'a> {
             .unwrap();
 
         self.symbol.pop();
+
+        Ok(())
     }
 
-    fn add_select(&mut self, entity: specs::Entity, select: &ast::Select<parser::Context>) {
+    fn add_select(
+        &mut self,
+        entity: specs::Entity,
+        select: &ast::Select<parser::Context>,
+    ) -> Result<(), Error> {
         use specs::world::Builder;
 
         let record = self.world.create_entity().build();
-        self.add_expression(record, &*select.record);
+        self.add_expression(record, &*select.record)?;
 
         let field = select.field.value.clone();
 
@@ -360,23 +438,29 @@ impl<'a> ModuleBuilder<'a> {
                 component::element::Element::Select(component::element::Select { record, field }),
             )
             .unwrap();
+
+        Ok(())
     }
 
-    fn add_apply(&mut self, entity: specs::Entity, apply: &ast::Apply<parser::Context>) {
+    fn add_apply(
+        &mut self,
+        entity: specs::Entity,
+        apply: &ast::Apply<parser::Context>,
+    ) -> Result<(), Error> {
         use specs::world::Builder;
 
         let function = self.world.create_entity().build();
-        self.add_expression(function, &*apply.function);
+        self.add_expression(function, &*apply.function)?;
 
         let parameters = apply
             .parameters
             .iter()
             .map(|p| {
                 let e = self.world.create_entity().build();
-                self.add_expression(e, p);
-                e
+                self.add_expression(e, p)?;
+                Ok(e)
             })
-            .collect();
+            .collect::<Result<_, Error>>()?;
 
         self.world
             .write_storage()
@@ -388,21 +472,23 @@ impl<'a> ModuleBuilder<'a> {
                 }),
             )
             .unwrap();
+
+        Ok(())
     }
 
     fn add_parameter(
         &mut self,
         entity: specs::Entity,
         parameter: &ast::Parameter<parser::Context>,
-    ) {
+    ) -> Result<(), Error> {
         use specs::world::Builder;
 
         let name = parameter.name.value.clone();
-        let signature = parameter.signature.as_ref().map(|s| {
+        let signature = transpose(parameter.signature.as_ref().map(|s| {
             let e = self.world.create_entity().build();
-            self.add_expression(e, s);
-            e
-        });
+            self.add_expression(e, s)?;
+            Ok(e)
+        }))?;
 
         self.world
             .write_storage()
@@ -414,12 +500,23 @@ impl<'a> ModuleBuilder<'a> {
                 }),
             )
             .unwrap();
+
+        Ok(())
     }
 }
 
 impl fmt::Debug for Ir {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_struct("Ir").finish()
+    }
+}
+
+// TODO: awaits https://github.com/rust-lang/rust/issues/47338
+fn transpose<A, E>(option: Option<Result<A, E>>) -> Result<Option<A>, E> {
+    match option {
+        Some(Ok(x)) => Ok(Some(x)),
+        Some(Err(e)) => Err(e),
+        None => Ok(None),
     }
 }
 
@@ -450,10 +547,87 @@ main = || Int { pickFirst(1u32, 2u32) };
         let ast_module = ast::Module::parse(source)?;
 
         let mut ir = Ir::new();
-        ir.module(&ast_module);
+        ir.module(&ast_module)?;
         ir.check_types();
 
         test_util::render_graph(concat!(module_path!(), "::entity_assignments"), &ir)?;
+
+        Ok(())
+    }
+
+    #[test]
+    fn recursive_module_variables() -> Result<(), failure::Error> {
+        use parser::Parse;
+
+        let _ = env_logger::try_init();
+
+        let source = r#"
+Int = 0u32;
+a = || Int {
+  b()
+};
+b = || Int {
+  a()
+};
+"#;
+
+        let ast_module = ast::Module::parse(source)?;
+
+        let mut ir = Ir::new();
+        ir.module(&ast_module)?;
+        ir.check_types();
+
+        test_util::render_graph(concat!(module_path!(), "::recursive_module_variables"), &ir)?;
+
+        Ok(())
+    }
+
+    #[test]
+    fn lexically_scoped_closure_vars() -> Result<(), failure::Error> {
+        use parser::Parse;
+
+        let _ = env_logger::try_init();
+
+        let source = r#"
+Int = 0u32;
+a = || Int {
+  b = || Int {
+    c = 3u32;
+    c
+  };
+  c
+};
+"#;
+
+        let ast_module = ast::Module::parse(source)?;
+
+        let mut ir = Ir::new();
+        let result = ir.module(&ast_module);
+        assert_eq!(Err(Error::UndefinedReference { reference: "c".to_owned() }), result);
+
+        Ok(())
+    }
+
+    #[test]
+    fn ordered_local_vars() -> Result<(), failure::Error> {
+        use parser::Parse;
+
+        let _ = env_logger::try_init();
+
+        let source = r#"
+Int = 0u32;
+a = || Int {
+  b = c;
+  c = 3u32;
+  b
+};
+"#;
+
+        let ast_module = ast::Module::parse(source)?;
+
+        let mut ir = Ir::new();
+        let result = ir.module(&ast_module);
+        assert_eq!(Err(Error::UndefinedReference { reference: "c".to_owned() }), result);
 
         Ok(())
     }

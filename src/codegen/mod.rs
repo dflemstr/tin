@@ -460,7 +460,7 @@ main = || Int { a = { x: 1u32, y: 2u32, z: 3u32}; a.y };
 
         let ast_module = ast::Module::parse(source)?;
         let mut ir = ir::Ir::new();
-        ir.module(&ast_module);
+        ir.module(&ast_module)?;
         ir.check_types();
         test_util::render_graph(&format!(concat!(module_path!(), "::{}"), name), &ir)?;
         let compiler = Codegen::new(&ir);
