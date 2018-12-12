@@ -22,10 +22,8 @@ jobs:
           command: cargo build --all-targets
       - save_cache:
           paths:
-            - ~/.cargo/registry
-            - target/debug/.fingerprint
-            - target/debug/build
-            - target/debug/deps
+            - ~/.cargo
+            - ./target
           key: v1-cargo-cache-{{ arch }}-{{ checksum "Cargo.lock" }}
       - run:
           name: Run all tests
