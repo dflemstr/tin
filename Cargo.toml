@@ -24,6 +24,9 @@ specs-derive = "0.3.0"
 specs-visitor-derive = { version = "0.1.0", path = "specs-visitor-derive" }
 specs-visitor = { version = "0.1.0", path = "specs-visitor" }
 
+[features]
+test-render-graphs = []
+
 [profile.release]
 debug = true
 lto = true
