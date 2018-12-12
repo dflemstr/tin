@@ -18,7 +18,7 @@ log = "0.4.6"
 regex = "1.1.0"
 specs = "0.14.1"
 specs-derive = "0.3.0"
-specs-visitor-derive = { path = "specs-visitor-derive" }
+specs-visitor-derive = { version = "0.1.0", path = "specs-visitor-derive" }
 specs-visitor = { version = "0.1.0", path = "specs-visitor" }
 
 [profile.release]
