@@ -19,7 +19,7 @@ jobs:
           command: cargo generate-lockfile
       - restore_cache:
           keys:
-            - v1-cargo-cache-{{ arch }}-{{ checksum "Cargo.lock" }}
+            - v2-cargo-cache-{{ arch }}-{{ checksum "Cargo.lock" }}
       - run:
           name: Build all targets
           command: cargo build --all-targets
@@ -27,7 +27,7 @@ jobs:
           paths:
             - ~/.cargo
             - ./target
-          key: v1-cargo-cache-{{ arch }}-{{ checksum "Cargo.lock" }}
+          key: v2-cargo-cache-{{ arch }}-{{ checksum "Cargo.lock" }}
       - run:
           name: Run all tests
           command: cargo test --all
