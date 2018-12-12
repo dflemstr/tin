@@ -9,16 +9,16 @@ pub fn parse_escaped_string(input: &str) -> borrow::Cow<str> {
     } else {
         let mut result = String::with_capacity(input.len());
         enum State {
-            Normal,
+            Tinal,
             Escape,
             Unicode,
         };
-        let mut state = State::Normal;
+        let mut state = State::Tinal;
         let mut unicode: u32 = 0;
 
         for c in input.chars() {
             match state {
-                State::Normal => {
+                State::Tinal => {
                     if c == '\\' {
                         state = State::Escape;
                     } else {
@@ -28,35 +28,35 @@ pub fn parse_escaped_string(input: &str) -> borrow::Cow<str> {
                 State::Escape => match c {
                     '"' => {
                         result.push('"');
-                        state = State::Normal
+                        state = State::Tinal
                     }
                     '\\' => {
                         result.push('\\');
-                        state = State::Normal
+                        state = State::Tinal
                     }
                     '/' => {
                         result.push('/');
-                        state = State::Normal
+                        state = State::Tinal
                     }
                     'b' => {
                         result.push('\u{0008}');
-                        state = State::Normal
+                        state = State::Tinal
                     }
                     'f' => {
                         result.push('\u{000C}');
-                        state = State::Normal
+                        state = State::Tinal
                     }
                     'n' => {
                         result.push('\n');
-                        state = State::Normal
+                        state = State::Tinal
                     }
                     'r' => {
                         result.push('\r');
-                        state = State::Normal
+                        state = State::Tinal
                     }
                     't' => {
                         result.push('\t');
-                        state = State::Normal
+                        state = State::Tinal
                     }
                     'u' => state = State::Unicode,
                     _ => unreachable!(),
@@ -76,7 +76,7 @@ pub fn parse_escaped_string(input: &str) -> borrow::Cow<str> {
                     }
                     '}' => {
                         result.push(char::from_u32(unicode).unwrap_or('\u{FFFD}'));
-                        state = State::Normal;
+                        state = State::Tinal;
                     }
                     _ => unreachable!(),
                 },

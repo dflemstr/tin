@@ -1,12 +1,12 @@
 #[macro_use]
 extern crate afl;
-extern crate norm;
+extern crate tin;
 
 use std::panic;
 
 fn main() {
-    use norm::parser::Parse;
-    let parser = panic::AssertUnwindSafe(norm::ast::Module::new_parser());
+    use tin::parser::Parse;
+    let parser = panic::AssertUnwindSafe(tin::ast::Module::new_parser());
 
     #[cfg_attr(rustfmt, rustfmt_skip)]
     fuzz!(|data: &[u8]| {

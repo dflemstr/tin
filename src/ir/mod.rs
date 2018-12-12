@@ -13,7 +13,7 @@ pub(crate) mod component;
 pub mod graph;
 mod system;
 
-/// A separate universe of the Norm intermediate representation.
+/// A separate universe of the Tin intermediate representation.
 pub struct Ir {
     pub(crate) world: specs::World,
 }

@@ -1,5 +1,5 @@
 [package]
-name = "norm"
+name = "tin-lang"
 version = "0.1.0"
 authors = ["David Flemström <david.flemstrom@gmail.com>"]
 
@@ -27,4 +27,4 @@ lto = true
 codegen-units = 1
 
 [workspace]
-members = ["norm-parser-fuzz-target", "norm-ir-fuzz-target", "specs-visitor", "specs-visitor-derive"]
+members = ["tin-parser-fuzz-target", "tin-ir-fuzz-target", "specs-visitor", "specs-visitor-derive"]

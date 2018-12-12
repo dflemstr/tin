@@ -1,4 +1,4 @@
-//! A parser for Norm code.
+//! A parser for Tin code.
 use std::fmt;
 
 use lalrpop_util;
@@ -11,8 +11,8 @@ lalrpop_mod!(
     #[allow(clippy)]
     #[allow(missing_debug_implementations)]
     #[allow(unused)]
-    norm,
-    "/parser/norm.rs"
+    tin,
+    "/parser/tin.rs"
 );
 
 /// The context of a parsed AST node.
@@ -33,7 +33,7 @@ pub struct Span {
     pub end: usize,
 }
 
-/// An error that occurs while parsing Norm.
+/// An error that occurs while parsing Tin.
 #[derive(Debug, Fail, PartialEq)]
 pub enum Error {
     /// There was an invalid token in the code.
@@ -89,16 +89,16 @@ impl Context {
 macro_rules! parser_impl {
     ($parser:ident, $result:ty) => {
         impl Parse for $result {
-            type Parser = ::parser::norm::$parser;
+            type Parser = ::parser::tin::$parser;
 
             fn new_parser() -> Self::Parser {
-                ::parser::norm::$parser::new()
+                ::parser::tin::$parser::new()
             }
         }
 
-        impl Parser<$result> for ::parser::norm::$parser {
+        impl Parser<$result> for ::parser::tin::$parser {
             fn parse(&mut self, source: &str) -> Result<$result, Error> {
-                ::parser::norm::$parser::parse(self, source).map_err(Into::into)
+                ::parser::tin::$parser::parse(self, source).map_err(Into::into)
             }
         }
     };
@@ -139,7 +139,7 @@ where
 mod tests {
     use env_logger;
 
-    use super::norm;
+    use super::tin;
     use ast;
     use ast::map_context::MapContext;
 
@@ -147,7 +147,7 @@ mod tests {
     fn e2e() {
         let _ = env_logger::try_init();
 
-        let actual = norm::ModuleParser::new().parse(
+        let actual = tin::ModuleParser::new().parse(
             r#"
 /* A record describing a person */
 Person = { name: String, age: Int };
@@ -175,7 +175,7 @@ main = || {
             context: (),
             value: "whatever".to_owned(),
         });
-        let actual = norm::IdentifierParser::new()
+        let actual = tin::IdentifierParser::new()
             .parse(r#"whatever"#)
             .map(|r| r.map_context(&mut |_| ()));
         assert_eq!(expected, actual);
@@ -189,7 +189,7 @@ main = || {
             context: (),
             value: "なんでも".to_owned(),
         });
-        let actual = norm::IdentifierParser::new()
+        let actual = tin::IdentifierParser::new()
             .parse(r#"なんでも"#)
             .map(|r| r.map_context(&mut |_| ()));
         assert_eq!(expected, actual);
@@ -203,7 +203,7 @@ main = || {
             context: (),
             value: ast::NumberValue::F64(1.0),
         }));
-        let actual = norm::ExpressionParser::new()
+        let actual = tin::ExpressionParser::new()
             .parse(r#"1f64"#)
             .map(|r| r.map_context(&mut |_| ()));
         assert_eq!(expected, actual);
@@ -217,7 +217,7 @@ main = || {
             context: (),
             value: ast::NumberValue::F64(-1.0),
         }));
-        let actual = norm::ExpressionParser::new()
+        let actual = tin::ExpressionParser::new()
             .parse(r#"-1f64"#)
             .map(|r| r.map_context(&mut |_| ()));
         assert_eq!(expected, actual);
@@ -231,7 +231,7 @@ main = || {
             context: (),
             value: ast::NumberValue::F64(0.0),
         }));
-        let actual = norm::ExpressionParser::new()
+        let actual = tin::ExpressionParser::new()
             .parse(r#"0f64"#)
             .map(|r| r.map_context(&mut |_| ()));
         assert_eq!(expected, actual);
@@ -245,7 +245,7 @@ main = || {
             context: (),
             value: ast::NumberValue::F64(-0.0),
         }));
-        let actual = norm::ExpressionParser::new()
+        let actual = tin::ExpressionParser::new()
             .parse(r#"-0f64"#)
             .map(|r| r.map_context(&mut |_| ()));
         assert_eq!(expected, actual);
@@ -259,7 +259,7 @@ main = || {
             context: (),
             value: ast::NumberValue::F64(1.5),
         }));
-        let actual = norm::ExpressionParser::new()
+        let actual = tin::ExpressionParser::new()
             .parse(r#"1.5f64"#)
             .map(|r| r.map_context(&mut |_| ()));
         assert_eq!(expected, actual);
@@ -273,7 +273,7 @@ main = || {
             context: (),
             value: ast::NumberValue::F64(-1.5),
         }));
-        let actual = norm::ExpressionParser::new()
+        let actual = tin::ExpressionParser::new()
             .parse(r#"-1.5f64"#)
             .map(|r| r.map_context(&mut |_| ()));
         assert_eq!(expected, actual);
@@ -287,7 +287,7 @@ main = || {
             context: (),
             value: ast::NumberValue::F64(1500.0),
         }));
-        let actual = norm::ExpressionParser::new()
+        let actual = tin::ExpressionParser::new()
             .parse(r#"1.5000e3f64"#)
             .map(|r| r.map_context(&mut |_| ()));
         assert_eq!(expected, actual);
@@ -301,7 +301,7 @@ main = || {
             context: (),
             value: ast::NumberValue::F64(-1500.0),
         }));
-        let actual = norm::ExpressionParser::new()
+        let actual = tin::ExpressionParser::new()
             .parse(r#"-1.5000e3f64"#)
             .map(|r| r.map_context(&mut |_| ()));
         assert_eq!(expected, actual);
@@ -315,7 +315,7 @@ main = || {
             context: (),
             value: ast::NumberValue::F64(1500.0),
         }));
-        let actual = norm::ExpressionParser::new()
+        let actual = tin::ExpressionParser::new()
             .parse(r#"1.5000E3f64"#)
             .map(|r| r.map_context(&mut |_| ()));
         assert_eq!(expected, actual);
@@ -329,7 +329,7 @@ main = || {
             context: (),
             value: ast::NumberValue::F64(-1500.0),
         }));
-        let actual = norm::ExpressionParser::new()
+        let actual = tin::ExpressionParser::new()
             .parse(r#"-1.5000E3f64"#)
             .map(|r| r.map_context(&mut |_| ()));
         assert_eq!(expected, actual);
@@ -343,7 +343,7 @@ main = || {
             context: (),
             value: ast::NumberValue::F64(0.0015),
         }));
-        let actual = norm::ExpressionParser::new()
+        let actual = tin::ExpressionParser::new()
             .parse(r#"1.5000e-3f64"#)
             .map(|r| r.map_context(&mut |_| ()));
         assert_eq!(expected, actual);
@@ -357,7 +357,7 @@ main = || {
             context: (),
             value: ast::NumberValue::F64(1500.0),
         }));
-        let actual = norm::ExpressionParser::new()
+        let actual = tin::ExpressionParser::new()
             .parse(r#"1.5000e0003f64"#)
             .map(|r| r.map_context(&mut |_| ()));
         assert_eq!(expected, actual);
@@ -371,7 +371,7 @@ main = || {
             context: (),
             value: ast::NumberValue::F64(1500.0),
         }));
-        let actual = norm::ExpressionParser::new()
+        let actual = tin::ExpressionParser::new()
             .parse(r#"1.5000e+3f64"#)
             .map(|r| r.map_context(&mut |_| ()));
         assert_eq!(expected, actual);
@@ -385,7 +385,7 @@ main = || {
             context: (),
             value: ast::NumberValue::F64(1.5),
         }));
-        let actual = norm::ExpressionParser::new()
+        let actual = tin::ExpressionParser::new()
             .parse(r#"1.5000e0f64"#)
             .map(|r| r.map_context(&mut |_| ()));
         assert_eq!(expected, actual);
@@ -399,7 +399,7 @@ main = || {
             context: (),
             value: ast::NumberValue::F64(1.5),
         }));
-        let actual = norm::ExpressionParser::new()
+        let actual = tin::ExpressionParser::new()
             .parse(r#"1.5000e+0f64"#)
             .map(|r| r.map_context(&mut |_| ()));
         assert_eq!(expected, actual);
@@ -413,7 +413,7 @@ main = || {
             context: (),
             value: "abc".to_owned(),
         });
-        let actual = norm::StringParser::new()
+        let actual = tin::StringParser::new()
             .parse(r#""abc""#)
             .map(|r| r.map_context(&mut |_| ()));
         assert_eq!(expected, actual);
@@ -427,7 +427,7 @@ main = || {
             context: (),
             value: "なんでも".to_owned(),
         });
-        let actual = norm::StringParser::new()
+        let actual = tin::StringParser::new()
             .parse(r#""なんでも""#)
             .map(|r| r.map_context(&mut |_| ()));
         assert_eq!(expected, actual);
@@ -441,7 +441,7 @@ main = || {
             context: (),
             value: "\"\\/\u{0008}\u{000C}\n\r\t\u{1234}".to_owned(),
         });
-        let actual = norm::StringParser::new()
+        let actual = tin::StringParser::new()
             .parse(r#""\"\\/\b\f\n\r\t\u{1234}""#)
             .map(|r| r.map_context(&mut |_| ()));
         assert_eq!(expected, actual);
@@ -464,7 +464,7 @@ main = || {
                 }),
             ],
         });
-        let actual = norm::TupleParser::new()
+        let actual = tin::TupleParser::new()
             .parse(r#"(1f64, 2f64)"#)
             .map(|r| r.map_context(&mut |_| ()));
         assert_eq!(expected, actual);
@@ -487,7 +487,7 @@ main = || {
                 }),
             ],
         });
-        let actual = norm::TupleParser::new()
+        let actual = tin::TupleParser::new()
             .parse(r#"(1f64, 2f64,)"#)
             .map(|r| r.map_context(&mut |_| ()));
         assert_eq!(expected, actual);
@@ -504,7 +504,7 @@ main = || {
                 value: ast::NumberValue::F64(1.0),
             })],
         });
-        let actual = norm::TupleParser::new()
+        let actual = tin::TupleParser::new()
             .parse(r#"(1f64)"#)
             .map(|r| r.map_context(&mut |_| ()));
         assert_eq!(expected, actual);
@@ -521,7 +521,7 @@ main = || {
                 value: ast::NumberValue::F64(1.0),
             })],
         });
-        let actual = norm::TupleParser::new()
+        let actual = tin::TupleParser::new()
             .parse(r#"(1f64,)"#)
             .map(|r| r.map_context(&mut |_| ()));
         assert_eq!(expected, actual);
@@ -535,7 +535,7 @@ main = || {
             context: (),
             fields: vec![],
         });
-        let actual = norm::TupleParser::new()
+        let actual = tin::TupleParser::new()
             .parse(r#"()"#)
             .map(|r| r.map_context(&mut |_| ()));
         assert_eq!(expected, actual);
@@ -545,7 +545,7 @@ main = || {
     fn tuple_empty_no_comma() {
         let _ = env_logger::try_init();
 
-        let actual = norm::TupleParser::new()
+        let actual = tin::TupleParser::new()
             .parse(r#"(,)"#)
             .map(|r| r.map_context(&mut |_| ()));
         assert!(actual.is_err());
@@ -582,7 +582,7 @@ main = || {
             .into_iter()
             .collect(),
         });
-        let actual = norm::RecordParser::new()
+        let actual = tin::RecordParser::new()
             .parse(r#"{a: 1f64, b: "c"}"#)
             .map(|r| r.map_context(&mut |_| ()));
         assert_eq!(expected, actual);
@@ -619,7 +619,7 @@ main = || {
             .into_iter()
             .collect(),
         });
-        let actual = norm::RecordParser::new()
+        let actual = tin::RecordParser::new()
             .parse(r#"{a: 1f64, b: "c",}"#)
             .map(|r| r.map_context(&mut |_| ()));
         assert_eq!(expected, actual);
@@ -644,7 +644,7 @@ main = || {
             .into_iter()
             .collect(),
         });
-        let actual = norm::RecordParser::new()
+        let actual = tin::RecordParser::new()
             .parse(r#"{a: 1f64}"#)
             .map(|r| r.map_context(&mut |_| ()));
         assert_eq!(expected, actual);
@@ -669,7 +669,7 @@ main = || {
             .into_iter()
             .collect(),
         });
-        let actual = norm::RecordParser::new()
+        let actual = tin::RecordParser::new()
             .parse(r#"{a: 1f64,}"#)
             .map(|r| r.map_context(&mut |_| ()));
         assert_eq!(expected, actual);
@@ -683,7 +683,7 @@ main = || {
             context: (),
             fields: vec![].into_iter().collect(),
         });
-        let actual = norm::RecordParser::new()
+        let actual = tin::RecordParser::new()
             .parse(r#"{}"#)
             .map(|r| r.map_context(&mut |_| ()));
         assert_eq!(expected, actual);
@@ -693,7 +693,7 @@ main = || {
     fn record_empty_no_trailing_comma() {
         let _ = env_logger::try_init();
 
-        let actual = norm::RecordParser::new()
+        let actual = tin::RecordParser::new()
             .parse(r#"{,}"#)
             .map(|r| r.map_context(&mut |_| ()));
         assert!(actual.is_err());
@@ -737,7 +737,7 @@ main = || {
                 })],
             })),
         });
-        let actual = norm::LambdaParser::new()
+        let actual = tin::LambdaParser::new()
             .parse(r#"|a, b| { a(b) }"#)
             .map(|r| r.map_context(&mut |_| ()));
         assert_eq!(expected, actual);
@@ -811,7 +811,7 @@ main = || {
                 })],
             })),
         });
-        let actual = norm::LambdaParser::new()
+        let actual = tin::LambdaParser::new()
             .parse(r#"|a, b| { c = |b| { a(b) }; c(b) }"#)
             .map(|r| r.map_context(&mut |_| ()));
         assert_eq!(expected, actual);
@@ -886,7 +886,7 @@ main = || {
                 })],
             })),
         });
-        let actual = norm::LambdaParser::new()
+        let actual = tin::LambdaParser::new()
             .parse(r#"|a, b| { /* define c */ c = |b| { a(b) }; /* call c */ c(b) }"#)
             .map(|r| r.map_context(&mut |_| ()));
         assert_eq!(expected, actual);
@@ -936,7 +936,7 @@ main = || {
                 })],
             })),
         });
-        let actual = norm::LambdaParser::new()
+        let actual = tin::LambdaParser::new()
             .parse(r#"|a: Int, b: Int| { a(b) }"#)
             .map(|r| r.map_context(&mut |_| ()));
         assert_eq!(expected, actual);
@@ -992,7 +992,7 @@ main = || {
                 })],
             })),
         });
-        let actual = norm::LambdaParser::new()
+        let actual = tin::LambdaParser::new()
             .parse(r#"|a, b| { a(b); a(b) }"#)
             .map(|r| r.map_context(&mut |_| ()));
         assert_eq!(expected, actual);
@@ -1013,7 +1013,7 @@ main = || {
                 value: "b".to_owned(),
             })],
         });
-        let actual = norm::ApplyParser::new()
+        let actual = tin::ApplyParser::new()
             .parse(r#"a(b)"#)
             .map(|r| r.map_context(&mut |_| ()));
         assert_eq!(expected, actual);

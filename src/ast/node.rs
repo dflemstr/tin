@@ -3,7 +3,7 @@ use std::fmt;
 
 use ast;
 
-/// A Norm AST node.
+/// A Tin AST node.
 pub trait AstNode<C>: fmt::Debug + Sized {
     /// Returns a reference to the context of this node.
     fn context(&self) -> &C;

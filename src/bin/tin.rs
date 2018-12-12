@@ -1,11 +1,11 @@
 extern crate env_logger;
 extern crate failure;
-extern crate norm;
+extern crate tin;
 
 use std::io;
 
 fn main() -> Result<(), failure::Error> {
-    use norm::parser::Parse;
+    use tin::parser::Parse;
     use std::io::Read;
 
     env_logger::init();
@@ -15,17 +15,17 @@ fn main() -> Result<(), failure::Error> {
     let mut source = String::new();
     stdin.read_to_string(&mut source)?;
 
-    let ast = norm::ast::Module::parse(&source)?;
+    let ast = tin::ast::Module::parse(&source)?;
 
-    let mut ir = norm::ir::Ir::new();
+    let mut ir = tin::ir::Ir::new();
     ir.module(&ast)?;
     ir.check_types();
 
-    let codegen = norm::codegen::Codegen::new(&ir);
+    let codegen = tin::codegen::Codegen::new(&ir);
     let mut module = codegen.compile();
 
     let entrypoint = module
-        .function::<norm::codegen::module::Function0<f64>>("main")
+        .function::<tin::codegen::module::Function0<f64>>("main")
         .ok_or(failure::err_msg("missing a main function"))?;
 
     let result = entrypoint();

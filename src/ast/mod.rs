@@ -1,4 +1,4 @@
-//! Abstract syntax tree definitions for Norm.
+//! Abstract syntax tree definitions for Tin.
 pub mod map_context;
 pub mod node;
 
@@ -29,7 +29,7 @@ pub enum Kind {
     Variable,
 }
 
-/// A complete Norm module.
+/// A complete Tin module.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Module<C> {
     /// This node's AST context.

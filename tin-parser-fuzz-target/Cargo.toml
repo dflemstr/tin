@@ -1,8 +1,8 @@
 [package]
-name = "norm-parser-fuzz-target"
+name = "tin-parser-fuzz-target"
 version = "0.1.0"
 authors = ["David Flemström <dflemstr@spotify.com>"]
 
 [dependencies]
 afl = "0.4.3"
-norm = { path = ".." }
+tin-lang = { path = ".." }

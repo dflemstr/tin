@@ -3,7 +3,7 @@ use std::result;
 
 use parser;
 
-/// An error that occurs while interacting with Norm.
+/// An error that occurs while interacting with Tin.
 #[derive(Debug, Fail, PartialEq)]
 pub enum Error {
     /// Parsing the source code failed.

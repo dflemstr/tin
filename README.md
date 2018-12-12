@@ -1,18 +1,18 @@
-# `norm`
+# `tin`
 
-`norm` is the code name for a new statically structurally typed programming language.  It's main purpose is to be
+`tin` is the code name for a new statically structurally typed programming language.  It's main purpose is to be
 embedded in other programs (similar to Lua) but built to easily be compilable (initially JIT).  It will probably be
 renamed once it is closer to being in a releasable state.
 
-Currently, the language is a work in progress.  The MVP will be a Rust library and executable called `norm` that include
+Currently, the language is a work in progress.  The MVP will be a Rust library and executable called `tin` that include
 a JIT compiler and rudimentary type inference.
 
 ## Example
 
-`norm` is purely expression oriented; there are no types per se.  In order to define a type, you give an example value
+`tin` is purely expression oriented; there are no types per se.  In order to define a type, you give an example value
 for the type.  This is very similar to prototype-based type systems, except there is no support for inheritance.
 
-```norm
+```tin
 /* Defines the Int type by giving an example value */
 Int = 0i64;
 /* Similarly for String */
@@ -27,13 +27,13 @@ Person = { name: String, age: Int };
 Everything is either an expression or a variable definition.  There are for example no functions; there are only lambdas
 which can be assigned to variables:
 
-```norm
+```tin
 getAge = |person: Person|: Int { person.age };
 ```
 
-`norm` supports structural polymorphic type inference:
+`tin` supports structural polymorphic type inference:
 
-```norm
+```tin
 getAge = |person| { person.age };
 
 main = || {
@@ -43,9 +43,9 @@ main = || {
 };
 ```
 
-`norm` has several built-in types:
+`tin` has several built-in types:
 
-```norm
+```tin
 /* An unsigned 8-bit integer */
 U8 = 0u8;
 /* An unsigned 16-bit integer */

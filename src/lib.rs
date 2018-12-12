@@ -1,11 +1,11 @@
-//! Norm is a simple embeddable programming language.
+//! Tin is a simple embeddable programming language.
 //!
 //! The aim is to have a very light-weight footprint and a simple API.
 //!
 //! # Examples
 //!
 //! ```
-//! use norm::parser::Parse;
+//! use tin::parser::Parse;
 //!
 //! let source = r#"
 //! Int = 0u32;
@@ -16,15 +16,15 @@
 //! main = || Int { pickFirst(42u32, 62u32) };
 //! "#;
 //!
-//! let module = norm::ast::Module::parse(source).unwrap();
+//! let module = tin::ast::Module::parse(source).unwrap();
 //!
-//! let mut ir = norm::ir::Ir::new();
+//! let mut ir = tin::ir::Ir::new();
 //! ir.module(&module)?;
 //! ir.check_types();
 //!
 //! /*
-//! let mut module = norm::codegen::Codegen::new(&ir).compile();
-//! let main = module.function::<norm::codegen::module::Function0<u32>>("main").unwrap();
+//! let mut module = tin::codegen::Codegen::new(&ir).compile();
+//! let main = module.function::<tin::codegen::module::Function0<u32>>("main").unwrap();
 //!
 //! let result = main();
 //! assert_eq!(42, result);
@@ -75,21 +75,21 @@ mod test_util;
 pub use error::Error;
 pub use error::Result;
 
-/// An instance of the Norm runtime.
+/// An instance of the Tin runtime.
 #[derive(Debug)]
 #[allow(missing_copy_implementations)]
-pub struct Norm;
+pub struct Tin;
 
-impl Norm {
-    /// Creates a new instance of the Norm runtime.
-    pub fn new() -> Norm {
-        Norm
+impl Tin {
+    /// Creates a new instance of the Tin runtime.
+    pub fn new() -> Tin {
+        Tin
     }
 }
 
-impl Default for Norm {
+impl Default for Tin {
     fn default() -> Self {
-        Norm::new()
+        Tin::new()
     }
 }
 
