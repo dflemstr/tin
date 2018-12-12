@@ -17,6 +17,12 @@ pub struct Ir {
     pub(crate) world: specs::World,
 }
 
+struct ModuleBuilder<'a> {
+    world: &'a mut specs::World,
+    symbol: Vec<component::symbol::Part>,
+    variables: collections::HashMap<String, specs::Entity>,
+}
+
 impl Ir {
     /// Creates a new IR instance.
     pub fn new() -> Ir {
@@ -30,7 +36,7 @@ impl Ir {
         use specs::world::Builder;
 
         let entity = self.world.create_entity().build();
-        self.add_module(entity, module, &[], &collections::HashMap::new());
+        ModuleBuilder::new(&mut self.world).add_module(entity, module);
 
         let mut dispatcher = specs::DispatcherBuilder::new()
             .with(
@@ -43,45 +49,6 @@ impl Ir {
         dispatcher.dispatch(&mut self.world.res);
 
         self.world.maintain();
-    }
-
-    fn add_module(
-        &mut self,
-        entity: specs::Entity,
-        ast: &ast::Module<parser::Context>,
-        symbol: &[component::symbol::Part],
-        variables: &collections::HashMap<String, specs::Entity>,
-    ) {
-        use specs::world::Builder;
-
-        let mut variables = variables.clone();
-
-        for variable in &ast.variables {
-            variables.insert(
-                variable.name.value.clone(),
-                self.world.create_entity().build(),
-            );
-        }
-
-        for variable in &ast.variables {
-            self.add_variable(
-                variables[&variable.name.value],
-                variable,
-                symbol,
-                &variables,
-            );
-        }
-
-        self.world.write_storage().insert(
-            entity,
-            component::element::Element::Module(component::element::Module {
-                variables: variables.clone(),
-            }),
-        ).unwrap();
-
-        self.world
-            .write_storage()
-            .insert(entity, component::symbol::Symbol::new(symbol.to_vec())).unwrap();
     }
 
     /// Checks and infers types for all known variables.
@@ -107,53 +74,99 @@ impl Ir {
 
         self.world.maintain();
     }
+}
+
+impl<'a> ModuleBuilder<'a> {
+    fn new(world: &'a mut specs::World) -> ModuleBuilder<'a> {
+        let symbol = Vec::new();
+        let variables = collections::HashMap::new();
+
+        ModuleBuilder {
+            world,
+            symbol,
+            variables,
+        }
+    }
+
+    fn add_module(&mut self, entity: specs::Entity, ast: &ast::Module<parser::Context>) {
+        use specs::world::Builder;
+
+        let old_variables = self.variables.clone();
+
+        for variable in &ast.variables {
+            self.variables.insert(
+                variable.name.value.clone(),
+                self.world.create_entity().build(),
+            );
+        }
+
+        for variable in &ast.variables {
+            let entity = self.variables[&variable.name.value];
+            self.add_variable(entity, variable);
+        }
+
+        self.world
+            .write_storage()
+            .insert(
+                entity,
+                component::element::Element::Module(component::element::Module {
+                    variables: self.variables.clone(),
+                }),
+            )
+            .unwrap();
+
+        self.world
+            .write_storage()
+            .insert(entity, component::symbol::Symbol::new(self.symbol.clone()))
+            .unwrap();
+
+        self.variables = old_variables;
+    }
 
     fn add_identifier(
         &mut self,
         entity: specs::Entity,
         identifier: &ast::Identifier<parser::Context>,
-        _symbol: &[component::symbol::Part],
-        variables: &collections::HashMap<String, specs::Entity>,
     ) {
         // TODO: handle undefined variable
-        self.world.write_storage().insert(
-            entity,
-            component::replacement::Replacement {
-                to: variables[&identifier.value],
-            },
-        ).unwrap();
+        self.world
+            .write_storage()
+            .insert(
+                entity,
+                component::replacement::Replacement {
+                    to: self.variables[&identifier.value],
+                },
+            )
+            .unwrap();
     }
 
     fn add_expression(
         &mut self,
         entity: specs::Entity,
         expression: &ast::Expression<parser::Context>,
-        symbol: &[component::symbol::Part],
-        variables: &collections::HashMap<String, specs::Entity>,
     ) {
         match *expression {
-            ast::Expression::Number(ref v) => self.add_number(entity, v, symbol, variables),
-            ast::Expression::String(ref v) => self.add_string(entity, v, symbol, variables),
-            ast::Expression::Tuple(ref v) => self.add_tuple(entity, v, symbol, variables),
-            ast::Expression::Record(ref v) => self.add_record(entity, v, symbol, variables),
-            ast::Expression::Identifier(ref v) => self.add_identifier(entity, v, symbol, variables),
-            ast::Expression::Lambda(ref v) => self.add_lambda(entity, v, symbol, variables),
-            ast::Expression::Select(ref v) => self.add_select(entity, v, symbol, variables),
-            ast::Expression::Apply(ref v) => self.add_apply(entity, v, symbol, variables),
+            ast::Expression::Number(ref v) => self.add_number(entity, v),
+            ast::Expression::String(ref v) => self.add_string(entity, v),
+            ast::Expression::Tuple(ref v) => self.add_tuple(entity, v),
+            ast::Expression::Record(ref v) => self.add_record(entity, v),
+            ast::Expression::Identifier(ref v) => self.add_identifier(entity, v),
+            ast::Expression::Lambda(ref v) => self.add_lambda(entity, v),
+            ast::Expression::Select(ref v) => self.add_select(entity, v),
+            ast::Expression::Apply(ref v) => self.add_apply(entity, v),
         }
     }
 
-    fn add_number(
-        &mut self,
-        entity: specs::Entity,
-        number: &ast::NumberLiteral<parser::Context>,
-        _symbol: &[component::symbol::Part],
-        _variables: &collections::HashMap<String, specs::Entity>,
-    ) {
-        self.world.write_storage().insert(
-            entity,
-            component::element::Element::NumberValue(Ir::from_ast_number(number.value)),
-        ).unwrap();
+    fn add_number(&mut self, entity: specs::Entity, number: &ast::NumberLiteral<parser::Context>) {
+        self.world
+            .write_storage()
+            .insert(
+                entity,
+                component::element::Element::NumberValue(ModuleBuilder::from_ast_number(
+                    number.value,
+                )),
+            )
+            .unwrap();
     }
 
     fn from_ast_number(number: ast::NumberValue) -> component::element::NumberValue {
@@ -171,28 +184,19 @@ impl Ir {
         }
     }
 
-    fn add_string(
-        &mut self,
-        entity: specs::Entity,
-        string: &ast::StringLiteral<parser::Context>,
-        _symbol: &[component::symbol::Part],
-        _variables: &collections::HashMap<String, specs::Entity>,
-    ) {
-        self.world.write_storage().insert(
-            entity,
-            component::element::Element::StringValue(component::element::StringValue(
-                string.value.clone(),
-            )),
-        ).unwrap();
+    fn add_string(&mut self, entity: specs::Entity, string: &ast::StringLiteral<parser::Context>) {
+        self.world
+            .write_storage()
+            .insert(
+                entity,
+                component::element::Element::StringValue(component::element::StringValue(
+                    string.value.clone(),
+                )),
+            )
+            .unwrap();
     }
 
-    fn add_tuple(
-        &mut self,
-        entity: specs::Entity,
-        tuple: &ast::Tuple<parser::Context>,
-        symbol: &[component::symbol::Part],
-        variables: &collections::HashMap<String, specs::Entity>,
-    ) {
+    fn add_tuple(&mut self, entity: specs::Entity, tuple: &ast::Tuple<parser::Context>) {
         use specs::world::Builder;
 
         let fields = tuple
@@ -200,24 +204,21 @@ impl Ir {
             .iter()
             .map(|f| {
                 let e = self.world.create_entity().build();
-                self.add_expression(e, f, symbol, variables);
+                self.add_expression(e, f);
                 e
             })
             .collect();
 
-        self.world.write_storage().insert(
-            entity,
-            component::element::Element::Tuple(component::element::Tuple { fields }),
-        ).unwrap();
+        self.world
+            .write_storage()
+            .insert(
+                entity,
+                component::element::Element::Tuple(component::element::Tuple { fields }),
+            )
+            .unwrap();
     }
 
-    fn add_record(
-        &mut self,
-        entity: specs::Entity,
-        record: &ast::Record<parser::Context>,
-        symbol: &[component::symbol::Part],
-        variables: &collections::HashMap<String, specs::Entity>,
-    ) {
+    fn add_record(&mut self, entity: specs::Entity, record: &ast::Record<parser::Context>) {
         use specs::world::Builder;
 
         let fields = record
@@ -225,40 +226,43 @@ impl Ir {
             .iter()
             .map(|(i, e)| {
                 let en = self.world.create_entity().build();
-                self.add_expression(en, e, symbol, variables);
+                self.add_expression(en, e);
                 (i.value.clone(), en)
             })
             .collect();
 
-        self.world.write_storage().insert(
-            entity,
-            component::element::Element::Record(component::element::Record { fields }),
-        ).unwrap();
+        self.world
+            .write_storage()
+            .insert(
+                entity,
+                component::element::Element::Record(component::element::Record { fields }),
+            )
+            .unwrap();
     }
 
-    fn add_lambda(
-        &mut self,
-        entity: specs::Entity,
-        lambda: &ast::Lambda<parser::Context>,
-        symbol: &[component::symbol::Part],
-        outer_variables: &collections::HashMap<String, specs::Entity>,
-    ) {
+    fn add_lambda(&mut self, entity: specs::Entity, lambda: &ast::Lambda<parser::Context>) {
         use specs::world::Builder;
 
         // TODO generate unique symbol for anonymous lambdas
 
         let captures = Vec::new();
-        let mut variables = outer_variables.clone();
+        let old_variables = self.variables.clone();
+
         let parameters = lambda
             .parameters
             .iter()
             .map(|p| {
                 let e = self.world.create_entity().build();
-                variables.insert(p.name.value.clone(), e);
-                self.add_parameter(e, p, symbol, outer_variables);
+                self.add_parameter(e, p);
                 e
             })
-            .collect();
+            .collect::<Vec<_>>();
+
+        // Defer inserting parameters as variables until here to ensure that one parameter can't
+        // depend on another one.
+        for (entity, parameter) in parameters.iter().zip(lambda.parameters.iter()) {
+            self.variables.insert(parameter.name.value.clone(), *entity);
+        }
 
         let statements = lambda
             .statements
@@ -268,11 +272,11 @@ impl Ir {
 
                 match s {
                     ast::Statement::Variable(ref variable) => {
-                        variables.insert(variable.name.value.clone(), e);
-                        self.add_variable(e, variable, symbol, &variables);
+                        self.variables.insert(variable.name.value.clone(), e);
+                        self.add_variable(e, variable);
                     }
                     ast::Statement::Expression(ref expression) => {
-                        self.add_expression(e, expression, symbol, &variables);
+                        self.add_expression(e, expression);
                     }
                 }
 
@@ -282,133 +286,134 @@ impl Ir {
 
         let signature = lambda.signature.as_ref().map(|s| {
             let e = self.world.create_entity().build();
-            self.add_expression(e, s, symbol, &variables);
+            self.add_expression(e, s);
             e
         });
 
         let result = self.world.create_entity().build();
-        self.add_expression(result, &*lambda.result, symbol, &variables);
-
-        self.world.write_storage().insert(
-            entity,
-            component::element::Element::Closure(component::element::Closure {
-                captures,
-                parameters,
-                statements,
-                signature,
-                result,
-            }),
-        ).unwrap();
+        self.add_expression(result, &*lambda.result);
 
         self.world
             .write_storage()
-            .insert(entity, component::symbol::Symbol::new(symbol.to_vec())).unwrap();
+            .insert(
+                entity,
+                component::element::Element::Closure(component::element::Closure {
+                    captures,
+                    parameters,
+                    statements,
+                    signature,
+                    result,
+                }),
+            )
+            .unwrap();
+
+        self.world
+            .write_storage()
+            .insert(entity, component::symbol::Symbol::new(self.symbol.clone()))
+            .unwrap();
+
+        self.variables = old_variables;
     }
 
-    fn add_variable(
-        &mut self,
-        entity: specs::Entity,
-        variable: &ast::Variable<parser::Context>,
-        symbol: &[component::symbol::Part],
-        variables: &collections::HashMap<String, specs::Entity>,
-    ) {
+    fn add_variable(&mut self, entity: specs::Entity, variable: &ast::Variable<parser::Context>) {
         use specs::world::Builder;
 
-        let mut symbol = symbol.to_vec();
-        symbol.push(component::symbol::Part::Named(variable.name.value.clone()));
+        self.symbol
+            .push(component::symbol::Part::Named(variable.name.value.clone()));
 
         let name = variable.name.value.clone();
         let initializer = self.world.create_entity().build();
 
-        self.add_expression(initializer, &variable.initializer, &symbol, variables);
-
-        self.world.write_storage().insert(
-            entity,
-            component::element::Element::Variable(component::element::Variable {
-                name,
-                initializer,
-            }),
-        ).unwrap();
+        self.add_expression(initializer, &variable.initializer);
 
         self.world
             .write_storage()
-            .insert(entity, component::symbol::Symbol::new(symbol)).unwrap();
+            .insert(
+                entity,
+                component::element::Element::Variable(component::element::Variable {
+                    name,
+                    initializer,
+                }),
+            )
+            .unwrap();
+
+        self.world
+            .write_storage()
+            .insert(entity, component::symbol::Symbol::new(self.symbol.clone()))
+            .unwrap();
+
+        self.symbol.pop();
     }
 
-    fn add_select(
-        &mut self,
-        entity: specs::Entity,
-        select: &ast::Select<parser::Context>,
-        symbol: &[component::symbol::Part],
-        variables: &collections::HashMap<String, specs::Entity>,
-    ) {
+    fn add_select(&mut self, entity: specs::Entity, select: &ast::Select<parser::Context>) {
         use specs::world::Builder;
 
         let record = self.world.create_entity().build();
-        self.add_expression(record, &*select.record, symbol, variables);
+        self.add_expression(record, &*select.record);
 
         let field = select.field.value.clone();
 
-        self.world.write_storage().insert(
-            entity,
-            component::element::Element::Select(component::element::Select { record, field }),
-        ).unwrap();
+        self.world
+            .write_storage()
+            .insert(
+                entity,
+                component::element::Element::Select(component::element::Select { record, field }),
+            )
+            .unwrap();
     }
 
-    fn add_apply(
-        &mut self,
-        entity: specs::Entity,
-        apply: &ast::Apply<parser::Context>,
-        symbol: &[component::symbol::Part],
-        variables: &collections::HashMap<String, specs::Entity>,
-    ) {
+    fn add_apply(&mut self, entity: specs::Entity, apply: &ast::Apply<parser::Context>) {
         use specs::world::Builder;
 
         let function = self.world.create_entity().build();
-        self.add_expression(function, &*apply.function, symbol, variables);
+        self.add_expression(function, &*apply.function);
 
         let parameters = apply
             .parameters
             .iter()
             .map(|p| {
                 let e = self.world.create_entity().build();
-                self.add_expression(e, p, symbol, variables);
+                self.add_expression(e, p);
                 e
             })
             .collect();
 
-        self.world.write_storage().insert(
-            entity,
-            component::element::Element::Apply(component::element::Apply {
-                function,
-                parameters,
-            }),
-        ).unwrap();
+        self.world
+            .write_storage()
+            .insert(
+                entity,
+                component::element::Element::Apply(component::element::Apply {
+                    function,
+                    parameters,
+                }),
+            )
+            .unwrap();
     }
 
     fn add_parameter(
         &mut self,
         entity: specs::Entity,
         parameter: &ast::Parameter<parser::Context>,
-        symbol: &[component::symbol::Part],
-        variables: &collections::HashMap<String, specs::Entity>,
     ) {
         use specs::world::Builder;
 
         let name = parameter.name.value.clone();
         let signature = parameter.signature.as_ref().map(|s| {
             let e = self.world.create_entity().build();
-            self.add_expression(e, s, symbol, variables);
+            self.add_expression(e, s);
             e
         });
 
-        self.world.write_storage().insert(
-            entity,
-            component::element::Element::Parameter(component::element::Parameter {
-                name,
-                signature,
-            }),
-        ).unwrap();
+        self.world
+            .write_storage()
+            .insert(
+                entity,
+                component::element::Element::Parameter(component::element::Parameter {
+                    name,
+                    signature,
+                }),
+            )
+            .unwrap();
     }
 }
 
