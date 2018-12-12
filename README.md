@@ -1,8 +1,13 @@
 # `tin`
 
-`tin` is the code name for a new statically structurally typed programming language.  It's main purpose is to be
-embedded in other programs (similar to Lua) but built to easily be compilable (initially JIT).  It will probably be
-renamed once it is closer to being in a releasable state.
+`tin` is a new statically structurally typed programming language.  It's main purpose is to be embedded in other
+programs (similar to e.g. Lua) but built to easily be compilable (initially JIT).
+
+`tin` is what you need to create the solder for your application.  It's easy to build plugin APIs that are type safe
+using `tin`.
+
+Despite tin having the chemical symbol `Sn`, `tin` files conventionally use the `.tn` extension because it's easier to
+remember the mnemonic.
 
 Currently, the language is a work in progress.  The MVP will be a Rust library and executable called `tin` that include
 a JIT compiler and rudimentary type inference.
