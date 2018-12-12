@@ -5,8 +5,8 @@ extern crate tin_lang;
 use std::io;
 
 fn main() -> Result<(), failure::Error> {
-    use tin_lang::parser::Parse;
     use std::io::Read;
+    use tin_lang::parser::Parse;
 
     env_logger::init();
 

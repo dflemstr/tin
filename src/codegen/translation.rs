@@ -240,11 +240,7 @@ impl<'a, 'f> FunctionTranslator<'a, 'f> {
         let name = self.get_symbol(apply.function).unwrap().to_string();
         let callee = self
             .module
-            .declare_function(
-                &name,
-                cranelift_module::Linkage::Import,
-                &sig,
-            )
+            .declare_function(&name, cranelift_module::Linkage::Import, &sig)
             .unwrap();
         let local_callee = self
             .module

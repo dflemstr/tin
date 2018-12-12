@@ -8,6 +8,12 @@ jobs:
       - run:
           name: Calculate dependencies
           command: cargo generate-lockfile
+      - run:
+          name: Install rustfmt
+          command: rustup component add rustfmt-preview
+      - run:
+          name: Check formatting
+          command: cargo fmt --all -- --check
       - restore_cache:
           keys:
             - v1-cargo-cache-{{ arch }}-{{ checksum "Cargo.lock" }}
@@ -16,7 +22,7 @@ jobs:
           command: cargo build --all-targets
       - save_cache:
           paths:
-            - /home/circleci/.cargo/registry
+            - ~/.cargo/registry
             - target/debug/.fingerprint
             - target/debug/build
             - target/debug/deps
@@ -24,3 +30,6 @@ jobs:
       - run:
           name: Run all tests
           command: cargo test --all
+      - run:
+          name: Upload coverage
+          command: .circleci/codecov.sh
