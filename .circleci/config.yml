@@ -6,9 +6,6 @@ jobs:
     steps:
       - checkout
       - run:
-          name: Install prerequisites
-          command: .circleci/install.sh
-      - run:
           name: Install rustfmt
           command: rustup component add rustfmt-preview
       - run:
@@ -23,14 +20,17 @@ jobs:
       - run:
           name: Build all targets
           command: cargo build --all-targets
+      - run:
+          name: Run all tests
+          command: cargo test --all
       - save_cache:
           paths:
             - ~/.cargo
             - ./target
           key: v2-cargo-cache-{{ arch }}-{{ checksum "Cargo.lock" }}
       - run:
-          name: Run all tests
-          command: cargo test --all
+          name: Install coverage prerequisites
+          command: .circleci/install-coverage.sh
       - run:
           name: Upload coverage
           command: .circleci/codecov.sh
