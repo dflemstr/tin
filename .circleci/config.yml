@@ -6,6 +6,9 @@ jobs:
     steps:
       - checkout
       - run:
+          name: Install prerequisites
+          command: .circleci/install.sh
+      - run:
           name: Install rustfmt
           command: rustup component add rustfmt-preview
       - run:
