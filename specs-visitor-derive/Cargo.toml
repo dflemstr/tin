@@ -13,4 +13,4 @@ proc-macro2 = "0.4.24"
 
 [dev-dependencies]
 specs = "0.14.1"
-specs-visitor = { path = "../specs-visitor" }
+specs-visitor = { version = "0.1.0", path = "../specs-visitor" }
