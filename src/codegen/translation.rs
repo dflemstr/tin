@@ -237,10 +237,11 @@ impl<'a, 'f> FunctionTranslator<'a, 'f> {
             self.ptr_type,
         )));
 
+        let name = self.get_symbol(apply.function).unwrap().to_string();
         let callee = self
             .module
             .declare_function(
-                &self.symbols.get(apply.function).unwrap().to_string(),
+                &name,
                 cranelift_module::Linkage::Import,
                 &sig,
             )
@@ -270,6 +271,21 @@ impl<'a, 'f> FunctionTranslator<'a, 'f> {
 
     pub fn eval_module(&mut self, entity: specs::Entity, module: &element::Module) -> Value {
         unimplemented!()
+    }
+
+    fn get_symbol(&self, entity: specs::Entity) -> Option<&symbol::Symbol> {
+        if let Some(symbol) = self.symbols.get(entity) {
+            Some(symbol)
+        } else if let Some(element) = self.elements.get(entity) {
+            match element {
+                element::Element::Capture(element::Capture { captured, .. }) => {
+                    self.get_symbol(*captured)
+                }
+                _ => None,
+            }
+        } else {
+            None
+        }
     }
 
     fn builtin_alloc(&mut self, size: Value, align: Value) -> Value {

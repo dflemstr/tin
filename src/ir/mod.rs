@@ -34,6 +34,8 @@ struct ModuleBuilder<'a> {
     symbol: Vec<component::symbol::Part>,
     current_scope: collections::HashMap<String, specs::Entity>,
     scopes: Vec<collections::HashMap<String, specs::Entity>>,
+    current_captures: Vec<specs::Entity>,
+    captures: Vec<Vec<specs::Entity>>,
 }
 
 impl Ir {
@@ -96,12 +98,16 @@ impl<'a> ModuleBuilder<'a> {
         let symbol = Vec::new();
         let current_scope = collections::HashMap::new();
         let scopes = Vec::new();
+        let current_captures = Vec::new();
+        let captures = Vec::new();
 
         ModuleBuilder {
             world,
             symbol,
             current_scope,
             scopes,
+            current_captures,
+            captures,
         }
     }
 
@@ -156,6 +162,24 @@ impl<'a> ModuleBuilder<'a> {
                 .rev()
                 .flat_map(|scope| scope.get(name).cloned().into_iter())
                 .next()
+                .map(|e| {
+                    use specs::world::Builder;
+
+                    let capture = self.world.create_entity().build();
+                    self.world
+                        .write_storage()
+                        .insert(
+                            capture,
+                            component::element::Element::Capture(component::element::Capture {
+                                name: name.clone(),
+                                captured: e,
+                            }),
+                        )
+                        .unwrap();
+                    self.current_captures.push(capture);
+
+                    capture
+                })
         });
 
         // TODO: handle undefined reference
@@ -307,11 +331,7 @@ impl<'a> ModuleBuilder<'a> {
 
         // TODO generate unique symbol for anonymous lambdas
 
-        let captures = Vec::new();
-        self.scopes.push(mem::replace(
-            &mut self.current_scope,
-            collections::HashMap::with_capacity(lambda.parameters.len()),
-        ));
+        self.push_scope(Some(lambda.parameters.len()), None);
 
         let parameters = lambda
             .parameters
@@ -364,7 +384,7 @@ impl<'a> ModuleBuilder<'a> {
             .insert(
                 entity,
                 component::element::Element::Closure(component::element::Closure {
-                    captures,
+                    captures: self.current_captures.clone(),
                     parameters,
                     statements,
                     signature,
@@ -378,7 +398,7 @@ impl<'a> ModuleBuilder<'a> {
             .insert(entity, component::symbol::Symbol::new(self.symbol.clone()))
             .unwrap();
 
-        self.current_scope = self.scopes.pop().unwrap();
+        self.pop_scope();
 
         Ok(())
     }
@@ -503,6 +523,26 @@ impl<'a> ModuleBuilder<'a> {
 
         Ok(())
     }
+
+    fn push_scope(&mut self, scope_size_hint: Option<usize>, captures_size_hint: Option<usize>) {
+        self.scopes.push(mem::replace(
+            &mut self.current_scope,
+            scope_size_hint
+                .map(collections::HashMap::with_capacity)
+                .unwrap_or_else(|| collections::HashMap::new()),
+        ));
+        self.captures.push(mem::replace(
+            &mut self.current_captures,
+            captures_size_hint
+                .map(Vec::with_capacity)
+                .unwrap_or_else(|| Vec::new()),
+        ));
+    }
+
+    fn pop_scope(&mut self) {
+        self.current_scope = self.scopes.pop().unwrap();
+        self.current_captures = self.captures.pop().unwrap();
+    }
 }
 
 impl fmt::Debug for Ir {
@@ -603,7 +643,12 @@ a = || Int {
 
         let mut ir = Ir::new();
         let result = ir.module(&ast_module);
-        assert_eq!(Err(Error::UndefinedReference { reference: "c".to_owned() }), result);
+        assert_eq!(
+            Err(Error::UndefinedReference {
+                reference: "c".to_owned()
+            }),
+            result
+        );
 
         Ok(())
     }
@@ -627,7 +672,12 @@ a = || Int {
 
         let mut ir = Ir::new();
         let result = ir.module(&ast_module);
-        assert_eq!(Err(Error::UndefinedReference { reference: "c".to_owned() }), result);
+        assert_eq!(
+            Err(Error::UndefinedReference {
+                reference: "c".to_owned()
+            }),
+            result
+        );
 
         Ok(())
     }

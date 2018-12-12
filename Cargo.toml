@@ -7,9 +7,9 @@ authors = ["David Flemström <david.flemstrom@gmail.com>"]
 lalrpop = "0.16.2"
 
 [dependencies]
-cranelift = "0.25.0"
-cranelift-module = "0.25.0"
-cranelift-simplejit = "0.25.0"
+cranelift = "0.26.0"
+cranelift-module = "0.26.0"
+cranelift-simplejit = "0.26.0"
 dot = "0.1.4"
 env_logger = "0.6.0"
 failure = "0.1.3"
