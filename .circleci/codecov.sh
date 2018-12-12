@@ -1,6 +1,6 @@
 #!/bin/bash
 
-REPORT=$(find target/debug -maxdepth 1 -name '<tin-*' -a ! -name '*.d')
+REPORT=$(find target/debug -maxdepth 1 -name 'tin-*' -a ! -name '*.d')
 
 for file in $REPORT; do
     mkdir -p "target/cov/$(basename $file)"
