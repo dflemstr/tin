@@ -6,14 +6,14 @@ jobs:
     steps:
       - checkout
       - run:
-          name: Calculate dependencies
-          command: cargo generate-lockfile
-      - run:
           name: Install rustfmt
           command: rustup component add rustfmt-preview
       - run:
           name: Check formatting
           command: cargo fmt --all -- --check
+      - run:
+          name: Calculate dependencies
+          command: cargo generate-lockfile
       - restore_cache:
           keys:
             - v1-cargo-cache-{{ arch }}-{{ checksum "Cargo.lock" }}
