@@ -7,7 +7,6 @@ use cranelift_module;
 use cranelift_simplejit;
 use specs;
 
-use builtin;
 use ir;
 use ir::component::element;
 use ir::component::layout;
@@ -16,7 +15,8 @@ use ir::component::ty;
 
 use cranelift::prelude::*;
 
-pub mod abi_type;
+mod abi_type;
+mod builtin;
 pub mod module;
 pub mod translation;
 
@@ -58,7 +58,7 @@ impl<'a> Codegen<'a> {
 
         let mut builder = cranelift_simplejit::SimpleJITBuilder::new();
 
-        builder.symbols(builtin::SYMBOLS.to_vec());
+        builder.symbols(builtin::BUILTINS.iter().map(|b| (b.symbol, b.ptr)));
 
         let mut module: cranelift_module::Module<cranelift_simplejit::SimpleJITBackend> =
             cranelift_module::Module::new(builder);
@@ -73,12 +73,11 @@ impl<'a> Codegen<'a> {
                 let mut builder_context = FunctionBuilderContext::new();
 
                 for parameter in &ty.parameters {
-                    ctx.func
-                        .signature
-                        .params
-                        .push(AbiParam::new(abi_type::from_type(parameter, ptr_type)));
+                    ctx.func.signature.params.push(AbiParam::new(
+                        abi_type::AbiType::from_ir_type(parameter).into_specific(ptr_type),
+                    ));
                 }
-                let ret_type = abi_type::from_type(&ty.result, ptr_type);
+                let ret_type = abi_type::AbiType::from_ir_type(&ty.result).into_specific(ptr_type);
                 ctx.func.signature.returns.push(AbiParam::new(ret_type));
 
                 {
@@ -233,7 +232,7 @@ fn declare_variable(
         variables.insert(entity, var);
         builder.declare_var(
             var,
-            abi_type::from_type(types.get(entity).unwrap(), ptr_type),
+            abi_type::AbiType::from_ir_type(types.get(entity).unwrap()).into_specific(ptr_type),
         );
         *next_var += 1;
     }

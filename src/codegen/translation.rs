@@ -9,8 +9,8 @@ use cranelift::prelude::*;
 use cranelift_module;
 use cranelift_simplejit;
 
-use builtin;
 use codegen::abi_type;
+use codegen::builtin;
 use ir::component::element;
 use ir::component::layout;
 use ir::component::symbol;
@@ -28,7 +28,6 @@ where
     types: &'a specs::ReadStorage<'a, ty::Type>,
     ptr_type: Type,
     variables: collections::HashMap<specs::Entity, Variable>,
-    alloc_signature: Signature,
 }
 
 #[allow(unused)]
@@ -43,15 +42,6 @@ impl<'a, 'f> FunctionTranslator<'a, 'f> {
         ptr_type: Type,
         variables: collections::HashMap<specs::Entity, Variable>,
     ) -> Self {
-        let mut alloc_signature = module.make_signature();
-        // size
-        alloc_signature.params.push(AbiParam::new(ptr_type));
-        // align
-        alloc_signature.params.push(AbiParam::new(ptr_type));
-
-        // ptr
-        alloc_signature.returns.push(AbiParam::new(ptr_type));
-
         FunctionTranslator {
             module,
             builder,
@@ -61,7 +51,6 @@ impl<'a, 'f> FunctionTranslator<'a, 'f> {
             types,
             ptr_type,
             variables,
-            alloc_signature,
         }
     }
 
@@ -200,7 +189,8 @@ impl<'a, 'f> FunctionTranslator<'a, 'f> {
         };
 
         let field_type = &record_type.fields[&select.field];
-        let field_abi_type = abi_type::from_type(field_type, self.ptr_type);
+        let field_abi_type =
+            abi_type::AbiType::from_ir_type(field_type).into_specific(self.ptr_type);
         let field_offset = record_layout.named_field_offsets[&select.field] as i32;
 
         let mut mem_flags = MemFlags::new();
@@ -227,15 +217,15 @@ impl<'a, 'f> FunctionTranslator<'a, 'f> {
         let mut sig = self.module.make_signature();
 
         for parameter in &apply.parameters {
-            sig.params.push(AbiParam::new(abi_type::from_type(
-                self.types.get(*parameter).unwrap(),
-                self.ptr_type,
-            )));
+            sig.params.push(AbiParam::new(
+                abi_type::AbiType::from_ir_type(self.types.get(*parameter).unwrap())
+                    .into_specific(self.ptr_type),
+            ));
         }
-        sig.returns.push(AbiParam::new(abi_type::from_type(
-            self.types.get(entity).unwrap(),
-            self.ptr_type,
-        )));
+        sig.returns.push(AbiParam::new(
+            abi_type::AbiType::from_ir_type(self.types.get(entity).unwrap())
+                .into_specific(self.ptr_type),
+        ));
 
         let name = self.get_symbol(apply.function).unwrap().to_string();
         let callee = self
@@ -285,22 +275,39 @@ impl<'a, 'f> FunctionTranslator<'a, 'f> {
     }
 
     fn builtin_alloc(&mut self, size: Value, align: Value) -> Value {
-        let callee = self
-            .module
-            .declare_function(
-                builtin::ALLOC_SYMBOL,
-                cranelift_module::Linkage::Import,
-                &self.alloc_signature,
-            )
-            .unwrap();
-
-        let local_callee = self
-            .module
-            .declare_func_in_func(callee, &mut self.builder.func);
+        let local_callee = self.declare_builtin(&builtin::ALLOC);
 
         let call = self.builder.ins().call(local_callee, &[size, align]);
 
         self.builder.inst_results(call)[0]
+    }
+
+    fn declare_builtin(&mut self, builtin: &builtin::Builtin) -> cranelift::codegen::ir::FuncRef {
+        let mut signature = self.module.make_signature();
+
+        for param in builtin.signature.params {
+            signature
+                .params
+                .push(AbiParam::new(param.into_specific(self.ptr_type)));
+        }
+
+        for ret in builtin.signature.returns {
+            signature
+                .returns
+                .push(AbiParam::new(ret.into_specific(self.ptr_type)));
+        }
+
+        let callee = self
+            .module
+            .declare_function(
+                builtin::ALLOC.symbol,
+                cranelift_module::Linkage::Import,
+                &signature,
+            )
+            .unwrap();
+
+        self.module
+            .declare_func_in_func(callee, &mut self.builder.func)
     }
 }
 

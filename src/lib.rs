@@ -69,7 +69,6 @@ extern crate specs_visitor_derive;
 extern crate env_logger;
 
 pub mod ast;
-mod builtin;
 pub mod codegen;
 pub mod error;
 pub mod ir;
