@@ -174,7 +174,7 @@ fn declare_variables(
     let mut variables = collections::HashMap::new();
 
     for (i, param) in params.iter().enumerate() {
-        let val = builder.ebb_params(entry_ebb)[i];
+        let param_initializer = builder.ebb_params(entry_ebb)[i];
         let var = declare_variable(
             types,
             ptr_type,
@@ -183,7 +183,7 @@ fn declare_variables(
             &mut next_var,
             *param,
         );
-        builder.def_var(var, val);
+        builder.def_var(var, param_initializer);
     }
 
     for statement in statements {

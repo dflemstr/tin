@@ -6,9 +6,9 @@ use ir::component::element;
 use ir::component::ty;
 use std::ops;
 
-pub struct InferTypesSystem;
+pub struct System;
 
-impl<'a> specs::System<'a> for InferTypesSystem {
+impl<'a> specs::System<'a> for System {
     type SystemData = (
         specs::Entities<'a>,
         specs::ReadStorage<'a, element::Element>,
@@ -57,8 +57,8 @@ where
             infer_bi_op_type(lhs, operator, rhs, types)
         }
         element::Element::Variable(element::Variable {
-            name: _,
             initializer,
+            ..
         }) => infer_variable_type(initializer, types),
         element::Element::Select(element::Select { record, ref field }) => {
             infer_select_type(record, field, types)
@@ -67,18 +67,17 @@ where
             function,
             ref parameters,
         }) => infer_apply_type(function, parameters, types),
-        element::Element::Parameter(element::Parameter { name: _, signature }) => {
+        element::Element::Parameter(element::Parameter { signature, .. }) => {
             infer_parameter_type(signature, types)
         }
-        element::Element::Capture(element::Capture { name: _, captured }) => {
+        element::Element::Capture(element::Capture { captured, .. }) => {
             infer_capture_type(captured, types)
         }
         element::Element::Closure(element::Closure {
-            captures: _,
             ref parameters,
-            statements: _,
             signature,
             result,
+            ..
         }) => infer_closure_type(parameters, signature, result, types),
         element::Element::Module(element::Module { ref variables }) => {
             infer_module_type(variables, types)

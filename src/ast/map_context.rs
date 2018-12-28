@@ -2,15 +2,15 @@
 use std::fmt;
 
 use ast;
-use ast::node;
+use ast::ast_node;
 
 /// A context mapping over some AST node.
-pub trait MapContext<C1, C2>: node::AstNode<C1> {
+pub trait MapContext<C1, C2>: ast_node::AstNode<C1> {
     // This is really just a Functor in disguise, but I choose to specialize it for this specific
     // use-case.
 
     /// The output AST node of the mapping, with the new context.
-    type Output: node::AstNode<C2>;
+    type Output: ast_node::AstNode<C2>;
 
     /// Maps the context of this AST node to a new context of potentially a different type.
     fn map_context<F>(self, mapping: &mut F) -> Self::Output

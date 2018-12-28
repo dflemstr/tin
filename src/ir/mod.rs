@@ -54,7 +54,7 @@ impl Ir {
 
         let mut dispatcher = specs::DispatcherBuilder::new()
             .with(
-                system::apply_replacements::ApplyReplacementsSystem,
+                system::apply_replacements::System,
                 "apply_replacements",
                 &[],
             )
@@ -73,14 +73,14 @@ impl Ir {
     /// references.
     pub fn check_types(&mut self) {
         let mut dispatcher = specs::DispatcherBuilder::new()
-            .with(system::infer_types::InferTypesSystem, "infer_types", &[])
+            .with(system::infer_types::System, "infer_types", &[])
             .with(
-                system::infer_constexpr::InferConstexprSystem,
+                system::infer_constexpr::System,
                 "infer_constexpr",
                 &[],
             )
             .with(
-                system::infer_layouts::InferLayoutsSystem::new(8),
+                system::infer_layouts::System::new(8),
                 "infer_layouts",
                 &[],
             )

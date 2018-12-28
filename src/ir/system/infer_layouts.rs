@@ -7,13 +7,13 @@ use ir::component::element;
 use ir::component::layout;
 use std::ops;
 
-pub struct InferLayoutsSystem {
+pub struct System {
     ptr_size: usize,
 }
 
 const BOOL_LAYOUT: layout::Layout = layout::Layout::scalar(1);
 
-impl<'a> specs::System<'a> for InferLayoutsSystem {
+impl<'a> specs::System<'a> for System {
     type SystemData = (
         specs::Entities<'a>,
         specs::ReadStorage<'a, element::Element>,
@@ -44,9 +44,9 @@ impl<'a> specs::System<'a> for InferLayoutsSystem {
     }
 }
 
-impl InferLayoutsSystem {
-    pub fn new(ptr_size: usize) -> InferLayoutsSystem {
-        InferLayoutsSystem { ptr_size }
+impl System {
+    pub fn new(ptr_size: usize) -> System {
+        System { ptr_size }
     }
 
     fn infer_layout<DE, DL>(
@@ -75,8 +75,8 @@ impl InferLayoutsSystem {
                 self.infer_bi_op_layout(lhs, operator, rhs, layouts)
             }
             element::Element::Variable(element::Variable {
-                name: _,
                 initializer,
+                ..
             }) => self.infer_variable_layout(initializer, layouts),
             element::Element::Select(element::Select { record, ref field }) => {
                 self.infer_select_layout(record, field, elements, layouts)
@@ -85,18 +85,17 @@ impl InferLayoutsSystem {
                 function,
                 ref parameters,
             }) => self.infer_apply_layout(function, parameters, layouts),
-            element::Element::Parameter(element::Parameter { name: _, signature }) => {
+            element::Element::Parameter(element::Parameter { signature, .. }) => {
                 self.infer_parameter_layout(signature, layouts)
             }
-            element::Element::Capture(element::Capture { name: _, captured }) => {
+            element::Element::Capture(element::Capture { captured, .. }) => {
                 self.infer_capture_layout(captured, layouts)
             }
             element::Element::Closure(element::Closure {
-                captures: _,
                 ref parameters,
-                statements: _,
                 signature,
                 result,
+                ..
             }) => self.infer_closure_layout(parameters, signature, result, layouts),
             element::Element::Module(element::Module { ref variables }) => {
                 self.infer_module_layout(variables, layouts)

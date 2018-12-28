@@ -4,9 +4,9 @@ use ir::component::constexpr;
 use ir::component::element;
 use std::ops;
 
-pub struct InferConstexprSystem;
+pub struct System;
 
-impl<'a> specs::System<'a> for InferConstexprSystem {
+impl<'a> specs::System<'a> for System {
     type SystemData = (
         specs::Entities<'a>,
         specs::ReadStorage<'a, element::Element>,
@@ -53,18 +53,18 @@ where
         }
         element::Element::UnOp(element::UnOp {
             operand,
-            operator: _,
+            ..
         }) => constexprs.contains(operand),
         element::Element::BiOp(element::BiOp {
             lhs,
-            operator: _,
             rhs,
+            ..
         }) => constexprs.contains(lhs) && constexprs.contains(rhs),
         element::Element::Variable(element::Variable {
-            name: _,
             initializer,
+            ..
         }) => constexprs.contains(initializer),
-        element::Element::Select(element::Select { record, field: _ }) => {
+        element::Element::Select(element::Select { record, .. }) => {
             constexprs.contains(record)
         }
         element::Element::Apply(element::Apply {
@@ -72,15 +72,14 @@ where
             ref parameters,
         }) => constexprs.contains(function) && parameters.iter().all(|p| constexprs.contains(*p)),
         element::Element::Parameter(element::Parameter { .. }) => false,
-        element::Element::Capture(element::Capture { name: _, captured }) => {
+        element::Element::Capture(element::Capture { captured, .. }) => {
             constexprs.contains(captured)
         }
         element::Element::Closure(element::Closure {
             ref captures,
-            parameters: _,
             ref statements,
-            signature: _,
             result,
+            ..
         }) => {
             captures.iter().all(|c| constexprs.contains(*c))
                 && statements.iter().all(|s| constexprs.contains(*s))

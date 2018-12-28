@@ -8,7 +8,8 @@ use ast;
 mod util;
 
 lalrpop_mod!(
-    #[allow(clippy)]
+    #[allow(clippy::all)]
+    #[allow(clippy::pedantic)]
     #[allow(missing_debug_implementations)]
     #[allow(unused)]
     tin,
@@ -38,13 +39,13 @@ pub struct Span {
 pub enum Error {
     /// There was an invalid token in the code.
     #[fail(display = "invalid token at {}", _0)]
-    InvalidToken {
+    Invalid {
         /// The location (byte index) of the invalid token.
         location: usize,
     },
     /// There was an unexpected token in the code.
     #[fail(display = "unrecognized token {:?}, expected {:?}", _0, _1)]
-    UnrecognizedToken {
+    Unrecognized {
         /// The start (byte index), seen token, and end (byte index), or `None` if we are at the end
         /// of the file.
         token: Option<(usize, String, usize)>,
@@ -53,7 +54,7 @@ pub enum Error {
     },
     /// There was an extra token at the end of the file.
     #[fail(display = "got extra token {:?}", _0)]
-    ExtraToken {
+    Trailing {
         /// The start (byte index), seen token, and end (byte index).
         token: (usize, String, usize),
     },
@@ -113,14 +114,14 @@ where
 {
     fn from(error: lalrpop_util::ParseError<usize, T, Error>) -> Self {
         match error {
-            lalrpop_util::ParseError::InvalidToken { location } => Error::InvalidToken { location },
+            lalrpop_util::ParseError::InvalidToken { location } => Error::Invalid { location },
             lalrpop_util::ParseError::UnrecognizedToken { token, expected } => {
                 let token = token.map(|(s, t, e)| (s, format!("{}", t), e));
-                Error::UnrecognizedToken { token, expected }
+                Error::Unrecognized { token, expected }
             }
             lalrpop_util::ParseError::ExtraToken { token } => {
                 let token = (token.0, format!("{}", token.1), token.2);
-                Error::ExtraToken { token }
+                Error::Trailing { token }
             }
             lalrpop_util::ParseError::User { error } => error,
         }

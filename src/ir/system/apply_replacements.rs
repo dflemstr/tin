@@ -9,13 +9,13 @@ use ir::component::replacement;
 use ir::component::symbol;
 use ir::component::ty;
 
-pub struct ApplyReplacementsSystem;
+pub struct System;
 
 struct ReplacementEntityVisitor {
     replacements: collections::HashMap<specs::Entity, specs::Entity>,
 }
 
-impl<'a> specs::System<'a> for ApplyReplacementsSystem {
+impl<'a> specs::System<'a> for System {
     type SystemData = (
         specs::Entities<'a>,
         specs::ReadStorage<'a, replacement::Replacement>,

@@ -4,15 +4,14 @@ use std::char;
 pub fn parse_escaped_string(input: &str) -> borrow::Cow<str> {
     let input = &input[1..input.len() - 1];
 
-    if !input.contains('\\') {
-        input.into()
-    } else {
-        let mut result = String::with_capacity(input.len());
+    if input.contains('\\') {
         enum State {
             Tinal,
             Escape,
             Unicode,
         };
+
+        let mut result = String::with_capacity(input.len());
         let mut state = State::Tinal;
         let mut unicode: u32 = 0;
 
@@ -84,5 +83,7 @@ pub fn parse_escaped_string(input: &str) -> borrow::Cow<str> {
         }
 
         result.into()
+    } else {
+        input.into()
     }
 }
