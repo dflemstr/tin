@@ -1,19 +1,39 @@
-extern crate env_logger;
+extern crate pretty_env_logger;
 extern crate failure;
+#[macro_use]
+extern crate structopt;
 extern crate tin_lang;
 
+use std::fs;
 use std::io;
+use std::path;
+
+#[derive(Debug, StructOpt)]
+#[structopt(name = "tin")]
+struct Options {
+    /// Source file to compile (that contains a main function); will use stdin if omitted.
+    #[structopt(name = "SOURCE", parse(from_os_str))]
+    source: Option<path::PathBuf>,
+}
 
 fn main() -> Result<(), failure::Error> {
     use std::io::Read;
+    use structopt::StructOpt;
     use tin_lang::parser::Parse;
 
-    env_logger::init();
+    pretty_env_logger::init_timed();
 
-    let stdin = io::stdin();
-    let mut stdin = stdin.lock();
+    let options = Options::from_args();
+
     let mut source = String::new();
-    stdin.read_to_string(&mut source)?;
+    if let Some(path) = options.source {
+        let mut file = fs::File::open(path)?;
+        file.read_to_string(&mut source)?;
+    } else {
+        let stdin = io::stdin();
+        let mut stdin = stdin.lock();
+        stdin.read_to_string(&mut source)?;
+    }
 
     let ast = tin_lang::ast::Module::parse(&source)?;
 
