@@ -1,5 +1,5 @@
-extern crate pretty_env_logger;
 extern crate failure;
+extern crate pretty_env_logger;
 #[macro_use]
 extern crate structopt;
 extern crate tin_lang;
