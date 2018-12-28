@@ -2,7 +2,7 @@
 name = "tin-lang"
 description = "tin: a statically structurally typed embeddable programming language"
 license = "MIT"
-version = "0.1.0"
+version = "0.2.0"
 authors = ["David Flemström <david.flemstrom@gmail.com>"]
 repository = "https://github.com/dflemstr/tin"
 
