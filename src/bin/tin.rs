@@ -25,7 +25,7 @@ fn main() -> Result<(), failure::Error> {
     let mut module = codegen.compile();
 
     let entrypoint = module
-        .function::<tin_lang::codegen::module::Function0<f64>>("main")
+        .function::<tin_lang::codegen::module::Function0<u32>>("main")
         .ok_or(failure::err_msg("missing a main function"))?;
 
     let result = entrypoint();
