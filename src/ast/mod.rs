@@ -55,9 +55,9 @@ pub struct Identifier<C> {
 #[derive(Clone, Debug, PartialEq)]
 pub enum Expression<C> {
     /// A numeric literal.
-    Number(NumberLiteral<C>),
+    NumberLiteral(NumberLiteral<C>),
     /// A string literal.
-    String(StringLiteral<C>),
+    StringLiteral(StringLiteral<C>),
     /// A tuple literal.
     Tuple(Tuple<C>),
     /// A record literal.

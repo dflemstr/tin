@@ -105,16 +105,7 @@ macro_rules! parser_impl {
 }
 
 parser_impl!(ModuleParser, ast::Module<Context>);
-parser_impl!(IdentifierParser, ast::Identifier<Context>);
 parser_impl!(ExpressionParser, ast::Expression<Context>);
-parser_impl!(TupleParser, ast::Tuple<Context>);
-parser_impl!(RecordParser, ast::Record<Context>);
-parser_impl!(UnOpParser, ast::UnOp<Context>);
-parser_impl!(LambdaParser, ast::Lambda<Context>);
-parser_impl!(StatementParser, ast::Statement<Context>);
-parser_impl!(SelectParser, ast::Select<Context>);
-parser_impl!(ApplyParser, ast::Apply<Context>);
-parser_impl!(ParameterParser, ast::Parameter<Context>);
 
 impl<T> From<lalrpop_util::ParseError<usize, T, Error>> for Error
 where
@@ -172,11 +163,11 @@ main = || {
     fn identifier() {
         let _ = env_logger::try_init();
 
-        let expected = Ok(ast::Identifier {
+        let expected = Ok(ast::Expression::Identifier(ast::Identifier {
             context: (),
             value: "whatever".to_owned(),
-        });
-        let actual = tin::IdentifierParser::new()
+        }));
+        let actual = tin::ExpressionParser::new()
             .parse(r#"whatever"#)
             .map(|r| r.map_context(&mut |_| ()));
         assert_eq!(expected, actual);
@@ -186,11 +177,11 @@ main = || {
     fn identifier_unicode() {
         let _ = env_logger::try_init();
 
-        let expected = Ok(ast::Identifier {
+        let expected = Ok(ast::Expression::Identifier(ast::Identifier {
             context: (),
             value: "なんでも".to_owned(),
-        });
-        let actual = tin::IdentifierParser::new()
+        }));
+        let actual = tin::ExpressionParser::new()
             .parse(r#"なんでも"#)
             .map(|r| r.map_context(&mut |_| ()));
         assert_eq!(expected, actual);
@@ -200,7 +191,7 @@ main = || {
     fn number() {
         let _ = env_logger::try_init();
 
-        let expected = Ok(ast::Expression::Number(ast::NumberLiteral {
+        let expected = Ok(ast::Expression::NumberLiteral(ast::NumberLiteral {
             context: (),
             value: ast::NumberValue::F64(1.0),
         }));
@@ -214,7 +205,7 @@ main = || {
     fn number_negative() {
         let _ = env_logger::try_init();
 
-        let expected = Ok(ast::Expression::Number(ast::NumberLiteral {
+        let expected = Ok(ast::Expression::NumberLiteral(ast::NumberLiteral {
             context: (),
             value: ast::NumberValue::F64(-1.0),
         }));
@@ -228,7 +219,7 @@ main = || {
     fn number_zero() {
         let _ = env_logger::try_init();
 
-        let expected = Ok(ast::Expression::Number(ast::NumberLiteral {
+        let expected = Ok(ast::Expression::NumberLiteral(ast::NumberLiteral {
             context: (),
             value: ast::NumberValue::F64(0.0),
         }));
@@ -242,7 +233,7 @@ main = || {
     fn number_zero_negative() {
         let _ = env_logger::try_init();
 
-        let expected = Ok(ast::Expression::Number(ast::NumberLiteral {
+        let expected = Ok(ast::Expression::NumberLiteral(ast::NumberLiteral {
             context: (),
             value: ast::NumberValue::F64(-0.0),
         }));
@@ -256,7 +247,7 @@ main = || {
     fn number_fraction() {
         let _ = env_logger::try_init();
 
-        let expected = Ok(ast::Expression::Number(ast::NumberLiteral {
+        let expected = Ok(ast::Expression::NumberLiteral(ast::NumberLiteral {
             context: (),
             value: ast::NumberValue::F64(1.5),
         }));
@@ -270,7 +261,7 @@ main = || {
     fn number_fraction_negative() {
         let _ = env_logger::try_init();
 
-        let expected = Ok(ast::Expression::Number(ast::NumberLiteral {
+        let expected = Ok(ast::Expression::NumberLiteral(ast::NumberLiteral {
             context: (),
             value: ast::NumberValue::F64(-1.5),
         }));
@@ -284,7 +275,7 @@ main = || {
     fn number_scientific() {
         let _ = env_logger::try_init();
 
-        let expected = Ok(ast::Expression::Number(ast::NumberLiteral {
+        let expected = Ok(ast::Expression::NumberLiteral(ast::NumberLiteral {
             context: (),
             value: ast::NumberValue::F64(1500.0),
         }));
@@ -298,7 +289,7 @@ main = || {
     fn number_scientific_negative() {
         let _ = env_logger::try_init();
 
-        let expected = Ok(ast::Expression::Number(ast::NumberLiteral {
+        let expected = Ok(ast::Expression::NumberLiteral(ast::NumberLiteral {
             context: (),
             value: ast::NumberValue::F64(-1500.0),
         }));
@@ -312,7 +303,7 @@ main = || {
     fn number_scientific_uppercase() {
         let _ = env_logger::try_init();
 
-        let expected = Ok(ast::Expression::Number(ast::NumberLiteral {
+        let expected = Ok(ast::Expression::NumberLiteral(ast::NumberLiteral {
             context: (),
             value: ast::NumberValue::F64(1500.0),
         }));
@@ -326,7 +317,7 @@ main = || {
     fn number_scientific_uppercase_negative() {
         let _ = env_logger::try_init();
 
-        let expected = Ok(ast::Expression::Number(ast::NumberLiteral {
+        let expected = Ok(ast::Expression::NumberLiteral(ast::NumberLiteral {
             context: (),
             value: ast::NumberValue::F64(-1500.0),
         }));
@@ -340,7 +331,7 @@ main = || {
     fn number_scientific_small() {
         let _ = env_logger::try_init();
 
-        let expected = Ok(ast::Expression::Number(ast::NumberLiteral {
+        let expected = Ok(ast::Expression::NumberLiteral(ast::NumberLiteral {
             context: (),
             value: ast::NumberValue::F64(0.0015),
         }));
@@ -354,7 +345,7 @@ main = || {
     fn number_scientific_padded_exponent() {
         let _ = env_logger::try_init();
 
-        let expected = Ok(ast::Expression::Number(ast::NumberLiteral {
+        let expected = Ok(ast::Expression::NumberLiteral(ast::NumberLiteral {
             context: (),
             value: ast::NumberValue::F64(1500.0),
         }));
@@ -368,7 +359,7 @@ main = || {
     fn number_scientific_explicit() {
         let _ = env_logger::try_init();
 
-        let expected = Ok(ast::Expression::Number(ast::NumberLiteral {
+        let expected = Ok(ast::Expression::NumberLiteral(ast::NumberLiteral {
             context: (),
             value: ast::NumberValue::F64(1500.0),
         }));
@@ -382,7 +373,7 @@ main = || {
     fn number_scientific_zero_exponent() {
         let _ = env_logger::try_init();
 
-        let expected = Ok(ast::Expression::Number(ast::NumberLiteral {
+        let expected = Ok(ast::Expression::NumberLiteral(ast::NumberLiteral {
             context: (),
             value: ast::NumberValue::F64(1.5),
         }));
@@ -396,7 +387,7 @@ main = || {
     fn number_scientific_explicit_zero_exponent() {
         let _ = env_logger::try_init();
 
-        let expected = Ok(ast::Expression::Number(ast::NumberLiteral {
+        let expected = Ok(ast::Expression::NumberLiteral(ast::NumberLiteral {
             context: (),
             value: ast::NumberValue::F64(1.5),
         }));
@@ -410,11 +401,11 @@ main = || {
     fn string() {
         let _ = env_logger::try_init();
 
-        let expected = Ok(ast::StringLiteral {
+        let expected = Ok(ast::Expression::StringLiteral(ast::StringLiteral {
             context: (),
             value: "abc".to_owned(),
-        });
-        let actual = tin::StringParser::new()
+        }));
+        let actual = tin::ExpressionParser::new()
             .parse(r#""abc""#)
             .map(|r| r.map_context(&mut |_| ()));
         assert_eq!(expected, actual);
@@ -424,11 +415,11 @@ main = || {
     fn string_unicode() {
         let _ = env_logger::try_init();
 
-        let expected = Ok(ast::StringLiteral {
+        let expected = Ok(ast::Expression::StringLiteral(ast::StringLiteral {
             context: (),
             value: "なんでも".to_owned(),
-        });
-        let actual = tin::StringParser::new()
+        }));
+        let actual = tin::ExpressionParser::new()
             .parse(r#""なんでも""#)
             .map(|r| r.map_context(&mut |_| ()));
         assert_eq!(expected, actual);
@@ -438,11 +429,11 @@ main = || {
     fn string_escape() {
         let _ = env_logger::try_init();
 
-        let expected = Ok(ast::StringLiteral {
+        let expected = Ok(ast::Expression::StringLiteral(ast::StringLiteral {
             context: (),
             value: "\"\\/\u{0008}\u{000C}\n\r\t\u{1234}".to_owned(),
-        });
-        let actual = tin::StringParser::new()
+        }));
+        let actual = tin::ExpressionParser::new()
             .parse(r#""\"\\/\b\f\n\r\t\u{1234}""#)
             .map(|r| r.map_context(&mut |_| ()));
         assert_eq!(expected, actual);
@@ -452,20 +443,20 @@ main = || {
     fn tuple() {
         let _ = env_logger::try_init();
 
-        let expected = Ok(ast::Tuple {
+        let expected = Ok(ast::Expression::Tuple(ast::Tuple {
             context: (),
             fields: vec![
-                ast::Expression::Number(ast::NumberLiteral {
+                ast::Expression::NumberLiteral(ast::NumberLiteral {
                     context: (),
                     value: ast::NumberValue::F64(1.0),
                 }),
-                ast::Expression::Number(ast::NumberLiteral {
+                ast::Expression::NumberLiteral(ast::NumberLiteral {
                     context: (),
                     value: ast::NumberValue::F64(2.0),
                 }),
             ],
-        });
-        let actual = tin::TupleParser::new()
+        }));
+        let actual = tin::ExpressionParser::new()
             .parse(r#"(1f64, 2f64)"#)
             .map(|r| r.map_context(&mut |_| ()));
         assert_eq!(expected, actual);
@@ -475,20 +466,20 @@ main = || {
     fn tuple_trailing_comma() {
         let _ = env_logger::try_init();
 
-        let expected = Ok(ast::Tuple {
+        let expected = Ok(ast::Expression::Tuple(ast::Tuple {
             context: (),
             fields: vec![
-                ast::Expression::Number(ast::NumberLiteral {
+                ast::Expression::NumberLiteral(ast::NumberLiteral {
                     context: (),
                     value: ast::NumberValue::F64(1.0),
                 }),
-                ast::Expression::Number(ast::NumberLiteral {
+                ast::Expression::NumberLiteral(ast::NumberLiteral {
                     context: (),
                     value: ast::NumberValue::F64(2.0),
                 }),
             ],
-        });
-        let actual = tin::TupleParser::new()
+        }));
+        let actual = tin::ExpressionParser::new()
             .parse(r#"(1f64, 2f64,)"#)
             .map(|r| r.map_context(&mut |_| ()));
         assert_eq!(expected, actual);
@@ -498,14 +489,14 @@ main = || {
     fn tuple_single_trailing_comma() {
         let _ = env_logger::try_init();
 
-        let expected = Ok(ast::Tuple {
+        let expected = Ok(ast::Expression::Tuple(ast::Tuple {
             context: (),
-            fields: vec![ast::Expression::Number(ast::NumberLiteral {
+            fields: vec![ast::Expression::NumberLiteral(ast::NumberLiteral {
                 context: (),
                 value: ast::NumberValue::F64(1.0),
             })],
-        });
-        let actual = tin::TupleParser::new()
+        }));
+        let actual = tin::ExpressionParser::new()
             .parse(r#"(1f64,)"#)
             .map(|r| r.map_context(&mut |_| ()));
         assert_eq!(expected, actual);
@@ -515,11 +506,11 @@ main = || {
     fn tuple_empty() {
         let _ = env_logger::try_init();
 
-        let expected = Ok(ast::Tuple {
+        let expected = Ok(ast::Expression::Tuple(ast::Tuple {
             context: (),
             fields: vec![],
-        });
-        let actual = tin::TupleParser::new()
+        }));
+        let actual = tin::ExpressionParser::new()
             .parse(r#"()"#)
             .map(|r| r.map_context(&mut |_| ()));
         assert_eq!(expected, actual);
@@ -529,7 +520,7 @@ main = || {
     fn tuple_empty_no_comma() {
         let _ = env_logger::try_init();
 
-        let actual = tin::TupleParser::new()
+        let actual = tin::ExpressionParser::new()
             .parse(r#"(,)"#)
             .map(|r| r.map_context(&mut |_| ()));
         assert!(actual.is_err());
@@ -539,7 +530,7 @@ main = || {
     fn record() {
         let _ = env_logger::try_init();
 
-        let expected = Ok(ast::Record {
+        let expected = Ok(ast::Expression::Record(ast::Record {
             context: (),
             fields: vec![
                 (
@@ -547,7 +538,7 @@ main = || {
                         context: (),
                         value: "a".to_owned(),
                     },
-                    ast::Expression::Number(ast::NumberLiteral {
+                    ast::Expression::NumberLiteral(ast::NumberLiteral {
                         context: (),
                         value: ast::NumberValue::F64(1.0),
                     }),
@@ -557,7 +548,7 @@ main = || {
                         context: (),
                         value: "b".to_owned(),
                     },
-                    ast::Expression::String(ast::StringLiteral {
+                    ast::Expression::StringLiteral(ast::StringLiteral {
                         context: (),
                         value: "c".to_owned(),
                     }),
@@ -565,8 +556,8 @@ main = || {
             ]
             .into_iter()
             .collect(),
-        });
-        let actual = tin::RecordParser::new()
+        }));
+        let actual = tin::ExpressionParser::new()
             .parse(r#"{a: 1f64, b: "c"}"#)
             .map(|r| r.map_context(&mut |_| ()));
         assert_eq!(expected, actual);
@@ -576,7 +567,7 @@ main = || {
     fn record_trailing_comma() {
         let _ = env_logger::try_init();
 
-        let expected = Ok(ast::Record {
+        let expected = Ok(ast::Expression::Record(ast::Record {
             context: (),
             fields: vec![
                 (
@@ -584,7 +575,7 @@ main = || {
                         context: (),
                         value: "a".to_owned(),
                     },
-                    ast::Expression::Number(ast::NumberLiteral {
+                    ast::Expression::NumberLiteral(ast::NumberLiteral {
                         context: (),
                         value: ast::NumberValue::F64(1.0),
                     }),
@@ -594,7 +585,7 @@ main = || {
                         context: (),
                         value: "b".to_owned(),
                     },
-                    ast::Expression::String(ast::StringLiteral {
+                    ast::Expression::StringLiteral(ast::StringLiteral {
                         context: (),
                         value: "c".to_owned(),
                     }),
@@ -602,8 +593,8 @@ main = || {
             ]
             .into_iter()
             .collect(),
-        });
-        let actual = tin::RecordParser::new()
+        }));
+        let actual = tin::ExpressionParser::new()
             .parse(r#"{a: 1f64, b: "c",}"#)
             .map(|r| r.map_context(&mut |_| ()));
         assert_eq!(expected, actual);
@@ -613,22 +604,22 @@ main = || {
     fn record_single() {
         let _ = env_logger::try_init();
 
-        let expected = Ok(ast::Record {
+        let expected = Ok(ast::Expression::Record(ast::Record {
             context: (),
             fields: vec![(
                 ast::Identifier {
                     context: (),
                     value: "a".to_owned(),
                 },
-                ast::Expression::Number(ast::NumberLiteral {
+                ast::Expression::NumberLiteral(ast::NumberLiteral {
                     context: (),
                     value: ast::NumberValue::F64(1.0),
                 }),
             )]
             .into_iter()
             .collect(),
-        });
-        let actual = tin::RecordParser::new()
+        }));
+        let actual = tin::ExpressionParser::new()
             .parse(r#"{a: 1f64}"#)
             .map(|r| r.map_context(&mut |_| ()));
         assert_eq!(expected, actual);
@@ -638,22 +629,22 @@ main = || {
     fn record_single_trailing_comma() {
         let _ = env_logger::try_init();
 
-        let expected = Ok(ast::Record {
+        let expected = Ok(ast::Expression::Record(ast::Record {
             context: (),
             fields: vec![(
                 ast::Identifier {
                     context: (),
                     value: "a".to_owned(),
                 },
-                ast::Expression::Number(ast::NumberLiteral {
+                ast::Expression::NumberLiteral(ast::NumberLiteral {
                     context: (),
                     value: ast::NumberValue::F64(1.0),
                 }),
             )]
             .into_iter()
             .collect(),
-        });
-        let actual = tin::RecordParser::new()
+        }));
+        let actual = tin::ExpressionParser::new()
             .parse(r#"{a: 1f64,}"#)
             .map(|r| r.map_context(&mut |_| ()));
         assert_eq!(expected, actual);
@@ -663,11 +654,11 @@ main = || {
     fn record_empty() {
         let _ = env_logger::try_init();
 
-        let expected = Ok(ast::Record {
+        let expected = Ok(ast::Expression::Record(ast::Record {
             context: (),
             fields: vec![].into_iter().collect(),
-        });
-        let actual = tin::RecordParser::new()
+        }));
+        let actual = tin::ExpressionParser::new()
             .parse(r#"{}"#)
             .map(|r| r.map_context(&mut |_| ()));
         assert_eq!(expected, actual);
@@ -677,7 +668,7 @@ main = || {
     fn record_empty_no_trailing_comma() {
         let _ = env_logger::try_init();
 
-        let actual = tin::RecordParser::new()
+        let actual = tin::ExpressionParser::new()
             .parse(r#"{,}"#)
             .map(|r| r.map_context(&mut |_| ()));
         assert!(actual.is_err());
@@ -687,15 +678,15 @@ main = || {
     fn un_op_not() {
         let _ = env_logger::try_init();
 
-        let expected = Ok(ast::UnOp {
+        let expected = Ok(ast::Expression::UnOp(ast::UnOp {
             context: (),
             operator: ast::UnOperator::Not,
-            operand: Box::new(ast::Expression::Number(ast::NumberLiteral {
+            operand: Box::new(ast::Expression::NumberLiteral(ast::NumberLiteral {
                 context: (),
                 value: ast::NumberValue::U32(0),
             })),
-        });
-        let actual = tin::UnOpParser::new()
+        }));
+        let actual = tin::ExpressionParser::new()
             .parse(r#"!0u32"#)
             .map(|r| r.map_context(&mut |_| ()));
         assert_eq!(expected, actual);
@@ -705,19 +696,19 @@ main = || {
     fn un_op_not_not() {
         let _ = env_logger::try_init();
 
-        let expected = Ok(ast::UnOp {
+        let expected = Ok(ast::Expression::UnOp(ast::UnOp {
             context: (),
             operator: ast::UnOperator::Not,
             operand: Box::new(ast::Expression::UnOp(ast::UnOp {
                 context: (),
                 operator: ast::UnOperator::Not,
-                operand: Box::new(ast::Expression::Number(ast::NumberLiteral {
+                operand: Box::new(ast::Expression::NumberLiteral(ast::NumberLiteral {
                     context: (),
                     value: ast::NumberValue::U32(0),
                 })),
             })),
-        });
-        let actual = tin::UnOpParser::new()
+        }));
+        let actual = tin::ExpressionParser::new()
             .parse(r#"!!0u32"#)
             .map(|r| r.map_context(&mut |_| ()));
         assert_eq!(expected, actual);
@@ -727,15 +718,15 @@ main = || {
     fn un_op_bnot() {
         let _ = env_logger::try_init();
 
-        let expected = Ok(ast::UnOp {
+        let expected = Ok(ast::Expression::UnOp(ast::UnOp {
             context: (),
             operator: ast::UnOperator::BNot,
-            operand: Box::new(ast::Expression::Number(ast::NumberLiteral {
+            operand: Box::new(ast::Expression::NumberLiteral(ast::NumberLiteral {
                 context: (),
                 value: ast::NumberValue::U32(0),
             })),
-        });
-        let actual = tin::UnOpParser::new()
+        }));
+        let actual = tin::ExpressionParser::new()
             .parse(r#"~!0u32"#)
             .map(|r| r.map_context(&mut |_| ()));
         assert_eq!(expected, actual);
@@ -745,19 +736,19 @@ main = || {
     fn un_op_bnot_bnot() {
         let _ = env_logger::try_init();
 
-        let expected = Ok(ast::UnOp {
+        let expected = Ok(ast::Expression::UnOp(ast::UnOp {
             context: (),
             operator: ast::UnOperator::BNot,
             operand: Box::new(ast::Expression::UnOp(ast::UnOp {
                 context: (),
                 operator: ast::UnOperator::BNot,
-                operand: Box::new(ast::Expression::Number(ast::NumberLiteral {
+                operand: Box::new(ast::Expression::NumberLiteral(ast::NumberLiteral {
                     context: (),
                     value: ast::NumberValue::U32(0),
                 })),
             })),
-        });
-        let actual = tin::UnOpParser::new()
+        }));
+        let actual = tin::ExpressionParser::new()
             .parse(r#"~!~!0u32"#)
             .map(|r| r.map_context(&mut |_| ()));
         assert_eq!(expected, actual);
@@ -767,15 +758,15 @@ main = || {
     fn un_op_cl0() {
         let _ = env_logger::try_init();
 
-        let expected = Ok(ast::UnOp {
+        let expected = Ok(ast::Expression::UnOp(ast::UnOp {
             context: (),
             operator: ast::UnOperator::Cl0,
-            operand: Box::new(ast::Expression::Number(ast::NumberLiteral {
+            operand: Box::new(ast::Expression::NumberLiteral(ast::NumberLiteral {
                 context: (),
                 value: ast::NumberValue::U32(0),
             })),
-        });
-        let actual = tin::UnOpParser::new()
+        }));
+        let actual = tin::ExpressionParser::new()
             .parse(r#"#^0 0u32"#)
             .map(|r| r.map_context(&mut |_| ()));
         assert_eq!(expected, actual);
@@ -785,19 +776,19 @@ main = || {
     fn un_op_cl0_cl0() {
         let _ = env_logger::try_init();
 
-        let expected = Ok(ast::UnOp {
+        let expected = Ok(ast::Expression::UnOp(ast::UnOp {
             context: (),
             operator: ast::UnOperator::Cl0,
             operand: Box::new(ast::Expression::UnOp(ast::UnOp {
                 context: (),
                 operator: ast::UnOperator::Cl0,
-                operand: Box::new(ast::Expression::Number(ast::NumberLiteral {
+                operand: Box::new(ast::Expression::NumberLiteral(ast::NumberLiteral {
                     context: (),
                     value: ast::NumberValue::U32(0),
                 })),
             })),
-        });
-        let actual = tin::UnOpParser::new()
+        }));
+        let actual = tin::ExpressionParser::new()
             .parse(r#"#^0#^0 0u32"#)
             .map(|r| r.map_context(&mut |_| ()));
         assert_eq!(expected, actual);
@@ -807,15 +798,15 @@ main = || {
     fn un_op_cl1() {
         let _ = env_logger::try_init();
 
-        let expected = Ok(ast::UnOp {
+        let expected = Ok(ast::Expression::UnOp(ast::UnOp {
             context: (),
             operator: ast::UnOperator::Cl1,
-            operand: Box::new(ast::Expression::Number(ast::NumberLiteral {
+            operand: Box::new(ast::Expression::NumberLiteral(ast::NumberLiteral {
                 context: (),
                 value: ast::NumberValue::U32(0),
             })),
-        });
-        let actual = tin::UnOpParser::new()
+        }));
+        let actual = tin::ExpressionParser::new()
             .parse(r#"#^1 0u32"#)
             .map(|r| r.map_context(&mut |_| ()));
         assert_eq!(expected, actual);
@@ -825,19 +816,19 @@ main = || {
     fn un_op_cl1_cl1() {
         let _ = env_logger::try_init();
 
-        let expected = Ok(ast::UnOp {
+        let expected = Ok(ast::Expression::UnOp(ast::UnOp {
             context: (),
             operator: ast::UnOperator::Cl1,
             operand: Box::new(ast::Expression::UnOp(ast::UnOp {
                 context: (),
                 operator: ast::UnOperator::Cl1,
-                operand: Box::new(ast::Expression::Number(ast::NumberLiteral {
+                operand: Box::new(ast::Expression::NumberLiteral(ast::NumberLiteral {
                     context: (),
                     value: ast::NumberValue::U32(0),
                 })),
             })),
-        });
-        let actual = tin::UnOpParser::new()
+        }));
+        let actual = tin::ExpressionParser::new()
             .parse(r#"#^1#^1 0u32"#)
             .map(|r| r.map_context(&mut |_| ()));
         assert_eq!(expected, actual);
@@ -847,15 +838,15 @@ main = || {
     fn un_op_cls() {
         let _ = env_logger::try_init();
 
-        let expected = Ok(ast::UnOp {
+        let expected = Ok(ast::Expression::UnOp(ast::UnOp {
             context: (),
             operator: ast::UnOperator::Cls,
-            operand: Box::new(ast::Expression::Number(ast::NumberLiteral {
+            operand: Box::new(ast::Expression::NumberLiteral(ast::NumberLiteral {
                 context: (),
                 value: ast::NumberValue::U32(0),
             })),
-        });
-        let actual = tin::UnOpParser::new()
+        }));
+        let actual = tin::ExpressionParser::new()
             .parse(r#"#^- 0u32"#)
             .map(|r| r.map_context(&mut |_| ()));
         assert_eq!(expected, actual);
@@ -865,19 +856,19 @@ main = || {
     fn un_op_cls_cls() {
         let _ = env_logger::try_init();
 
-        let expected = Ok(ast::UnOp {
+        let expected = Ok(ast::Expression::UnOp(ast::UnOp {
             context: (),
             operator: ast::UnOperator::Cls,
             operand: Box::new(ast::Expression::UnOp(ast::UnOp {
                 context: (),
                 operator: ast::UnOperator::Cls,
-                operand: Box::new(ast::Expression::Number(ast::NumberLiteral {
+                operand: Box::new(ast::Expression::NumberLiteral(ast::NumberLiteral {
                     context: (),
                     value: ast::NumberValue::U32(0),
                 })),
             })),
-        });
-        let actual = tin::UnOpParser::new()
+        }));
+        let actual = tin::ExpressionParser::new()
             .parse(r#"#^-#^- 0u32"#)
             .map(|r| r.map_context(&mut |_| ()));
         assert_eq!(expected, actual);
@@ -887,15 +878,15 @@ main = || {
     fn un_op_ct0() {
         let _ = env_logger::try_init();
 
-        let expected = Ok(ast::UnOp {
+        let expected = Ok(ast::Expression::UnOp(ast::UnOp {
             context: (),
             operator: ast::UnOperator::Ct0,
-            operand: Box::new(ast::Expression::Number(ast::NumberLiteral {
+            operand: Box::new(ast::Expression::NumberLiteral(ast::NumberLiteral {
                 context: (),
                 value: ast::NumberValue::U32(0),
             })),
-        });
-        let actual = tin::UnOpParser::new()
+        }));
+        let actual = tin::ExpressionParser::new()
             .parse(r#"#$0 0u32"#)
             .map(|r| r.map_context(&mut |_| ()));
         assert_eq!(expected, actual);
@@ -905,19 +896,19 @@ main = || {
     fn un_op_ct0_ct0() {
         let _ = env_logger::try_init();
 
-        let expected = Ok(ast::UnOp {
+        let expected = Ok(ast::Expression::UnOp(ast::UnOp {
             context: (),
             operator: ast::UnOperator::Ct0,
             operand: Box::new(ast::Expression::UnOp(ast::UnOp {
                 context: (),
                 operator: ast::UnOperator::Ct0,
-                operand: Box::new(ast::Expression::Number(ast::NumberLiteral {
+                operand: Box::new(ast::Expression::NumberLiteral(ast::NumberLiteral {
                     context: (),
                     value: ast::NumberValue::U32(0),
                 })),
             })),
-        });
-        let actual = tin::UnOpParser::new()
+        }));
+        let actual = tin::ExpressionParser::new()
             .parse(r#"#$0#$0 0u32"#)
             .map(|r| r.map_context(&mut |_| ()));
         assert_eq!(expected, actual);
@@ -927,15 +918,15 @@ main = || {
     fn un_op_ct1() {
         let _ = env_logger::try_init();
 
-        let expected = Ok(ast::UnOp {
+        let expected = Ok(ast::Expression::UnOp(ast::UnOp {
             context: (),
             operator: ast::UnOperator::Ct1,
-            operand: Box::new(ast::Expression::Number(ast::NumberLiteral {
+            operand: Box::new(ast::Expression::NumberLiteral(ast::NumberLiteral {
                 context: (),
                 value: ast::NumberValue::U32(0),
             })),
-        });
-        let actual = tin::UnOpParser::new()
+        }));
+        let actual = tin::ExpressionParser::new()
             .parse(r#"#$1 0u32"#)
             .map(|r| r.map_context(&mut |_| ()));
         assert_eq!(expected, actual);
@@ -945,19 +936,19 @@ main = || {
     fn un_op_ct1_ct1() {
         let _ = env_logger::try_init();
 
-        let expected = Ok(ast::UnOp {
+        let expected = Ok(ast::Expression::UnOp(ast::UnOp {
             context: (),
             operator: ast::UnOperator::Ct1,
             operand: Box::new(ast::Expression::UnOp(ast::UnOp {
                 context: (),
                 operator: ast::UnOperator::Ct1,
-                operand: Box::new(ast::Expression::Number(ast::NumberLiteral {
+                operand: Box::new(ast::Expression::NumberLiteral(ast::NumberLiteral {
                     context: (),
                     value: ast::NumberValue::U32(0),
                 })),
             })),
-        });
-        let actual = tin::UnOpParser::new()
+        }));
+        let actual = tin::ExpressionParser::new()
             .parse(r#"#$1#$1 0u32"#)
             .map(|r| r.map_context(&mut |_| ()));
         assert_eq!(expected, actual);
@@ -967,15 +958,15 @@ main = || {
     fn un_op_c0() {
         let _ = env_logger::try_init();
 
-        let expected = Ok(ast::UnOp {
+        let expected = Ok(ast::Expression::UnOp(ast::UnOp {
             context: (),
             operator: ast::UnOperator::C0,
-            operand: Box::new(ast::Expression::Number(ast::NumberLiteral {
+            operand: Box::new(ast::Expression::NumberLiteral(ast::NumberLiteral {
                 context: (),
                 value: ast::NumberValue::U32(0),
             })),
-        });
-        let actual = tin::UnOpParser::new()
+        }));
+        let actual = tin::ExpressionParser::new()
             .parse(r#"#0 0u32"#)
             .map(|r| r.map_context(&mut |_| ()));
         assert_eq!(expected, actual);
@@ -985,19 +976,19 @@ main = || {
     fn un_op_c0_c0() {
         let _ = env_logger::try_init();
 
-        let expected = Ok(ast::UnOp {
+        let expected = Ok(ast::Expression::UnOp(ast::UnOp {
             context: (),
             operator: ast::UnOperator::C0,
             operand: Box::new(ast::Expression::UnOp(ast::UnOp {
                 context: (),
                 operator: ast::UnOperator::C0,
-                operand: Box::new(ast::Expression::Number(ast::NumberLiteral {
+                operand: Box::new(ast::Expression::NumberLiteral(ast::NumberLiteral {
                     context: (),
                     value: ast::NumberValue::U32(0),
                 })),
             })),
-        });
-        let actual = tin::UnOpParser::new()
+        }));
+        let actual = tin::ExpressionParser::new()
             .parse(r#"#0#0 0u32"#)
             .map(|r| r.map_context(&mut |_| ()));
         assert_eq!(expected, actual);
@@ -1007,15 +998,15 @@ main = || {
     fn un_op_c1() {
         let _ = env_logger::try_init();
 
-        let expected = Ok(ast::UnOp {
+        let expected = Ok(ast::Expression::UnOp(ast::UnOp {
             context: (),
             operator: ast::UnOperator::C1,
-            operand: Box::new(ast::Expression::Number(ast::NumberLiteral {
+            operand: Box::new(ast::Expression::NumberLiteral(ast::NumberLiteral {
                 context: (),
                 value: ast::NumberValue::U32(0),
             })),
-        });
-        let actual = tin::UnOpParser::new()
+        }));
+        let actual = tin::ExpressionParser::new()
             .parse(r#"#1 0u32"#)
             .map(|r| r.map_context(&mut |_| ()));
         assert_eq!(expected, actual);
@@ -1025,19 +1016,19 @@ main = || {
     fn un_op_c1_c1() {
         let _ = env_logger::try_init();
 
-        let expected = Ok(ast::UnOp {
+        let expected = Ok(ast::Expression::UnOp(ast::UnOp {
             context: (),
             operator: ast::UnOperator::C1,
             operand: Box::new(ast::Expression::UnOp(ast::UnOp {
                 context: (),
                 operator: ast::UnOperator::C1,
-                operand: Box::new(ast::Expression::Number(ast::NumberLiteral {
+                operand: Box::new(ast::Expression::NumberLiteral(ast::NumberLiteral {
                     context: (),
                     value: ast::NumberValue::U32(0),
                 })),
             })),
-        });
-        let actual = tin::UnOpParser::new()
+        }));
+        let actual = tin::ExpressionParser::new()
             .parse(r#"#1#1 0u32"#)
             .map(|r| r.map_context(&mut |_| ()));
         assert_eq!(expected, actual);
@@ -1047,15 +1038,15 @@ main = || {
     fn un_op_sqrt() {
         let _ = env_logger::try_init();
 
-        let expected = Ok(ast::UnOp {
+        let expected = Ok(ast::Expression::UnOp(ast::UnOp {
             context: (),
             operator: ast::UnOperator::Sqrt,
-            operand: Box::new(ast::Expression::Number(ast::NumberLiteral {
+            operand: Box::new(ast::Expression::NumberLiteral(ast::NumberLiteral {
                 context: (),
                 value: ast::NumberValue::U32(0),
             })),
-        });
-        let actual = tin::UnOpParser::new()
+        }));
+        let actual = tin::ExpressionParser::new()
             .parse(r#"^/ 0u32"#)
             .map(|r| r.map_context(&mut |_| ()));
         assert_eq!(expected, actual);
@@ -1065,19 +1056,19 @@ main = || {
     fn un_op_sqrt_sqrt() {
         let _ = env_logger::try_init();
 
-        let expected = Ok(ast::UnOp {
+        let expected = Ok(ast::Expression::UnOp(ast::UnOp {
             context: (),
             operator: ast::UnOperator::Sqrt,
             operand: Box::new(ast::Expression::UnOp(ast::UnOp {
                 context: (),
                 operator: ast::UnOperator::Sqrt,
-                operand: Box::new(ast::Expression::Number(ast::NumberLiteral {
+                operand: Box::new(ast::Expression::NumberLiteral(ast::NumberLiteral {
                     context: (),
                     value: ast::NumberValue::U32(0),
                 })),
             })),
-        });
-        let actual = tin::UnOpParser::new()
+        }));
+        let actual = tin::ExpressionParser::new()
             .parse(r#"^/^/ 0u32"#)
             .map(|r| r.map_context(&mut |_| ()));
         assert_eq!(expected, actual);
@@ -1087,7 +1078,7 @@ main = || {
     fn lambda() {
         let _ = env_logger::try_init();
 
-        let expected = Ok(ast::Lambda {
+        let expected = Ok(ast::Expression::Lambda(ast::Lambda {
             context: (),
             parameters: vec![
                 ast::Parameter {
@@ -1120,8 +1111,8 @@ main = || {
                     value: "b".to_owned(),
                 })],
             })),
-        });
-        let actual = tin::LambdaParser::new()
+        }));
+        let actual = tin::ExpressionParser::new()
             .parse(r#"|a, b| { a(b) }"#)
             .map(|r| r.map_context(&mut |_| ()));
         assert_eq!(expected, actual);
@@ -1131,7 +1122,7 @@ main = || {
     fn lambda_with_definition() {
         let _ = env_logger::try_init();
 
-        let expected = Ok(ast::Lambda {
+        let expected = Ok(ast::Expression::Lambda(ast::Lambda {
             context: (),
             parameters: vec![
                 ast::Parameter {
@@ -1194,8 +1185,8 @@ main = || {
                     value: "b".to_owned(),
                 })],
             })),
-        });
-        let actual = tin::LambdaParser::new()
+        }));
+        let actual = tin::ExpressionParser::new()
             .parse(r#"|a, b| { c = |b| { a(b) }; c(b) }"#)
             .map(|r| r.map_context(&mut |_| ()));
         assert_eq!(expected, actual);
@@ -1205,7 +1196,7 @@ main = || {
     fn lambda_with_definition_comment() {
         let _ = env_logger::try_init();
 
-        let expected = Ok(ast::Lambda {
+        let expected = Ok(ast::Expression::Lambda(ast::Lambda {
             context: (),
             parameters: vec![
                 ast::Parameter {
@@ -1269,8 +1260,8 @@ main = || {
                     value: "b".to_owned(),
                 })],
             })),
-        });
-        let actual = tin::LambdaParser::new()
+        }));
+        let actual = tin::ExpressionParser::new()
             .parse(r#"|a, b| { /* define c */ c = |b| { a(b) }; /* call c */ c(b) }"#)
             .map(|r| r.map_context(&mut |_| ()));
         assert_eq!(expected, actual);
@@ -1280,7 +1271,7 @@ main = || {
     fn lambda_signature() {
         let _ = env_logger::try_init();
 
-        let expected = Ok(ast::Lambda {
+        let expected = Ok(ast::Expression::Lambda(ast::Lambda {
             context: (),
             parameters: vec![
                 ast::Parameter {
@@ -1319,8 +1310,8 @@ main = || {
                     value: "b".to_owned(),
                 })],
             })),
-        });
-        let actual = tin::LambdaParser::new()
+        }));
+        let actual = tin::ExpressionParser::new()
             .parse(r#"|a: Int, b: Int| { a(b) }"#)
             .map(|r| r.map_context(&mut |_| ()));
         assert_eq!(expected, actual);
@@ -1330,7 +1321,7 @@ main = || {
     fn lambda_many_statements() {
         let _ = env_logger::try_init();
 
-        let expected = Ok(ast::Lambda {
+        let expected = Ok(ast::Expression::Lambda(ast::Lambda {
             context: (),
             parameters: vec![
                 ast::Parameter {
@@ -1375,8 +1366,8 @@ main = || {
                     value: "b".to_owned(),
                 })],
             })),
-        });
-        let actual = tin::LambdaParser::new()
+        }));
+        let actual = tin::ExpressionParser::new()
             .parse(r#"|a, b| { a(b); a(b) }"#)
             .map(|r| r.map_context(&mut |_| ()));
         assert_eq!(expected, actual);
@@ -1386,7 +1377,7 @@ main = || {
     fn apply() {
         let _ = env_logger::try_init();
 
-        let expected = Ok(ast::Apply {
+        let expected = Ok(ast::Expression::Apply(ast::Apply {
             context: (),
             function: Box::new(ast::Expression::Identifier(ast::Identifier {
                 context: (),
@@ -1396,8 +1387,8 @@ main = || {
                 context: (),
                 value: "b".to_owned(),
             })],
-        });
-        let actual = tin::ApplyParser::new()
+        }));
+        let actual = tin::ExpressionParser::new()
             .parse(r#"a(b)"#)
             .map(|r| r.map_context(&mut |_| ()));
         assert_eq!(expected, actual);

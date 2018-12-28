@@ -44,8 +44,8 @@ where
 {
     fn context(&self) -> &C {
         match *self {
-            ast::Expression::Number(ref v) => v.context(),
-            ast::Expression::String(ref v) => v.context(),
+            ast::Expression::NumberLiteral(ref v) => v.context(),
+            ast::Expression::StringLiteral(ref v) => v.context(),
             ast::Expression::Tuple(ref v) => v.context(),
             ast::Expression::Record(ref v) => v.context(),
             ast::Expression::UnOp(ref v) => v.context(),
@@ -59,8 +59,8 @@ where
 
     fn context_mut(&mut self) -> &mut C {
         match *self {
-            ast::Expression::Number(ref mut v) => v.context_mut(),
-            ast::Expression::String(ref mut v) => v.context_mut(),
+            ast::Expression::NumberLiteral(ref mut v) => v.context_mut(),
+            ast::Expression::StringLiteral(ref mut v) => v.context_mut(),
             ast::Expression::Tuple(ref mut v) => v.context_mut(),
             ast::Expression::Record(ref mut v) => v.context_mut(),
             ast::Expression::UnOp(ref mut v) => v.context_mut(),

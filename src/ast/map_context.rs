@@ -70,8 +70,12 @@ where
         F: FnMut(C1) -> C2,
     {
         match self {
-            ast::Expression::Number(e) => ast::Expression::Number(e.map_context(mapping)),
-            ast::Expression::String(e) => ast::Expression::String(e.map_context(mapping)),
+            ast::Expression::NumberLiteral(e) => {
+                ast::Expression::NumberLiteral(e.map_context(mapping))
+            }
+            ast::Expression::StringLiteral(e) => {
+                ast::Expression::StringLiteral(e.map_context(mapping))
+            }
             ast::Expression::Tuple(e) => ast::Expression::Tuple(e.map_context(mapping)),
             ast::Expression::Record(e) => ast::Expression::Record(e.map_context(mapping)),
             ast::Expression::UnOp(e) => ast::Expression::UnOp(e.map_context(mapping)),

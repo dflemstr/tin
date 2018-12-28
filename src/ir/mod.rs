@@ -204,8 +204,8 @@ impl<'a> ModuleBuilder<'a> {
         expression: &ast::Expression<parser::Context>,
     ) -> Result<(), Error> {
         match *expression {
-            ast::Expression::Number(ref v) => self.add_number(entity, v),
-            ast::Expression::String(ref v) => self.add_string(entity, v),
+            ast::Expression::NumberLiteral(ref v) => self.add_number(entity, v),
+            ast::Expression::StringLiteral(ref v) => self.add_string(entity, v),
             ast::Expression::Tuple(ref v) => self.add_tuple(entity, v),
             ast::Expression::Record(ref v) => self.add_record(entity, v),
             ast::Expression::UnOp(ref v) => self.add_un_op(entity, v),

@@ -52,7 +52,7 @@ Comment: () = {
     r"/\*(\*[^/]|[^*])*\*/"=> ()
 }
 
-pub Definition: ast::Variable<parser::Context> = {
+Definition: ast::Variable<parser::Context> = {
     <lo:@L> <n:Identifier> "=" <i:Expression> <hi:@R> =>
         ast::Variable { context: parser::Context::new(ast::Kind::Variable, lo, hi), name: n, initializer: i },
 }
@@ -132,8 +132,8 @@ ExpressionProjection: ast::Expression<parser::Context> = {
 
 ExpressionAtom: ast::Expression<parser::Context> = {
     Identifier => ast::Expression::Identifier(<>),
-    Number => ast::Expression::Number(<>),
-    String => ast::Expression::String(<>),
+    NumberLiteral => ast::Expression::NumberLiteral(<>),
+    StringLiteral => ast::Expression::StringLiteral(<>),
     Tuple => ast::Expression::Tuple(<>),
     Record => ast::Expression::Record(<>),
     Lambda => ast::Expression::Lambda(<>),
@@ -153,7 +153,7 @@ UnOperator: ast::UnOperator = {
     "^/" => ast::UnOperator::Sqrt,
 }
 
-pub UnOp: ast::UnOp<parser::Context> = {
+UnOp: ast::UnOp<parser::Context> = {
     <lo:@L> <operator:UnOperator> <operand:ExpressionUnOp> <hi:@R> =>
        ast::UnOp { context: parser::Context::new(ast::Kind::UnOp, lo, hi), operator, operand: Box::new(operand) },
 }
@@ -222,28 +222,28 @@ BiOperatorCmp: ast::BiOperator = {
     "<=>" => ast::BiOperator::Cmp,
 }
 
-pub Identifier: ast::Identifier<parser::Context> = {
+Identifier: ast::Identifier<parser::Context> = {
     <lo:@L> <id:r"\p{XID_Start}\p{XID_Continue}*"> <hi:@R> =>
         ast::Identifier { context: parser::Context::new(ast::Kind::Identifier, lo, hi), value: id.into() },
 }
 
-pub Tuple: ast::Tuple<parser::Context> = {
+Tuple: ast::Tuple<parser::Context> = {
     <lo:@L> "(" ")" <hi:@R> =>
         ast::Tuple { context: parser::Context::new(ast::Kind::Tuple, lo, hi), fields: vec![] },
     <lo:@L> "(" <fs:Comma1<Expression>> ")" <hi:@R> =>
         ast::Tuple { context: parser::Context::new(ast::Kind::Tuple, lo, hi), fields: fs },
 }
 
-pub Record: ast::Record<parser::Context> = {
+Record: ast::Record<parser::Context> = {
     <lo:@L> "{" <fs:Comma0<Field>> "}" <hi:@R> =>
         ast::Record { context: parser::Context::new(ast::Kind::Record, lo, hi), fields: fs },
 }
 
-pub Field: (ast::Identifier<parser::Context>, ast::Expression<parser::Context>) = {
+Field: (ast::Identifier<parser::Context>, ast::Expression<parser::Context>) = {
      <Identifier> ":" <Expression> => (<>),
 }
 
-pub Number: ast::NumberLiteral<parser::Context> = {
+NumberLiteral: ast::NumberLiteral<parser::Context> = {
     <lo:@L> <v:r"-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?(?:u8|u16|u32|u64|i8|i16|i32|i64|f32|f64)"> <hi:@R> =>
         ast::NumberLiteral {
             context: parser::Context::new(ast::Kind::NumberLiteral, lo, hi),
@@ -273,32 +273,32 @@ pub Number: ast::NumberLiteral<parser::Context> = {
         },
 }
 
-pub String: ast::StringLiteral<parser::Context> = {
+StringLiteral: ast::StringLiteral<parser::Context> = {
     <lo:@L> <v:r#""(?:[^"\\]|\\(?:["\\/bfnrt]|u\{[a-fA-F0-9]{1,6}\}))*""#> <hi:@R> =>
         ast::StringLiteral { context: parser::Context::new(ast::Kind::StringLiteral, lo, hi), value: parser::util::parse_escaped_string(v).into_owned() },
 }
 
-pub Lambda: ast::Lambda<parser::Context> = {
+Lambda: ast::Lambda<parser::Context> = {
     <lo:@L> "|" <params:Comma0<(Comment? <Parameter>)>> "|" <sig:Expression?> "{" <stmts:SemiRequired0<(Comment? <Statement>)>> <res:(Comment? <Expression>)> "}" <hi:@R> =>
         ast::Lambda { context: parser::Context::new(ast::Kind::Lambda, lo, hi), parameters: params, signature: sig.map(Box::new), statements: stmts, result: Box::new(res) },
 }
 
-pub Statement: ast::Statement<parser::Context> = {
+Statement: ast::Statement<parser::Context> = {
     <Definition> => ast::Statement::Variable(<>),
     <Expression> => ast::Statement::Expression(<>),
 }
 
-pub Select: ast::Select<parser::Context> = {
+Select: ast::Select<parser::Context> = {
     <lo:@L> <r:ExpressionProjection> "." <f:Identifier> <hi:@R> =>
         ast::Select { context: parser::Context::new(ast::Kind::Select, lo, hi), record: Box::new(r), field: f },
 }
 
-pub Apply: ast::Apply<parser::Context> = {
+Apply: ast::Apply<parser::Context> = {
     <lo:@L> <e:ExpressionProjection> "(" <p:Comma0<Expression>> ")" <hi:@R> =>
         ast::Apply { context: parser::Context::new(ast::Kind::Apply, lo, hi), function: Box::new(e), parameters: p },
 }
 
-pub Parameter: ast::Parameter<parser::Context> = {
+Parameter: ast::Parameter<parser::Context> = {
     <lo:@L> <name:Identifier> <signature:(":" <ExpressionAtom>)?> <hi:@R> =>
         ast::Parameter { context: parser::Context::new(ast::Kind::Parameter, lo, hi), name, signature },
 }
