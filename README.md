@@ -1,4 +1,4 @@
-# `tin` [![CircleCI](https://circleci.com/gh/dflemstr/tin.svg?style=svg)](https://circleci.com/gh/dflemstr/tin)
+# `tin` [![CircleCI](https://circleci.com/gh/dflemstr/tin.svg?style=svg)](https://circleci.com/gh/dflemstr/tin) [![codecov](https://codecov.io/gh/dflemstr/tin/branch/master/graph/badge.svg)](https://codecov.io/gh/dflemstr/tin)
 
 `tin` is a new statically structurally typed programming language.  It's main purpose is to be embedded in other
 programs (similar to e.g. Lua) but built to easily be compilable (initially JIT).
