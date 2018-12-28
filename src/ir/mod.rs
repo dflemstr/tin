@@ -208,6 +208,8 @@ impl<'a> ModuleBuilder<'a> {
             ast::Expression::String(ref v) => self.add_string(entity, v),
             ast::Expression::Tuple(ref v) => self.add_tuple(entity, v),
             ast::Expression::Record(ref v) => self.add_record(entity, v),
+            ast::Expression::UnOp(ref v) => self.add_un_op(entity, v),
+            ast::Expression::BiOp(ref v) => self.add_bi_op(entity, v),
             ast::Expression::Identifier(ref v) => self.add_identifier(entity, v),
             ast::Expression::Lambda(ref v) => self.add_lambda(entity, v),
             ast::Expression::Select(ref v) => self.add_select(entity, v),
@@ -316,6 +318,55 @@ impl<'a> ModuleBuilder<'a> {
             .insert(
                 entity,
                 component::element::Element::Record(component::element::Record { fields }),
+            )
+            .unwrap();
+
+        Ok(())
+    }
+
+    fn add_un_op(
+        &mut self,
+        entity: specs::Entity,
+        un_op: &ast::UnOp<parser::Context>,
+    ) -> Result<(), Error> {
+        use specs::world::Builder;
+
+        let operator = ModuleBuilder::translate_un_operator(un_op.operator);
+
+        let operand = self.world.create_entity().build();
+        self.add_expression(operand, &*un_op.operand)?;
+
+        self.world
+            .write_storage()
+            .insert(
+                entity,
+                component::element::Element::UnOp(component::element::UnOp { operator, operand }),
+            )
+            .unwrap();
+
+        Ok(())
+    }
+
+    fn add_bi_op(
+        &mut self,
+        entity: specs::Entity,
+        bi_op: &ast::BiOp<parser::Context>,
+    ) -> Result<(), Error> {
+        use specs::world::Builder;
+
+        let lhs = self.world.create_entity().build();
+        self.add_expression(lhs, &*bi_op.lhs)?;
+
+        let operator = ModuleBuilder::translate_bi_operator(bi_op.operator);
+
+        let rhs = self.world.create_entity().build();
+        self.add_expression(rhs, &*bi_op.rhs)?;
+
+        self.world
+            .write_storage()
+            .insert(
+                entity,
+                component::element::Element::BiOp(component::element::BiOp { lhs, operator, rhs }),
             )
             .unwrap();
 
@@ -542,6 +593,54 @@ impl<'a> ModuleBuilder<'a> {
     fn pop_scope(&mut self) {
         self.current_scope = self.scopes.pop().unwrap();
         self.current_captures = self.captures.pop().unwrap();
+    }
+
+    fn translate_un_operator(un_operator: ast::UnOperator) -> component::element::UnOperator {
+        match un_operator {
+            ast::UnOperator::Not => component::element::UnOperator::Not,
+            ast::UnOperator::BNot => component::element::UnOperator::BNot,
+            ast::UnOperator::Cl0 => component::element::UnOperator::Cl0,
+            ast::UnOperator::Cl1 => component::element::UnOperator::Cl1,
+            ast::UnOperator::Cls => component::element::UnOperator::Cls,
+            ast::UnOperator::Ct0 => component::element::UnOperator::Ct0,
+            ast::UnOperator::Ct1 => component::element::UnOperator::Ct1,
+            ast::UnOperator::C0 => component::element::UnOperator::C0,
+            ast::UnOperator::C1 => component::element::UnOperator::C1,
+            ast::UnOperator::Sqrt => component::element::UnOperator::Sqrt,
+        }
+    }
+
+    fn translate_bi_operator(bi_operator: ast::BiOperator) -> component::element::BiOperator {
+        match bi_operator {
+            ast::BiOperator::Eq => component::element::BiOperator::Eq,
+            ast::BiOperator::Ne => component::element::BiOperator::Ne,
+            ast::BiOperator::Lt => component::element::BiOperator::Lt,
+            ast::BiOperator::Ge => component::element::BiOperator::Ge,
+            ast::BiOperator::Gt => component::element::BiOperator::Gt,
+            ast::BiOperator::Le => component::element::BiOperator::Le,
+            ast::BiOperator::Cmp => component::element::BiOperator::Cmp,
+            ast::BiOperator::Add => component::element::BiOperator::Add,
+            ast::BiOperator::Sub => component::element::BiOperator::Sub,
+            ast::BiOperator::Mul => component::element::BiOperator::Mul,
+            ast::BiOperator::Div => component::element::BiOperator::Div,
+            ast::BiOperator::Rem => component::element::BiOperator::Rem,
+            ast::BiOperator::And => component::element::BiOperator::And,
+            ast::BiOperator::BAnd => component::element::BiOperator::BAnd,
+            ast::BiOperator::Or => component::element::BiOperator::Or,
+            ast::BiOperator::BOr => component::element::BiOperator::BOr,
+            ast::BiOperator::Xor => component::element::BiOperator::Xor,
+            ast::BiOperator::BXor => component::element::BiOperator::BXor,
+            ast::BiOperator::AndNot => component::element::BiOperator::AndNot,
+            ast::BiOperator::BAndNot => component::element::BiOperator::BAndNot,
+            ast::BiOperator::OrNot => component::element::BiOperator::OrNot,
+            ast::BiOperator::BOrNot => component::element::BiOperator::BOrNot,
+            ast::BiOperator::XorNot => component::element::BiOperator::XorNot,
+            ast::BiOperator::BXorNot => component::element::BiOperator::BXorNot,
+            ast::BiOperator::RotL => component::element::BiOperator::RotL,
+            ast::BiOperator::RotR => component::element::BiOperator::RotR,
+            ast::BiOperator::ShL => component::element::BiOperator::ShL,
+            ast::BiOperator::ShR => component::element::BiOperator::ShR,
+        }
     }
 }
 

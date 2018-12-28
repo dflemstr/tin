@@ -75,6 +75,8 @@ impl<'a, 'f> FunctionTranslator<'a, 'f> {
             element::Element::StringValue(ref v) => self.eval_string_value(entity, v),
             element::Element::Tuple(ref v) => self.eval_tuple(entity, v),
             element::Element::Record(ref v) => self.eval_record(entity, v),
+            element::Element::UnOp(ref v) => self.eval_un_op(entity, v),
+            element::Element::BiOp(ref v) => self.eval_bi_op(entity, v),
             element::Element::Variable(ref v) => self.eval_variable(entity, v),
             element::Element::Select(ref v) => self.eval_select(entity, v),
             element::Element::Apply(ref v) => self.eval_apply(entity, v),
@@ -139,7 +141,7 @@ impl<'a, 'f> FunctionTranslator<'a, 'f> {
 
         for (idx, value) in tuple.fields.iter().enumerate() {
             let value = self.eval_element(*value, self.elements.get(*value).unwrap());
-            let offset = layout.unnamed_field_offsets[idx] as i32;
+            let offset = layout.unnamed_field_offsets.as_ref().unwrap()[idx] as i32;
             self.builder.ins().store(mem_flags, value, result, offset);
         }
 
@@ -161,11 +163,118 @@ impl<'a, 'f> FunctionTranslator<'a, 'f> {
 
         for (field, value) in &record.fields {
             let value = self.eval_element(*value, self.elements.get(*value).unwrap());
-            let offset = layout.named_field_offsets[field] as i32;
+            let offset = layout.named_field_offsets.as_ref().unwrap()[field] as i32;
             self.builder.ins().store(mem_flags, value, result, offset);
         }
 
         result
+    }
+
+    pub fn eval_un_op(&mut self, entity: specs::Entity, un_op: &element::UnOp) -> Value {
+        let element::UnOp { operator, operand } = un_op;
+        let operand = *operand;
+
+        let operand_value = self.eval_element(operand, self.elements.get(operand).unwrap());
+
+        match operator {
+            element::UnOperator::Not => self.builder.ins().bnot(operand_value),
+            element::UnOperator::BNot => self.builder.ins().bnot(operand_value),
+            element::UnOperator::Cl0 => self.builder.ins().clz(operand_value),
+            element::UnOperator::Cl1 => {
+                let inverted = self.builder.ins().bnot(operand_value);
+                self.builder.ins().clz(inverted)
+            }
+            element::UnOperator::Cls => self.builder.ins().cls(operand_value),
+            element::UnOperator::Ct0 => self.builder.ins().ctz(operand_value),
+            element::UnOperator::Ct1 => {
+                let inverted = self.builder.ins().bnot(operand_value);
+                self.builder.ins().ctz(inverted)
+            }
+            element::UnOperator::C0 => {
+                let inverted = self.builder.ins().bnot(operand_value);
+                self.builder.ins().popcnt(inverted)
+            }
+            element::UnOperator::C1 => self.builder.ins().popcnt(operand_value),
+            element::UnOperator::Sqrt => self.builder.ins().sqrt(operand_value),
+        }
+    }
+
+    pub fn eval_bi_op(&mut self, entity: specs::Entity, bi_op: &element::BiOp) -> Value {
+        let element::BiOp { lhs, operator, rhs } = bi_op;
+        let lhs = *lhs;
+        let rhs = *rhs;
+
+        // TODO: support lazy evaluation
+        let lhs_value = self.eval_element(lhs, self.elements.get(lhs).unwrap());
+        let rhs_value = self.eval_element(rhs, self.elements.get(rhs).unwrap());
+
+        match operator {
+            element::BiOperator::Eq => unimplemented!(),
+            element::BiOperator::Ne => unimplemented!(),
+            element::BiOperator::Lt => unimplemented!(),
+            element::BiOperator::Ge => unimplemented!(),
+            element::BiOperator::Gt => unimplemented!(),
+            element::BiOperator::Le => unimplemented!(),
+            element::BiOperator::Cmp => unimplemented!(),
+            element::BiOperator::Add => match self.types.get(lhs).unwrap().scalar_class() {
+                ty::ScalarClass::Integral(_) => self.builder.ins().iadd(lhs_value, rhs_value),
+                ty::ScalarClass::Fractional => self.builder.ins().fadd(lhs_value, rhs_value),
+                _ => unreachable!(),
+            },
+            element::BiOperator::Sub => match self.types.get(lhs).unwrap().scalar_class() {
+                ty::ScalarClass::Integral(_) => self.builder.ins().isub(lhs_value, rhs_value),
+                ty::ScalarClass::Fractional => self.builder.ins().fsub(lhs_value, rhs_value),
+                _ => unreachable!(),
+            },
+            element::BiOperator::Mul => match self.types.get(lhs).unwrap().scalar_class() {
+                ty::ScalarClass::Integral(_) => self.builder.ins().imul(lhs_value, rhs_value),
+                ty::ScalarClass::Fractional => self.builder.ins().fmul(lhs_value, rhs_value),
+                _ => unreachable!(),
+            },
+            element::BiOperator::Div => match self.types.get(lhs).unwrap().scalar_class() {
+                ty::ScalarClass::Integral(ty::IntegralScalarClass::Unsigned) => {
+                    self.builder.ins().udiv(lhs_value, rhs_value)
+                }
+                ty::ScalarClass::Integral(ty::IntegralScalarClass::Signed) => {
+                    self.builder.ins().sdiv(lhs_value, rhs_value)
+                }
+                ty::ScalarClass::Fractional => self.builder.ins().fdiv(lhs_value, rhs_value),
+                _ => unreachable!(),
+            },
+            element::BiOperator::Rem => match self.types.get(lhs).unwrap().scalar_class() {
+                ty::ScalarClass::Integral(ty::IntegralScalarClass::Unsigned) => {
+                    self.builder.ins().urem(lhs_value, rhs_value)
+                }
+                ty::ScalarClass::Integral(ty::IntegralScalarClass::Signed) => {
+                    self.builder.ins().srem(lhs_value, rhs_value)
+                }
+                _ => unreachable!(),
+            },
+            element::BiOperator::And => self.builder.ins().band(lhs_value, rhs_value),
+            element::BiOperator::BAnd => self.builder.ins().band(lhs_value, rhs_value),
+            element::BiOperator::Or => self.builder.ins().bor(lhs_value, rhs_value),
+            element::BiOperator::BOr => self.builder.ins().bor(lhs_value, rhs_value),
+            element::BiOperator::Xor => self.builder.ins().bxor(lhs_value, rhs_value),
+            element::BiOperator::BXor => self.builder.ins().bxor(lhs_value, rhs_value),
+            element::BiOperator::AndNot => self.builder.ins().band_not(lhs_value, rhs_value),
+            element::BiOperator::BAndNot => self.builder.ins().band_not(lhs_value, rhs_value),
+            element::BiOperator::OrNot => self.builder.ins().bor_not(lhs_value, rhs_value),
+            element::BiOperator::BOrNot => self.builder.ins().bor_not(lhs_value, rhs_value),
+            element::BiOperator::XorNot => self.builder.ins().bxor_not(lhs_value, rhs_value),
+            element::BiOperator::BXorNot => self.builder.ins().bxor_not(lhs_value, rhs_value),
+            element::BiOperator::RotL => self.builder.ins().rotl(lhs_value, rhs_value),
+            element::BiOperator::RotR => self.builder.ins().rotr(lhs_value, rhs_value),
+            element::BiOperator::ShL => self.builder.ins().ishl(lhs_value, rhs_value),
+            element::BiOperator::ShR => match self.types.get(lhs).unwrap().scalar_class() {
+                ty::ScalarClass::Integral(ty::IntegralScalarClass::Unsigned) => {
+                    self.builder.ins().ushr(lhs_value, rhs_value)
+                }
+                ty::ScalarClass::Integral(ty::IntegralScalarClass::Signed) => {
+                    self.builder.ins().sshr(lhs_value, rhs_value)
+                }
+                _ => unreachable!(),
+            },
+        }
     }
 
     pub fn eval_reference(
@@ -191,7 +300,8 @@ impl<'a, 'f> FunctionTranslator<'a, 'f> {
         let field_type = &record_type.fields[&select.field];
         let field_abi_type =
             abi_type::AbiType::from_ir_type(field_type).into_specific(self.ptr_type);
-        let field_offset = record_layout.named_field_offsets[&select.field] as i32;
+        let field_offset =
+            record_layout.named_field_offsets.as_ref().unwrap()[&select.field] as i32;
 
         let mut mem_flags = MemFlags::new();
         mem_flags.set_notrap();

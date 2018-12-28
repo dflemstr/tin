@@ -454,6 +454,168 @@ main = || Int { a = { x: 1u32, y: 2u32, z: 3u32}; a.y };
         Ok(())
     }
 
+    #[test]
+    fn operators_u32() -> Result<(), failure::Error> {
+        let _ = env_logger::try_init();
+
+        let source = r#"
+Int = 0u32;
+main = || Int { a = 1u32; b = 2u32; (a * 24u32 + b * 3u32) / 10u32 };
+"#;
+
+        let mut module = compile_module("operators_u32", source)?;
+
+        let main = module.function::<module::Function0<u32>>("main").unwrap();
+
+        let result = main();
+        assert_eq!(3, result);
+        Ok(())
+    }
+
+    #[test]
+    fn operators_f32() -> Result<(), failure::Error> {
+        let _ = env_logger::try_init();
+
+        let source = r#"
+F32 = 0f32;
+main = || F32 { a = 1f32; b = 2f32; (a * 24f32 + b * 3f32) / 10f32 };
+"#;
+
+        let mut module = compile_module("operators_f32", source)?;
+
+        let main = module.function::<module::Function0<f32>>("main").unwrap();
+
+        let result = main();
+        assert_eq!(3.0, result);
+        Ok(())
+    }
+
+    #[test]
+    fn operators_f64() -> Result<(), failure::Error> {
+        let _ = env_logger::try_init();
+
+        let source = r#"
+F64 = 0f64;
+main = || F64 { a = 1f64; b = 2f64; (a * 24f64 + b * 3f64) / 10f64 };
+"#;
+
+        let mut module = compile_module("operators_f64", source)?;
+
+        let main = module.function::<module::Function0<f64>>("main").unwrap();
+
+        let result = main();
+        assert_eq!(3.0, result);
+        Ok(())
+    }
+
+    #[test]
+    fn add_u32() -> Result<(), failure::Error> {
+        let _ = env_logger::try_init();
+
+        let source = r#"
+Int = 0u32;
+main = || Int { a = 1u32; b = 2u32; a + b };
+"#;
+
+        let mut module = compile_module("add_u32", source)?;
+
+        let main = module.function::<module::Function0<u32>>("main").unwrap();
+
+        let result = main();
+        assert_eq!(3, result);
+        Ok(())
+    }
+
+    #[test]
+    fn add_i32() -> Result<(), failure::Error> {
+        let _ = env_logger::try_init();
+
+        let source = r#"
+Int = 0i32;
+main = || Int { a = 1i32; b = 2i32; a + b };
+"#;
+
+        let mut module = compile_module("add_i32", source)?;
+
+        let main = module.function::<module::Function0<i32>>("main").unwrap();
+
+        let result = main();
+        assert_eq!(3, result);
+        Ok(())
+    }
+
+    #[test]
+    fn add_f32() -> Result<(), failure::Error> {
+        let _ = env_logger::try_init();
+
+        let source = r#"
+F32 = 0f32;
+main = || F32 { a = 1f32; b = 2f32; a + b };
+"#;
+
+        let mut module = compile_module("add_f32", source)?;
+
+        let main = module.function::<module::Function0<f32>>("main").unwrap();
+
+        let result = main();
+        assert_eq!(3.0, result);
+        Ok(())
+    }
+
+    #[test]
+    fn sub_u32() -> Result<(), failure::Error> {
+        let _ = env_logger::try_init();
+
+        let source = r#"
+Int = 0u32;
+main = || Int { a = 2u32; b = 1u32; a - b };
+"#;
+
+        let mut module = compile_module("sub_u32", source)?;
+
+        let main = module.function::<module::Function0<u32>>("main").unwrap();
+
+        let result = main();
+        assert_eq!(1, result);
+        Ok(())
+    }
+
+    #[test]
+    fn sub_i32() -> Result<(), failure::Error> {
+        let _ = env_logger::try_init();
+
+        let source = r#"
+Int = 0i32;
+main = || Int { a = 1i32; b = 2i32; a - b };
+"#;
+
+        let mut module = compile_module("sub_i32", source)?;
+
+        let main = module.function::<module::Function0<i32>>("main").unwrap();
+
+        let result = main();
+        assert_eq!(-1, result);
+        Ok(())
+    }
+
+    #[test]
+    fn sub_f32() -> Result<(), failure::Error> {
+        let _ = env_logger::try_init();
+
+        let source = r#"
+F32 = 0f32;
+main = || F32 { a = 2f32; b = 1f32; a - b };
+"#;
+
+        let mut module = compile_module("sub_f32", source)?;
+
+        let main = module.function::<module::Function0<f32>>("main").unwrap();
+
+        let result = main();
+        assert_eq!(1.0, result);
+        Ok(())
+    }
+
     fn compile_module(name: &str, source: &str) -> Result<module::Module, failure::Error> {
         use parser::Parse;
 

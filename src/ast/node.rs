@@ -48,6 +48,8 @@ where
             ast::Expression::String(ref v) => v.context(),
             ast::Expression::Tuple(ref v) => v.context(),
             ast::Expression::Record(ref v) => v.context(),
+            ast::Expression::UnOp(ref v) => v.context(),
+            ast::Expression::BiOp(ref v) => v.context(),
             ast::Expression::Identifier(ref v) => v.context(),
             ast::Expression::Lambda(ref v) => v.context(),
             ast::Expression::Select(ref v) => v.context(),
@@ -61,6 +63,8 @@ where
             ast::Expression::String(ref mut v) => v.context_mut(),
             ast::Expression::Tuple(ref mut v) => v.context_mut(),
             ast::Expression::Record(ref mut v) => v.context_mut(),
+            ast::Expression::UnOp(ref mut v) => v.context_mut(),
+            ast::Expression::BiOp(ref mut v) => v.context_mut(),
             ast::Expression::Identifier(ref mut v) => v.context_mut(),
             ast::Expression::Lambda(ref mut v) => v.context_mut(),
             ast::Expression::Select(ref mut v) => v.context_mut(),
@@ -109,6 +113,32 @@ where
 }
 
 impl<C> AstNode<C> for ast::Record<C>
+where
+    C: fmt::Debug,
+{
+    fn context(&self) -> &C {
+        &self.context
+    }
+
+    fn context_mut(&mut self) -> &mut C {
+        &mut self.context
+    }
+}
+
+impl<C> AstNode<C> for ast::UnOp<C>
+where
+    C: fmt::Debug,
+{
+    fn context(&self) -> &C {
+        &self.context
+    }
+
+    fn context_mut(&mut self) -> &mut C {
+        &mut self.context
+    }
+}
+
+impl<C> AstNode<C> for ast::BiOp<C>
 where
     C: fmt::Debug,
 {

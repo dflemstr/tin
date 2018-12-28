@@ -12,6 +12,8 @@ pub struct InferLayoutsSystem {
     ptr_size: usize,
 }
 
+const BOOL_LAYOUT: layout::Layout = layout::Layout::scalar(1);
+
 impl<'a> specs::System<'a> for InferLayoutsSystem {
     type SystemData = (
         specs::Entities<'a>,
@@ -66,6 +68,12 @@ impl InferLayoutsSystem {
             }
             element::Element::Record(element::Record { ref fields }) => {
                 self.infer_record_layout(fields, layouts)
+            }
+            element::Element::UnOp(element::UnOp { operator, operand }) => {
+                self.infer_un_op_layout(operator, operand, layouts)
+            }
+            element::Element::BiOp(element::BiOp { lhs, operator, rhs }) => {
+                self.infer_bi_op_layout(lhs, operator, rhs, layouts)
             }
             element::Element::Variable(element::Variable {
                 name: _,
@@ -189,6 +197,76 @@ impl InferLayoutsSystem {
             }
         } else {
             None
+        }
+    }
+
+    fn infer_un_op_layout<D>(
+        &self,
+        operator: element::UnOperator,
+        operand: specs::Entity,
+        layouts: &specs::Storage<layout::Layout, D>,
+    ) -> Option<layout::Layout>
+    where
+        D: ops::Deref<Target = specs::storage::MaskedStorage<layout::Layout>>,
+    {
+        let operand = layouts.get(operand).cloned();
+
+        match operator {
+            element::UnOperator::Not => Some(BOOL_LAYOUT),
+            element::UnOperator::BNot => operand,
+            element::UnOperator::Cl0 => operand,
+            element::UnOperator::Cl1 => operand,
+            element::UnOperator::Cls => operand,
+            element::UnOperator::Ct0 => operand,
+            element::UnOperator::Ct1 => operand,
+            element::UnOperator::C0 => operand,
+            element::UnOperator::C1 => operand,
+            element::UnOperator::Sqrt => operand,
+        }
+    }
+
+    fn infer_bi_op_layout<D>(
+        &self,
+        lhs: specs::Entity,
+        operator: element::BiOperator,
+        rhs: specs::Entity,
+        layouts: &specs::Storage<layout::Layout, D>,
+    ) -> Option<layout::Layout>
+    where
+        D: ops::Deref<Target = specs::storage::MaskedStorage<layout::Layout>>,
+    {
+        let lhs = layouts.get(lhs).cloned();
+        let rhs = layouts.get(rhs).cloned();
+
+        match operator {
+            element::BiOperator::Eq => Some(BOOL_LAYOUT),
+            element::BiOperator::Ne => Some(BOOL_LAYOUT),
+            element::BiOperator::Lt => Some(BOOL_LAYOUT),
+            element::BiOperator::Ge => Some(BOOL_LAYOUT),
+            element::BiOperator::Gt => Some(BOOL_LAYOUT),
+            element::BiOperator::Le => Some(BOOL_LAYOUT),
+            element::BiOperator::Cmp => unimplemented!(),
+            element::BiOperator::Add => lhs,
+            element::BiOperator::Sub => lhs,
+            element::BiOperator::Mul => lhs,
+            element::BiOperator::Div => lhs,
+            element::BiOperator::Rem => lhs,
+            element::BiOperator::And => Some(BOOL_LAYOUT),
+            element::BiOperator::BAnd => lhs,
+            element::BiOperator::Or => Some(BOOL_LAYOUT),
+            element::BiOperator::BOr => lhs,
+            element::BiOperator::Xor => Some(BOOL_LAYOUT),
+            element::BiOperator::BXor => lhs,
+            element::BiOperator::AndNot => Some(BOOL_LAYOUT),
+            element::BiOperator::BAndNot => lhs,
+            element::BiOperator::OrNot => Some(BOOL_LAYOUT),
+            element::BiOperator::BOrNot => lhs,
+            element::BiOperator::XorNot => Some(BOOL_LAYOUT),
+            element::BiOperator::BXorNot => lhs,
+            element::BiOperator::RotL => lhs,
+            element::BiOperator::RotR => lhs,
+            element::BiOperator::ShL => lhs,
+            element::BiOperator::ShR => lhs,
         }
     }
 

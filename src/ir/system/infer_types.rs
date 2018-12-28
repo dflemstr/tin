@@ -50,6 +50,12 @@ where
         element::Element::Record(element::Record { ref fields }) => {
             infer_record_type(fields, types)
         }
+        element::Element::UnOp(element::UnOp { operand, operator }) => {
+            infer_un_op_type(operand, operator, types)
+        }
+        element::Element::BiOp(element::BiOp { lhs, operator, rhs }) => {
+            infer_bi_op_type(lhs, operator, rhs, types)
+        }
         element::Element::Variable(element::Variable {
             name: _,
             initializer,
@@ -123,6 +129,90 @@ where
         .map(|fields| ty::Type::Record(ty::Record { fields }))
 }
 
+fn infer_un_op_type<D>(
+    operand: specs::Entity,
+    operator: element::UnOperator,
+    types: &specs::Storage<ty::Type, D>,
+) -> Option<ty::Type>
+where
+    D: ops::Deref<Target = specs::storage::MaskedStorage<ty::Type>>,
+{
+    if let Some(ty) = types.get(operand) {
+        let result = match operator {
+            element::UnOperator::Not => {
+                if ty.scalar_class() == ty::ScalarClass::Boolean {
+                    ty::Type::Boolean
+                } else {
+                    ty::Type::Conflict(ty::Conflict {
+                        expected: ty::ExpectedType::Specific(Box::new(ty::Type::Boolean)),
+                        actual: Box::new(ty.clone()),
+                    })
+                }
+            }
+            element::UnOperator::BNot => same_integral_type(ty),
+            element::UnOperator::Cl0 => same_integral_type(ty),
+            element::UnOperator::Cl1 => same_integral_type(ty),
+            element::UnOperator::Cls => same_integral_type(ty),
+            element::UnOperator::Ct0 => same_integral_type(ty),
+            element::UnOperator::Ct1 => same_integral_type(ty),
+            element::UnOperator::C0 => same_integral_type(ty),
+            element::UnOperator::C1 => same_integral_type(ty),
+            element::UnOperator::Sqrt => same_fractional_type(ty),
+        };
+        Some(result)
+    } else {
+        None
+    }
+}
+
+fn infer_bi_op_type<D>(
+    lhs: specs::Entity,
+    operator: element::BiOperator,
+    rhs: specs::Entity,
+    types: &specs::Storage<ty::Type, D>,
+) -> Option<ty::Type>
+where
+    D: ops::Deref<Target = specs::storage::MaskedStorage<ty::Type>>,
+{
+    // TODO: check scalar type semantics so e.g. records can't be divided.
+    match (types.get(lhs), types.get(rhs)) {
+        (Some(lhs_ty), Some(rhs_ty)) => {
+            let result = match operator {
+                element::BiOperator::Eq => if_eq_then(lhs_ty, rhs_ty, &ty::Type::Boolean),
+                element::BiOperator::Ne => if_eq_then(lhs_ty, rhs_ty, &ty::Type::Boolean),
+                element::BiOperator::Lt => if_eq_then(lhs_ty, rhs_ty, &ty::Type::Boolean),
+                element::BiOperator::Ge => if_eq_then(lhs_ty, rhs_ty, &ty::Type::Boolean),
+                element::BiOperator::Gt => if_eq_then(lhs_ty, rhs_ty, &ty::Type::Boolean),
+                element::BiOperator::Le => if_eq_then(lhs_ty, rhs_ty, &ty::Type::Boolean),
+                element::BiOperator::Cmp => unimplemented!(),
+                element::BiOperator::Add => if_eq_then(lhs_ty, rhs_ty, lhs_ty),
+                element::BiOperator::Sub => if_eq_then(lhs_ty, rhs_ty, lhs_ty),
+                element::BiOperator::Mul => if_eq_then(lhs_ty, rhs_ty, lhs_ty),
+                element::BiOperator::Div => if_eq_then(lhs_ty, rhs_ty, lhs_ty),
+                element::BiOperator::Rem => if_eq_then(lhs_ty, rhs_ty, lhs_ty),
+                element::BiOperator::And => bool_op(lhs_ty, rhs_ty),
+                element::BiOperator::BAnd => if_eq_then(lhs_ty, rhs_ty, lhs_ty),
+                element::BiOperator::Or => bool_op(lhs_ty, rhs_ty),
+                element::BiOperator::BOr => if_eq_then(lhs_ty, rhs_ty, lhs_ty),
+                element::BiOperator::Xor => bool_op(lhs_ty, rhs_ty),
+                element::BiOperator::BXor => if_eq_then(lhs_ty, rhs_ty, lhs_ty),
+                element::BiOperator::AndNot => bool_op(lhs_ty, rhs_ty),
+                element::BiOperator::BAndNot => if_eq_then(lhs_ty, rhs_ty, lhs_ty),
+                element::BiOperator::OrNot => bool_op(lhs_ty, rhs_ty),
+                element::BiOperator::BOrNot => if_eq_then(lhs_ty, rhs_ty, lhs_ty),
+                element::BiOperator::XorNot => bool_op(lhs_ty, rhs_ty),
+                element::BiOperator::BXorNot => if_eq_then(lhs_ty, rhs_ty, lhs_ty),
+                element::BiOperator::RotL => if_eq_then(lhs_ty, rhs_ty, lhs_ty),
+                element::BiOperator::RotR => if_eq_then(lhs_ty, rhs_ty, lhs_ty),
+                element::BiOperator::ShL => if_eq_then(lhs_ty, rhs_ty, lhs_ty),
+                element::BiOperator::ShR => if_eq_then(lhs_ty, rhs_ty, lhs_ty),
+            };
+            Some(result)
+        }
+        _ => None,
+    }
+}
+
 fn infer_variable_type<D>(
     initializer: specs::Entity,
     types: &specs::Storage<ty::Type, D>,
@@ -151,9 +241,11 @@ where
                     let mut expected_fields = collections::HashMap::new();
                     expected_fields.insert(field.to_owned(), ty::Type::Any);
                     Some(ty::Type::Conflict(ty::Conflict {
-                        expected: Box::new(ty::Type::Record(ty::Record {
-                            fields: expected_fields,
-                        })),
+                        expected: ty::ExpectedType::Specific(Box::new(ty::Type::Record(
+                            ty::Record {
+                                fields: expected_fields,
+                            },
+                        ))),
                         actual: Box::new(t.clone()),
                     }))
                 }
@@ -162,9 +254,9 @@ where
                 let mut expected_fields = collections::HashMap::new();
                 expected_fields.insert(field.to_owned(), ty::Type::Any);
                 Some(ty::Type::Conflict(ty::Conflict {
-                    expected: Box::new(ty::Type::Record(ty::Record {
+                    expected: ty::ExpectedType::Specific(Box::new(ty::Type::Record(ty::Record {
                         fields: expected_fields,
-                    })),
+                    }))),
                     actual: Box::new(something.clone()),
                 }))
             }
@@ -199,10 +291,12 @@ where
                         Some((**result).clone())
                     } else {
                         Some(ty::Type::Conflict(ty::Conflict {
-                            expected: Box::new(ty::Type::Function(ty::Function {
-                                parameters,
-                                result: Box::new(ty::Type::Any),
-                            })),
+                            expected: ty::ExpectedType::Specific(Box::new(ty::Type::Function(
+                                ty::Function {
+                                    parameters,
+                                    result: Box::new(ty::Type::Any),
+                                },
+                            ))),
                             actual: Box::new(f.clone()),
                         }))
                     }
@@ -211,10 +305,10 @@ where
                 }
             }
             something => Some(ty::Type::Conflict(ty::Conflict {
-                expected: Box::new(ty::Type::Function(ty::Function {
+                expected: ty::ExpectedType::Specific(Box::new(ty::Type::Function(ty::Function {
                     parameters: vec![ty::Type::Any],
                     result: Box::new(ty::Type::Any),
-                })),
+                }))),
                 actual: Box::new(something.clone()),
             })),
         },
@@ -295,4 +389,51 @@ where
         .map(|(k, v)| types.get(*v).map(|t| (k.clone(), t.clone())))
         .collect::<Option<collections::HashMap<_, _>>>()
         .map(|fields| ty::Type::Record(ty::Record { fields }))
+}
+
+fn if_eq_then(lhs: &ty::Type, rhs: &ty::Type, result: &ty::Type) -> ty::Type {
+    if lhs == rhs {
+        result.clone()
+    } else {
+        ty::Type::Conflict(ty::Conflict {
+            expected: ty::ExpectedType::Specific(Box::new(lhs.clone())),
+            actual: Box::new(rhs.clone()),
+        })
+    }
+}
+
+fn bool_op(lhs: &ty::Type, rhs: &ty::Type) -> ty::Type {
+    match (lhs.scalar_class(), rhs.scalar_class()) {
+        (ty::ScalarClass::Boolean, ty::ScalarClass::Boolean) => ty::Type::Boolean,
+        (ty::ScalarClass::Boolean, _) => ty::Type::Conflict(ty::Conflict {
+            expected: ty::ExpectedType::Specific(Box::new(ty::Type::Boolean)),
+            actual: Box::new(rhs.clone()),
+        }),
+        _ => ty::Type::Conflict(ty::Conflict {
+            expected: ty::ExpectedType::Specific(Box::new(ty::Type::Boolean)),
+            actual: Box::new(lhs.clone()),
+        }),
+    }
+}
+
+fn same_integral_type(ty: &ty::Type) -> ty::Type {
+    match ty.scalar_class() {
+        ty::ScalarClass::Integral(_) => ty.clone(),
+        _ => ty::Type::Conflict(ty::Conflict {
+            expected: ty::ExpectedType::ScalarClass(ty::ScalarClass::Integral(
+                ty::IntegralScalarClass::Any,
+            )),
+            actual: Box::new(ty.clone()),
+        }),
+    }
+}
+
+fn same_fractional_type(ty: &ty::Type) -> ty::Type {
+    match ty.scalar_class() {
+        ty::ScalarClass::Fractional => ty.clone(),
+        _ => ty::Type::Conflict(ty::Conflict {
+            expected: ty::ExpectedType::ScalarClass(ty::ScalarClass::Fractional),
+            actual: Box::new(ty.clone()),
+        }),
+    }
 }

@@ -51,6 +51,9 @@ enum Label<'a> {
     ClosureSignature,
     ClosureResult,
     ModuleDefinition(&'a str),
+    UnOperand,
+    BiLhs,
+    BiRhs,
 }
 
 struct PrettyTy<T>(T);
@@ -114,6 +117,32 @@ impl<'a> dot::GraphWalk<'a, Node, Edge<'a>> for Graph<'a> {
                                 label: Label::RecordField(name),
                             });
                         }
+                    }
+                    element::Element::UnOp(element::UnOp {
+                        operator: _,
+                        operand,
+                    }) => {
+                        edges.push(Edge {
+                            source: entity,
+                            target: *operand,
+                            label: Label::UnOperand,
+                        });
+                    }
+                    element::Element::BiOp(element::BiOp {
+                        lhs,
+                        operator: _,
+                        rhs,
+                    }) => {
+                        edges.push(Edge {
+                            source: entity,
+                            target: *lhs,
+                            label: Label::BiLhs,
+                        });
+                        edges.push(Edge {
+                            source: entity,
+                            target: *rhs,
+                            label: Label::BiRhs,
+                        });
                     }
                     element::Element::Variable(element::Variable {
                         name: _,
@@ -258,6 +287,15 @@ impl<'a> dot::Labeller<'a, Node, Edge<'a>> for Graph<'a> {
                 element::Element::Record(element::Record { fields }) => {
                     write!(result, "record <br/> <b>{:?}</b> fields", fields.len()).unwrap()
                 }
+                element::Element::UnOp(element::UnOp {
+                    operator,
+                    operand: _,
+                }) => write!(result, "un op <b>{}</b>", operator).unwrap(),
+                element::Element::BiOp(element::BiOp {
+                    lhs: _,
+                    operator,
+                    rhs: _,
+                }) => write!(result, "bi op <b>{}</b>", operator).unwrap(),
                 element::Element::Variable(element::Variable {
                     name,
                     initializer: _,
@@ -328,7 +366,7 @@ impl<'a> dot::Labeller<'a, Node, Edge<'a>> for Graph<'a> {
             Label::TupleField(idx) => {
                 dot::LabelText::HtmlStr(format!("field <b>{}</b>", idx).into())
             }
-            Label::VariableInitializer => dot::LabelText::HtmlStr("initializer".into()),
+            Label::VariableInitializer => dot::LabelText::LabelStr("initializer".into()),
             Label::SelectField(ref name) => {
                 dot::LabelText::HtmlStr(format!("select <b>{}</b>", name).into())
             }
@@ -354,6 +392,9 @@ impl<'a> dot::Labeller<'a, Node, Edge<'a>> for Graph<'a> {
             Label::ModuleDefinition(ref name) => {
                 dot::LabelText::HtmlStr(format!("def <b>{}</b>", name).into())
             }
+            Label::UnOperand => dot::LabelText::LabelStr("operand".into()),
+            Label::BiLhs => dot::LabelText::LabelStr("lhs".into()),
+            Label::BiRhs => dot::LabelText::LabelStr("rhs".into()),
         }
     }
 
@@ -373,6 +414,9 @@ impl<'a> dot::Labeller<'a, Node, Edge<'a>> for Graph<'a> {
             Label::ClosureResult => dot::Style::None,
             Label::ClosureSignature => dot::Style::Dotted,
             Label::ModuleDefinition(_) => dot::Style::None,
+            Label::UnOperand => dot::Style::None,
+            Label::BiLhs => dot::Style::None,
+            Label::BiRhs => dot::Style::None,
         }
     }
 }
@@ -386,6 +430,7 @@ impl<'a> fmt::Debug for Graph<'a> {
 impl<'a> fmt::Display for PrettyTy<&'a ty::Type> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self.0 {
+            ty::Type::Boolean => write!(f, "bool"),
             ty::Type::Number(ref number) => PrettyTy(number).fmt(f),
             ty::Type::String => write!(f, "str"),
             ty::Type::Tuple(ref tuple) => PrettyTy(tuple).fmt(f),
@@ -466,9 +511,38 @@ impl<'a> fmt::Display for PrettyTy<&'a ty::Function> {
 
 impl<'a> fmt::Display for PrettyTy<&'a ty::Conflict> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        PrettyTy(&*self.0.expected).fmt(f)?;
+        PrettyTy(&self.0.expected).fmt(f)?;
         write!(f, "!=")?;
         PrettyTy(&*self.0.actual).fmt(f)?;
         Ok(())
+    }
+}
+
+impl<'a> fmt::Display for PrettyTy<&'a ty::ExpectedType> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match *self.0 {
+            ty::ExpectedType::Specific(ref ty) => PrettyTy(&**ty).fmt(f),
+            ty::ExpectedType::ScalarClass(ref class) => PrettyTy(class).fmt(f),
+        }
+    }
+}
+
+impl<'a> fmt::Display for PrettyTy<&'a ty::ScalarClass> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match *self.0 {
+            ty::ScalarClass::Boolean => f.write_str("(any bool type)"),
+            ty::ScalarClass::Integral(ty::IntegralScalarClass::Unsigned) => {
+                f.write_str("(any unsigned integer type)")
+            }
+            ty::ScalarClass::Integral(ty::IntegralScalarClass::Signed) => {
+                f.write_str("(any signed integer type)")
+            }
+            ty::ScalarClass::Integral(ty::IntegralScalarClass::Any) => {
+                f.write_str("(any integer type)")
+            }
+            ty::ScalarClass::Fractional => f.write_str("(any floating point type)"),
+            ty::ScalarClass::Complex => f.write_str("(any complex type)"),
+            ty::ScalarClass::Undefined => f.write_str("(any non-scalar type)"),
+        }
     }
 }

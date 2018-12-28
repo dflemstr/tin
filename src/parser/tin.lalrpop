@@ -12,7 +12,7 @@ extern {
 }
 
 #[inline]
-Comma<A>: Vec<A> = {
+Comma0<A>: Vec<A> = {
     <v:(<A> ",")*> <e: A?> => {
         let mut v = v;
         v.extend(e);
@@ -21,7 +21,16 @@ Comma<A>: Vec<A> = {
 }
 
 #[inline]
-Semi<A>: Vec<A> = {
+Comma1<A>: Vec<A> = {
+    <v:(<A> ",")+> <e: A?> => {
+        let mut v = v;
+        v.extend(e);
+        v
+    },
+}
+
+#[inline]
+Semi0<A>: Vec<A> = {
     <v:(<A> ";")*> <e: A> => {
         let mut v = v;
         v.push(e);
@@ -30,12 +39,12 @@ Semi<A>: Vec<A> = {
 }
 
 #[inline]
-SemiRequired<A>: Vec<A> = {
+SemiRequired0<A>: Vec<A> = {
     <(<A> ";")*> => <>,
 }
 
 pub Module: ast::Module<parser::Context> = {
-    <lo:@L> <ds:SemiRequired<(Comment? <Definition>)>> <hi:@R> =>
+    <lo:@L> <ds:SemiRequired0<(Comment? <Definition>)>> <hi:@R> =>
         ast::Module { context: parser::Context::new(ast::Kind::Module, lo, hi), variables: ds },
 }
 
@@ -48,15 +57,169 @@ pub Definition: ast::Variable<parser::Context> = {
         ast::Variable { context: parser::Context::new(ast::Kind::Variable, lo, hi), name: n, initializer: i },
 }
 
-pub Expression: ast::Expression<parser::Context> = {
+pub Expression = { <ExpressionBiOpOr> }
+
+// Left-to-right evaluation
+ExpressionBiOpOr: ast::Expression<parser::Context> = {
+    BiOp<ExpressionBiOpOr, BiOperatorOr, ExpressionBiOpXor> => ast::Expression::BiOp(<>),
+    ExpressionBiOpXor => <>,
+}
+
+// Left-to-right evaluation
+ExpressionBiOpXor: ast::Expression<parser::Context> = {
+    BiOp<ExpressionBiOpXor, BiOperatorXor, ExpressionBiOpAnd> => ast::Expression::BiOp(<>),
+    ExpressionBiOpAnd => <>,
+}
+
+// Left-to-right evaluation
+ExpressionBiOpAnd: ast::Expression<parser::Context> = {
+    BiOp<ExpressionBiOpAnd, BiOperatorAnd, ExpressionBiOpCmp> => ast::Expression::BiOp(<>),
+    ExpressionBiOpCmp => <>,
+}
+
+// No associativity; require parenthesis
+ExpressionBiOpCmp: ast::Expression<parser::Context> = {
+    BiOp<ExpressionBiOpBOr, BiOperatorCmp, ExpressionBiOpBOr> => ast::Expression::BiOp(<>),
+    ExpressionBiOpBOr => <>,
+}
+
+// Left-to-right evaluation
+ExpressionBiOpBOr: ast::Expression<parser::Context> = {
+    BiOp<ExpressionBiOpBOr, BiOperatorBOr, ExpressionBiOpBXor> => ast::Expression::BiOp(<>),
+    ExpressionBiOpBXor => <>,
+}
+
+// Left-to-right evaluation
+ExpressionBiOpBXor: ast::Expression<parser::Context> = {
+    BiOp<ExpressionBiOpBXor, BiOperatorBXor, ExpressionBiOpBAnd> => ast::Expression::BiOp(<>),
+    ExpressionBiOpBAnd => <>,
+}
+
+// Left-to-right evaluation
+ExpressionBiOpBAnd: ast::Expression<parser::Context> = {
+    BiOp<ExpressionBiOpBAnd, BiOperatorBAnd, ExpressionBiOpShift> => ast::Expression::BiOp(<>),
+    ExpressionBiOpShift => <>,
+}
+
+// Left-to-right evaluation
+ExpressionBiOpShift: ast::Expression<parser::Context> = {
+    BiOp<ExpressionBiOpShift, BiOperatorShift, ExpressionBiOpSum> => ast::Expression::BiOp(<>),
+    ExpressionBiOpSum => <>,
+}
+
+// Left-to-right evaluation
+ExpressionBiOpSum: ast::Expression<parser::Context> = {
+    BiOp<ExpressionBiOpSum, BiOperatorSum, ExpressionBiOpFactor> => ast::Expression::BiOp(<>),
+    ExpressionBiOpFactor => <>,
+}
+
+// Left-to-right evaluation
+ExpressionBiOpFactor: ast::Expression<parser::Context> = {
+    BiOp<ExpressionBiOpFactor, BiOperatorFactor, ExpressionUnOp> => ast::Expression::BiOp(<>),
+    ExpressionUnOp => <>,
+}
+
+ExpressionUnOp: ast::Expression<parser::Context> = {
+    UnOp => ast::Expression::UnOp(<>),
+    ExpressionProjection => <>,
+}
+
+ExpressionProjection: ast::Expression<parser::Context> = {
+    Select => ast::Expression::Select(<>),
+    Apply => ast::Expression::Apply(<>),
+    ExpressionAtom => <>,
+}
+
+ExpressionAtom: ast::Expression<parser::Context> = {
     Identifier => ast::Expression::Identifier(<>),
     Number => ast::Expression::Number(<>),
     String => ast::Expression::String(<>),
     Tuple => ast::Expression::Tuple(<>),
     Record => ast::Expression::Record(<>),
     Lambda => ast::Expression::Lambda(<>),
-    Select => ast::Expression::Select(<>),
-    Apply => ast::Expression::Apply(<>),
+    "(" <Expression> ")" => <>,
+}
+
+UnOperator: ast::UnOperator = {
+    "!" => ast::UnOperator::Not,
+    "~!" => ast::UnOperator::BNot,
+    "#^0" => ast::UnOperator::Cl0,
+    "#^1" => ast::UnOperator::Cl1,
+    "#^-" => ast::UnOperator::Cls,
+    "#$0" => ast::UnOperator::Ct0,
+    "#$1" => ast::UnOperator::Ct1,
+    "#0" => ast::UnOperator::C0,
+    "#1" => ast::UnOperator::C1,
+    "^/" => ast::UnOperator::Sqrt,
+}
+
+pub UnOp: ast::UnOp<parser::Context> = {
+    <lo:@L> <operator:UnOperator> <operand:ExpressionUnOp> <hi:@R> =>
+       ast::UnOp { context: parser::Context::new(ast::Kind::UnOp, lo, hi), operator, operand: Box::new(operand) },
+}
+
+#[inline]
+BiOp<L, O, R>: ast::BiOp<parser::Context> = {
+    <lo:@L> <lhs:L> <operator:O> <rhs:R> <hi:@R> =>
+       ast::BiOp { context: parser::Context::new(ast::Kind::BiOp, lo, hi), lhs: Box::new(lhs), operator, rhs: Box::new(rhs) },
+}
+
+BiOperatorFactor: ast::BiOperator = {
+    "*" => ast::BiOperator::Mul,
+    "/" => ast::BiOperator::Div,
+    "%" => ast::BiOperator::Rem,
+}
+
+BiOperatorSum: ast::BiOperator = {
+    "+" => ast::BiOperator::Add,
+    "-" => ast::BiOperator::Sub,
+}
+
+BiOperatorShift: ast::BiOperator = {
+    ">->" => ast::BiOperator::RotL,
+    "<-<" => ast::BiOperator::RotR,
+    ">>" => ast::BiOperator::ShL,
+    "<<" => ast::BiOperator::ShR,
+}
+
+BiOperatorBAnd: ast::BiOperator = {
+    "~&" => ast::BiOperator::BAnd,
+    "~&!" => ast::BiOperator::BAndNot,
+}
+
+BiOperatorBOr: ast::BiOperator = {
+    "~|" => ast::BiOperator::BOr,
+    "~|!" => ast::BiOperator::BOrNot,
+}
+
+BiOperatorBXor: ast::BiOperator = {
+    "~^" => ast::BiOperator::BXor,
+    "~^!" => ast::BiOperator::BXorNot,
+}
+
+BiOperatorAnd: ast::BiOperator = {
+    "&" => ast::BiOperator::And,
+    "&!" => ast::BiOperator::AndNot,
+}
+
+BiOperatorOr: ast::BiOperator = {
+    "|" => ast::BiOperator::Or,
+    "|!" => ast::BiOperator::OrNot,
+}
+
+BiOperatorXor: ast::BiOperator = {
+    "^" => ast::BiOperator::Xor,
+    "^!" => ast::BiOperator::XorNot,
+}
+
+BiOperatorCmp: ast::BiOperator = {
+    "==" => ast::BiOperator::Eq,
+    "!=" => ast::BiOperator::Ne,
+    "<" => ast::BiOperator::Lt,
+    ">=" => ast::BiOperator::Ge,
+    ">" => ast::BiOperator::Gt,
+    "<=" => ast::BiOperator::Le,
+    "<=>" => ast::BiOperator::Cmp,
 }
 
 pub Identifier: ast::Identifier<parser::Context> = {
@@ -65,12 +228,14 @@ pub Identifier: ast::Identifier<parser::Context> = {
 }
 
 pub Tuple: ast::Tuple<parser::Context> = {
-    <lo:@L> "(" <fs:Comma<Expression>> ")" <hi:@R> =>
+    <lo:@L> "(" ")" <hi:@R> =>
+        ast::Tuple { context: parser::Context::new(ast::Kind::Tuple, lo, hi), fields: vec![] },
+    <lo:@L> "(" <fs:Comma1<Expression>> ")" <hi:@R> =>
         ast::Tuple { context: parser::Context::new(ast::Kind::Tuple, lo, hi), fields: fs },
 }
 
 pub Record: ast::Record<parser::Context> = {
-    <lo:@L> "{" <fs:Comma<Field>> "}" <hi:@R> =>
+    <lo:@L> "{" <fs:Comma0<Field>> "}" <hi:@R> =>
         ast::Record { context: parser::Context::new(ast::Kind::Record, lo, hi), fields: fs },
 }
 
@@ -114,7 +279,7 @@ pub String: ast::StringLiteral<parser::Context> = {
 }
 
 pub Lambda: ast::Lambda<parser::Context> = {
-    <lo:@L> "|" <params:Comma<(Comment? <Parameter>)>> "|" <sig:Expression?> "{" <stmts:SemiRequired<(Comment? <Statement>)>> <res:(Comment? <Expression>)> "}" <hi:@R> =>
+    <lo:@L> "|" <params:Comma0<(Comment? <Parameter>)>> "|" <sig:Expression?> "{" <stmts:SemiRequired0<(Comment? <Statement>)>> <res:(Comment? <Expression>)> "}" <hi:@R> =>
         ast::Lambda { context: parser::Context::new(ast::Kind::Lambda, lo, hi), parameters: params, signature: sig.map(Box::new), statements: stmts, result: Box::new(res) },
 }
 
@@ -124,16 +289,16 @@ pub Statement: ast::Statement<parser::Context> = {
 }
 
 pub Select: ast::Select<parser::Context> = {
-    <lo:@L> <r:Expression> "." <f:Identifier> <hi:@R> =>
+    <lo:@L> <r:ExpressionProjection> "." <f:Identifier> <hi:@R> =>
         ast::Select { context: parser::Context::new(ast::Kind::Select, lo, hi), record: Box::new(r), field: f },
 }
 
 pub Apply: ast::Apply<parser::Context> = {
-    <lo:@L> <e:Expression> "(" <p:Comma<Expression>> ")" <hi:@R> =>
+    <lo:@L> <e:ExpressionProjection> "(" <p:Comma0<Expression>> ")" <hi:@R> =>
         ast::Apply { context: parser::Context::new(ast::Kind::Apply, lo, hi), function: Box::new(e), parameters: p },
 }
 
 pub Parameter: ast::Parameter<parser::Context> = {
-    <lo:@L> <name:Identifier> <signature:(":" <Expression>)?> <hi:@R> =>
+    <lo:@L> <name:Identifier> <signature:(":" <ExpressionAtom>)?> <hi:@R> =>
         ast::Parameter { context: parser::Context::new(ast::Kind::Parameter, lo, hi), name, signature },
 }

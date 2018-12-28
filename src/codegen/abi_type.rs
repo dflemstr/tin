@@ -19,6 +19,7 @@ impl AbiType {
     /// Create an ABI-specific type given an IR type.
     pub fn from_ir_type(ir_type: &ty::Type) -> AbiType {
         match *ir_type {
+            ty::Type::Boolean => AbiType::Scalar(types::B1),
             ty::Type::Number(ref n) => AbiType::from_ir_number_type(n),
             ty::Type::String => AbiType::Ptr,
             ty::Type::Tuple(_) => AbiType::Ptr,

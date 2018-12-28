@@ -17,6 +17,10 @@ pub enum Kind {
     Tuple,
     /// A [`Record`] AST node.
     Record,
+    /// A [`UnOp`] AST node.
+    UnOp,
+    /// A [`BiOp`] AST node.
+    BiOp,
     /// A [`Lambda`] AST node.
     Lambda,
     /// A [`Select`] AST node.
@@ -60,6 +64,10 @@ pub enum Expression<C> {
     Record(Record<C>),
     /// A reference to an identifier.
     Identifier(Identifier<C>),
+    /// A unary operator application.
+    UnOp(UnOp<C>),
+    /// A binary operator application.
+    BiOp(BiOp<C>),
     /// A lambda literal.
     Lambda(Lambda<C>),
     /// A record field selection.
@@ -127,6 +135,123 @@ pub struct Record<C> {
     pub context: C,
     /// The fields of the record, in declaration order.
     pub fields: Vec<(Identifier<C>, Expression<C>)>,
+}
+
+/// An unary operator.
+#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
+pub enum UnOperator {
+    /// Logical not.
+    Not,
+    /// Bit-wise not.
+    BNot,
+
+    /// Count leading zero bits.
+    Cl0,
+    /// Count leading one bits.
+    Cl1,
+    /// Count leading sign bits (number of consecutive bits equal to MSB after MSB).
+    Cls,
+
+    /// Count trailing zero bits.
+    Ct0,
+    /// Count trailing one bits.
+    Ct1,
+
+    /// Count number of zero bits.
+    C0,
+    /// Count number of one bits.
+    C1,
+
+    /// Square root.
+    Sqrt,
+}
+
+/// An operator application with one operand.
+#[derive(Clone, Debug, PartialEq)]
+pub struct UnOp<C> {
+    /// This node's AST context.
+    pub context: C,
+    /// The unary operator that is being applied.
+    pub operator: UnOperator,
+    /// The operand to the operator.
+    pub operand: Box<Expression<C>>,
+}
+
+/// A binary operator.
+#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
+pub enum BiOperator {
+    /// The equal-to operator.
+    Eq,
+    /// The not-equal-to operator.
+    Ne,
+    /// The less-than operator.
+    Lt,
+    /// The greater-than-or-equal-to operator.
+    Ge,
+    /// The greater-than operator.
+    Gt,
+    /// The less-than-or-equal-to operator.
+    Le,
+    /// The compare operator.
+    Cmp,
+
+    /// The addition operator.
+    Add,
+    /// The subtraction operator.
+    Sub,
+    /// The multiplication operator.
+    Mul,
+    /// The division operator.
+    Div,
+    /// The remainder operator.
+    Rem,
+
+    /// The logical and operator.
+    And,
+    /// The bit-wise and operator.
+    BAnd,
+    /// The logical or operator.
+    Or,
+    /// The bit-wise or operator.
+    BOr,
+    /// The logical xor operator.
+    Xor,
+    /// The bit-wise xor operator.
+    BXor,
+    /// The logical and-not operator.
+    AndNot,
+    /// The bit-wise and-not operator.
+    BAndNot,
+    /// The logical or-not operator.
+    OrNot,
+    /// The bit-wise or-not operator.
+    BOrNot,
+    /// The logical xor-not operator.
+    XorNot,
+    /// The bit-wise xor-not operator.
+    BXorNot,
+
+    /// The rotate-left operator.
+    RotL,
+    /// The rotate-right operator.
+    RotR,
+    /// The shift-left operator.
+    ShL,
+    /// The shift-right operator.
+    ShR,
+}
+
+/// An operator application with two operands.
+#[derive(Clone, Debug, PartialEq)]
+pub struct BiOp<C> {
+    /// This node's AST context.
+    pub context: C,
+    /// The left-hand-side operand of the operator.
+    pub lhs: Box<Expression<C>>,
+    /// The binary operator that is being applied.
+    pub operator: BiOperator,
+    /// The right-hand-side operand of the operator.
+    pub rhs: Box<Expression<C>>,
 }
 
 /// A lambda expression.

@@ -74,6 +74,8 @@ where
             ast::Expression::String(e) => ast::Expression::String(e.map_context(mapping)),
             ast::Expression::Tuple(e) => ast::Expression::Tuple(e.map_context(mapping)),
             ast::Expression::Record(e) => ast::Expression::Record(e.map_context(mapping)),
+            ast::Expression::UnOp(e) => ast::Expression::UnOp(e.map_context(mapping)),
+            ast::Expression::BiOp(e) => ast::Expression::BiOp(e.map_context(mapping)),
             ast::Expression::Identifier(e) => ast::Expression::Identifier(e.map_context(mapping)),
             ast::Expression::Lambda(e) => ast::Expression::Lambda(e.map_context(mapping)),
             ast::Expression::Select(e) => ast::Expression::Select(e.map_context(mapping)),
@@ -155,6 +157,52 @@ where
             .map(|(i, f)| (i.map_context(mapping), f.map_context(mapping)))
             .collect();
         ast::Record { context, fields }
+    }
+}
+
+impl<C1, C2> MapContext<C1, C2> for ast::UnOp<C1>
+where
+    C1: fmt::Debug,
+    C2: fmt::Debug,
+{
+    type Output = ast::UnOp<C2>;
+
+    fn map_context<F>(self, mapping: &mut F) -> Self::Output
+    where
+        F: FnMut(C1) -> C2,
+    {
+        let context = mapping(self.context);
+        let operator = self.operator;
+        let operand = Box::new(self.operand.map_context(mapping));
+        ast::UnOp {
+            context,
+            operator,
+            operand,
+        }
+    }
+}
+
+impl<C1, C2> MapContext<C1, C2> for ast::BiOp<C1>
+where
+    C1: fmt::Debug,
+    C2: fmt::Debug,
+{
+    type Output = ast::BiOp<C2>;
+
+    fn map_context<F>(self, mapping: &mut F) -> Self::Output
+    where
+        F: FnMut(C1) -> C2,
+    {
+        let context = mapping(self.context);
+        let lhs = Box::new(self.lhs.map_context(mapping));
+        let operator = self.operator;
+        let rhs = Box::new(self.rhs.map_context(mapping));
+        ast::BiOp {
+            context,
+            lhs,
+            operator,
+            rhs,
+        }
     }
 }
 

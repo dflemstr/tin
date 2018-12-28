@@ -51,6 +51,15 @@ where
         element::Element::Record(element::Record { ref fields }) => {
             fields.values().all(|v| constexprs.contains(*v))
         }
+        element::Element::UnOp(element::UnOp {
+            operand,
+            operator: _,
+        }) => constexprs.contains(operand),
+        element::Element::BiOp(element::BiOp {
+            lhs,
+            operator: _,
+            rhs,
+        }) => constexprs.contains(lhs) && constexprs.contains(rhs),
         element::Element::Variable(element::Variable {
             name: _,
             initializer,

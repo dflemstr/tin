@@ -9,35 +9,26 @@ use specs::VecStorage;
 pub struct Layout {
     pub size: usize,
     pub alignment: usize,
-    pub named_field_offsets: collections::HashMap<String, usize>,
-    pub unnamed_field_offsets: Vec<usize>,
+    pub named_field_offsets: Option<collections::HashMap<String, usize>>,
+    pub unnamed_field_offsets: Option<Vec<usize>>,
 }
 
 impl Layout {
-    pub fn zero() -> Layout {
-        let size = 0;
-        let alignment = 1;
-        let named_field_offsets = collections::HashMap::new();
-        let unnamed_field_offsets = Vec::new();
-
+    pub const fn zero() -> Layout {
         Layout {
-            size,
-            alignment,
-            named_field_offsets,
-            unnamed_field_offsets,
+            size: 0,
+            alignment: 1,
+            named_field_offsets: None,
+            unnamed_field_offsets: None,
         }
     }
 
-    pub fn scalar(size: usize) -> Layout {
-        let alignment = size;
-        let named_field_offsets = collections::HashMap::new();
-        let unnamed_field_offsets = Vec::new();
-
+    pub const fn scalar(size: usize) -> Layout {
         Layout {
             size,
-            alignment,
-            named_field_offsets,
-            unnamed_field_offsets,
+            alignment: size,
+            named_field_offsets: None,
+            unnamed_field_offsets: None,
         }
     }
 
@@ -46,7 +37,8 @@ impl Layout {
         alignment: usize,
         named_field_offsets: collections::HashMap<String, usize>,
     ) -> Layout {
-        let unnamed_field_offsets = Vec::new();
+        let named_field_offsets = Some(named_field_offsets);
+        let unnamed_field_offsets = None;
 
         Layout {
             size,
@@ -61,7 +53,8 @@ impl Layout {
         alignment: usize,
         unnamed_field_offsets: Vec<usize>,
     ) -> Layout {
-        let named_field_offsets = collections::HashMap::new();
+        let named_field_offsets = None;
+        let unnamed_field_offsets = Some(unnamed_field_offsets);
 
         Layout {
             size,
@@ -76,11 +69,16 @@ impl fmt::Display for Layout {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}/{}", self.size, self.alignment)?;
 
-        if !self.named_field_offsets.is_empty() {
+        if self
+            .named_field_offsets
+            .as_ref()
+            .map(|v| !v.is_empty())
+            .unwrap_or(false)
+        {
             write!(f, "[")?;
 
             let mut needs_sep = false;
-            for (name, offset) in &self.named_field_offsets {
+            for (name, offset) in self.named_field_offsets.as_ref().unwrap() {
                 if needs_sep {
                     write!(f, ",")?;
                 }
@@ -91,11 +89,22 @@ impl fmt::Display for Layout {
             write!(f, "]")?;
         }
 
-        if !self.unnamed_field_offsets.is_empty() {
+        if self
+            .unnamed_field_offsets
+            .as_ref()
+            .map(|v| !v.is_empty())
+            .unwrap_or(false)
+        {
             write!(f, "[")?;
 
             let mut needs_sep = false;
-            for (idx, offset) in self.unnamed_field_offsets.iter().enumerate() {
+            for (idx, offset) in self
+                .unnamed_field_offsets
+                .as_ref()
+                .unwrap()
+                .iter()
+                .enumerate()
+            {
                 if needs_sep {
                     write!(f, ",")?;
                 }
