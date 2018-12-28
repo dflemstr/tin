@@ -1,4 +1,7 @@
-//! Graph manipulation and rendering tools for the intermediate representation.
+//! Graph rendering tools for the internal representation of Tin code.
+//!
+//! Use this module to diagnose errors encountered in a piece of code.  The graph representation
+//! aims to provide all of the information available to the Tin compiler.
 use std::borrow;
 use std::fmt;
 
@@ -21,21 +24,18 @@ pub struct Graph<'a> {
 }
 
 /// A node in the IR graph.
-///
-/// This is a simple mapping to an ECS entity for now.
-pub type Node = specs::Entity;
+#[derive(Clone, Copy, Debug)]
+pub struct Node(specs::Entity);
 
 /// An edge in the IR graph.
-///
-/// This is a labeled directed relationship between two ECS entities.
-#[derive(Clone, Debug)]
+#[derive(Clone, Copy, Debug)]
 pub struct Edge<'a> {
     source: Node,
     target: Node,
     label: Label<'a>,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Copy, Debug)]
 enum Label<'a> {
     RecordField(&'a str),
     TupleField(usize),
@@ -60,7 +60,7 @@ struct PrettyTy<T>(T);
 
 impl<'a> Graph<'a> {
     /// Creates a new IR graph based on the supplied intermediate representation.
-    pub fn new(ir: &'a ir::Ir) -> Graph<'a> {
+    pub(crate) fn new(ir: &'a ir::Ir) -> Graph<'a> {
         let world = &ir.world;
         let entities = world.entities();
         let elements = world.read_storage();
@@ -86,6 +86,7 @@ impl<'a> dot::GraphWalk<'a, Node, Edge<'a>> for Graph<'a> {
             self.entities
                 .join()
                 .filter(|e| self.elements.contains(*e))
+                .map(Node)
                 .collect::<Vec<_>>(),
         )
     }
@@ -103,8 +104,8 @@ impl<'a> dot::GraphWalk<'a, Node, Edge<'a>> for Graph<'a> {
                     element::Element::Tuple(element::Tuple { fields }) => {
                         for (idx, field) in fields.iter().enumerate() {
                             edges.push(Edge {
-                                source: entity,
-                                target: *field,
+                                source: Node(entity),
+                                target: Node(*field),
                                 label: Label::TupleField(idx),
                             });
                         }
@@ -112,8 +113,8 @@ impl<'a> dot::GraphWalk<'a, Node, Edge<'a>> for Graph<'a> {
                     element::Element::Record(element::Record { fields }) => {
                         for (name, field) in fields {
                             edges.push(Edge {
-                                source: entity,
-                                target: *field,
+                                source: Node(entity),
+                                target: Node(*field),
                                 label: Label::RecordField(name),
                             });
                         }
@@ -123,8 +124,8 @@ impl<'a> dot::GraphWalk<'a, Node, Edge<'a>> for Graph<'a> {
                         operand,
                     }) => {
                         edges.push(Edge {
-                            source: entity,
-                            target: *operand,
+                            source: Node(entity),
+                            target: Node(*operand),
                             label: Label::UnOperand,
                         });
                     }
@@ -134,13 +135,13 @@ impl<'a> dot::GraphWalk<'a, Node, Edge<'a>> for Graph<'a> {
                         rhs,
                     }) => {
                         edges.push(Edge {
-                            source: entity,
-                            target: *lhs,
+                            source: Node(entity),
+                            target: Node(*lhs),
                             label: Label::BiLhs,
                         });
                         edges.push(Edge {
-                            source: entity,
-                            target: *rhs,
+                            source: Node(entity),
+                            target: Node(*rhs),
                             label: Label::BiRhs,
                         });
                     }
@@ -148,14 +149,14 @@ impl<'a> dot::GraphWalk<'a, Node, Edge<'a>> for Graph<'a> {
                         name: _,
                         initializer,
                     }) => edges.push(Edge {
-                        source: entity,
-                        target: *initializer,
+                        source: Node(entity),
+                        target: Node(*initializer),
                         label: Label::VariableInitializer,
                     }),
                     element::Element::Select(element::Select { record, field }) => {
                         edges.push(Edge {
-                            source: entity,
-                            target: *record,
+                            source: Node(entity),
+                            target: Node(*record),
                             label: Label::SelectField(field),
                         });
                     }
@@ -164,14 +165,14 @@ impl<'a> dot::GraphWalk<'a, Node, Edge<'a>> for Graph<'a> {
                         parameters,
                     }) => {
                         edges.push(Edge {
-                            source: entity,
-                            target: *function,
+                            source: Node(entity),
+                            target: Node(*function),
                             label: Label::AppliedFunction,
                         });
                         for (idx, parameter) in parameters.iter().enumerate() {
                             edges.push(Edge {
-                                source: entity,
-                                target: *parameter,
+                                source: Node(entity),
+                                target: Node(*parameter),
                                 label: Label::AppliedParameter(idx),
                             });
                         }
@@ -179,16 +180,16 @@ impl<'a> dot::GraphWalk<'a, Node, Edge<'a>> for Graph<'a> {
                     element::Element::Parameter(element::Parameter { name: _, signature }) => {
                         if let Some(signature) = signature {
                             edges.push(Edge {
-                                source: entity,
-                                target: *signature,
+                                source: Node(entity),
+                                target: Node(*signature),
                                 label: Label::ParameterSignature,
                             });
                         }
                     }
                     element::Element::Capture(element::Capture { ref name, captured }) => edges
                         .push(Edge {
-                            source: entity,
-                            target: *captured,
+                            source: Node(entity),
+                            target: Node(*captured),
                             label: Label::ClosureCaptureDefinition(name),
                         }),
                     element::Element::Closure(element::Closure {
@@ -200,43 +201,43 @@ impl<'a> dot::GraphWalk<'a, Node, Edge<'a>> for Graph<'a> {
                     }) => {
                         for (idx, capture) in captures.iter().enumerate() {
                             edges.push(Edge {
-                                source: entity,
-                                target: *capture,
+                                source: Node(entity),
+                                target: Node(*capture),
                                 label: Label::ClosureCaptureUsage(idx),
                             });
                         }
                         for (idx, parameter) in parameters.iter().enumerate() {
                             edges.push(Edge {
-                                source: entity,
-                                target: *parameter,
+                                source: Node(entity),
+                                target: Node(*parameter),
                                 label: Label::ClosureParameter(idx),
                             });
                         }
                         for (idx, statement) in statements.iter().enumerate() {
                             edges.push(Edge {
-                                source: entity,
-                                target: *statement,
+                                source: Node(entity),
+                                target: Node(*statement),
                                 label: Label::ClosureStatement(idx),
                             });
                         }
                         if let Some(signature) = signature {
                             edges.push(Edge {
-                                source: entity,
-                                target: *signature,
+                                source: Node(entity),
+                                target: Node(*signature),
                                 label: Label::ClosureSignature,
                             });
                         }
                         edges.push(Edge {
-                            source: entity,
-                            target: *result,
+                            source: Node(entity),
+                            target: Node(*result),
                             label: Label::ClosureResult,
                         });
                     }
                     element::Element::Module(element::Module { variables }) => {
                         for (name, variable) in variables {
                             edges.push(Edge {
-                                source: entity,
-                                target: *variable,
+                                source: Node(entity),
+                                target: Node(*variable),
                                 label: Label::ModuleDefinition(name),
                             });
                         }
@@ -263,7 +264,7 @@ impl<'a> dot::Labeller<'a, Node, Edge<'a>> for Graph<'a> {
     }
 
     fn node_id(&'a self, n: &Node) -> dot::Id<'a> {
-        dot::Id::new(format!("g{}_i{}", n.gen().id(), n.id())).unwrap()
+        dot::Id::new(format!("n{}", n.0.id())).unwrap()
     }
 
     fn node_shape(&'a self, _n: &Node) -> Option<dot::LabelText<'a>> {
@@ -273,9 +274,9 @@ impl<'a> dot::Labeller<'a, Node, Edge<'a>> for Graph<'a> {
     fn node_label(&'a self, n: &Node) -> dot::LabelText<'a> {
         use std::fmt::Write;
 
-        let mut result = format!("({}) ", n.id());
+        let mut result = format!("({}) ", n.0.id());
 
-        if let Some(element) = self.elements.get(*n) {
+        if let Some(element) = self.elements.get(n.0) {
             match element {
                 element::Element::NumberValue(n) => write!(result, "num <b>{:?}</b>", n).unwrap(),
                 element::Element::StringValue(element::StringValue(s)) => {
@@ -339,15 +340,15 @@ impl<'a> dot::Labeller<'a, Node, Edge<'a>> for Graph<'a> {
             write!(result, "(unknown)").unwrap();
         };
 
-        if let Some(ty) = self.types.get(*n) {
+        if let Some(ty) = self.types.get(n.0) {
             write!(result, "<br/> <font color=\"blue\">{}</font>", PrettyTy(ty)).unwrap();
         }
 
-        if let Some(layout) = self.layouts.get(*n) {
+        if let Some(layout) = self.layouts.get(n.0) {
             write!(result, "<br/> <font color=\"brown\">{}</font>", layout).unwrap();
         }
 
-        if let Some(symbol) = self.symbols.get(*n) {
+        if let Some(symbol) = self.symbols.get(n.0) {
             if symbol.is_empty() {
                 write!(result, "<br/> <font color=\"purple\">(root)</font>").unwrap();
             } else {

@@ -10,9 +10,9 @@ pub struct Symbol {
 }
 
 #[derive(Clone, Debug, VisitEntities)]
-#[allow(unused)]
 pub enum Part {
     Named(String),
+    #[allow(unused)]
     Unnamed(u64),
 }
 

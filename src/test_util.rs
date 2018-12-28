@@ -1,10 +1,11 @@
 use failure;
 
+use graph;
 use ir;
 
 pub fn render_graph(name: &str, ir: &ir::Ir) -> Result<(), failure::Error> {
     if cfg!(feature = "test-render-graphs") {
-        let graph = ir::graph::Graph::new(ir);
+        let graph = graph::Graph::new(ir);
 
         let dot_path = format!("/tmp/{}.dot", name);
         let img_path = format!("/tmp/{}.svg", name);

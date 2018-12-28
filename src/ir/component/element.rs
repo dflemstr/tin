@@ -24,8 +24,7 @@ pub enum Element {
     Module(Module),
 }
 
-#[derive(Clone, Debug, VisitEntities)]
-#[allow(missing_copy_implementations)]
+#[derive(Clone, Copy, Debug, VisitEntities)]
 pub enum NumberValue {
     U8(u8),
     U16(u16),
@@ -164,9 +163,6 @@ pub struct BiOp {
     /// The right-hand-side operand of the operator.
     pub rhs: specs::Entity,
 }
-
-#[derive(Debug, VisitEntities)]
-pub struct Reference(pub String);
 
 #[derive(Debug, VisitEntities)]
 pub struct Variable {

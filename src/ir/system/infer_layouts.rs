@@ -1,4 +1,3 @@
-#![allow(unused)]
 use std::collections;
 use std::usize;
 
@@ -238,6 +237,14 @@ impl InferLayoutsSystem {
         let lhs = layouts.get(lhs).cloned();
         let rhs = layouts.get(rhs).cloned();
 
+        match (lhs.as_ref(), rhs.as_ref()) {
+            (Some(lhs), Some(rhs)) => {
+                assert_eq!(lhs.size, rhs.size);
+                assert_eq!(lhs.alignment, rhs.alignment);
+            }
+            _ => (),
+        };
+
         match operator {
             element::BiOperator::Eq => Some(BOOL_LAYOUT),
             element::BiOperator::Ne => Some(BOOL_LAYOUT),
@@ -309,13 +316,14 @@ impl InferLayoutsSystem {
 
     fn infer_apply_layout<D>(
         &self,
-        function: specs::Entity,
-        parameters: &[specs::Entity],
-        layouts: &specs::Storage<layout::Layout, D>,
+        _function: specs::Entity,
+        _parameters: &[specs::Entity],
+        _layouts: &specs::Storage<layout::Layout, D>,
     ) -> Option<layout::Layout>
     where
         D: ops::Deref<Target = specs::storage::MaskedStorage<layout::Layout>>,
     {
+        // TODO
         None
         /*
         match types.get(function) {
@@ -362,12 +370,13 @@ impl InferLayoutsSystem {
 
     fn infer_parameter_layout<D>(
         &self,
-        signature: Option<specs::Entity>,
-        layouts: &specs::Storage<layout::Layout, D>,
+        _signature: Option<specs::Entity>,
+        _layouts: &specs::Storage<layout::Layout, D>,
     ) -> Option<layout::Layout>
     where
         D: ops::Deref<Target = specs::storage::MaskedStorage<layout::Layout>>,
     {
+        // TODO
         None
         /*
         if let Some(signature) = signature {
@@ -393,14 +402,15 @@ impl InferLayoutsSystem {
 
     fn infer_closure_layout<D>(
         &self,
-        parameters: &[specs::Entity],
-        signature: Option<specs::Entity>,
-        result: specs::Entity,
-        layouts: &specs::Storage<layout::Layout, D>,
+        _parameters: &[specs::Entity],
+        _signature: Option<specs::Entity>,
+        _result: specs::Entity,
+        _layouts: &specs::Storage<layout::Layout, D>,
     ) -> Option<layout::Layout>
     where
         D: ops::Deref<Target = specs::storage::MaskedStorage<layout::Layout>>,
     {
+        // TODO
         None
         /*
             if let Some(parameters) = parameters
@@ -433,12 +443,13 @@ impl InferLayoutsSystem {
 
     fn infer_module_layout<D>(
         &self,
-        variables: &collections::HashMap<String, specs::Entity>,
-        layouts: &specs::Storage<layout::Layout, D>,
+        _variables: &collections::HashMap<String, specs::Entity>,
+        _layouts: &specs::Storage<layout::Layout, D>,
     ) -> Option<layout::Layout>
     where
         D: ops::Deref<Target = specs::storage::MaskedStorage<layout::Layout>>,
     {
+        // TODO
         None
         /*
         variables

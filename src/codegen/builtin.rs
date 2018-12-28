@@ -1,5 +1,3 @@
-#![allow(unsafe_code)]
-
 use std::alloc;
 use std::num;
 

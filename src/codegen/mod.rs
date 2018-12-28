@@ -12,16 +12,15 @@ use ir::component::element;
 use ir::component::layout;
 use ir::component::symbol;
 use ir::component::ty;
+use module;
 
 use cranelift::prelude::*;
 
 mod abi_type;
 mod builtin;
-pub mod module;
-pub mod translation;
+mod translation;
 
 /// A codegen system, that can be used for JIT compilation.
-#[allow(unused)]
 pub struct Codegen<'a> {
     elements: specs::ReadStorage<'a, element::Element>,
     layouts: specs::ReadStorage<'a, layout::Layout>,
@@ -621,7 +620,7 @@ main = || F32 { a = 2f32; b = 1f32; a - b };
 
         let ast_module = ast::Module::parse(source)?;
         let mut ir = ir::Ir::new();
-        ir.module(&ast_module)?;
+        ir.load(&ast_module)?;
         ir.check_types();
         test_util::render_graph(&format!(concat!(module_path!(), "::{}"), name), &ir)?;
         let compiler = Codegen::new(&ir);

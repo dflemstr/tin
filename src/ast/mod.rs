@@ -1,6 +1,16 @@
 //! Abstract syntax tree definitions for Tin.
-pub mod map_context;
-pub mod node;
+//!
+//! Every AST node carries a context with a generic type named `C`.  This type can be used to attach
+//! arbitrary metadata to every node; a common use is to store the source location for each node as
+//! parsed by a parser (see [`parser::Context`] for an example).
+//!
+//! To generically interact with the context of a node, the [`AstNode`] trait can be used.  All of
+//! the contexts of an entire AST can additionally be transformed using the [`MapContext`] trait.
+pub(crate) mod map_context;
+pub(crate) mod node;
+
+pub use self::map_context::MapContext;
+pub use self::node::AstNode;
 
 /// Identifies the kind of AST node.
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]

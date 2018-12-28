@@ -19,9 +19,8 @@ pub trait Function {
     ///
     /// # Unsafety
     ///
-    /// This is probably as unsafe as it gets, since the passed-in pointer will be used to execute
-    /// arbitrary machine code.  The pointer *must* come from a trusted source.
-    #[allow(unsafe_code)]
+    /// This is probably as unsafe as it gets, since the passed-in pointer will be treated as a
+    /// pointer to arbitrary machine code.  The pointer *must* come from a trusted source.
     unsafe fn from_ptr(ptr: *const u8) -> Self;
 }
 
@@ -40,7 +39,6 @@ macro_rules! define_function {
         }
 
         impl<$ret, $($arg),*> Function for $name<$ret, $($arg),*> {
-            #[allow(unsafe_code)]
             unsafe fn from_ptr(ptr: *const u8) -> Self {
                 $name(mem::transmute(ptr))
             }
@@ -103,7 +101,6 @@ impl Module {
     /// Fetches the specified function with the specified signature.
     ///
     /// Returns `None` if the signature does not match the compiled function.
-    #[allow(unsafe_code)]
     pub fn function<F>(&mut self, name: &str) -> Option<F>
     where
         F: Function,

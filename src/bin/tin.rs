@@ -19,7 +19,6 @@ struct Options {
 fn main() -> Result<(), failure::Error> {
     use std::io::Read;
     use structopt::StructOpt;
-    use tin_lang::parser::Parse;
 
     pretty_env_logger::init_timed();
 
@@ -35,17 +34,13 @@ fn main() -> Result<(), failure::Error> {
         stdin.read_to_string(&mut source)?;
     }
 
-    let ast = tin_lang::ast::Module::parse(&source)?;
+    let mut tin = tin_lang::Tin::new();
+    tin.load(&source)?;
 
-    let mut ir = tin_lang::ir::Ir::new();
-    ir.module(&ast)?;
-    ir.check_types();
-
-    let codegen = tin_lang::codegen::Codegen::new(&ir);
-    let mut module = codegen.compile();
+    let mut module = tin.compile()?;
 
     let entrypoint = module
-        .function::<tin_lang::codegen::module::Function0<u32>>("main")
+        .function::<tin_lang::module::Function0<u32>>("main")
         .ok_or(failure::err_msg("missing a main function"))?;
 
     let result = entrypoint();

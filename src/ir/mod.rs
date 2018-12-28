@@ -9,8 +9,7 @@ use specs;
 use ast;
 use parser;
 
-pub(crate) mod component;
-pub mod graph;
+pub mod component;
 mod system;
 
 /// A separate universe of the Tin intermediate representation.
@@ -47,7 +46,7 @@ impl Ir {
     }
 
     /// Adds the specified AST module to the IR world.
-    pub fn module(&mut self, module: &ast::Module<parser::Context>) -> Result<(), Error> {
+    pub fn load(&mut self, module: &ast::Module<parser::Context>) -> Result<(), Error> {
         use specs::world::Builder;
 
         let entity = self.world.create_entity().build();
@@ -686,7 +685,7 @@ main = || Int { pickFirst(1u32, 2u32) };
         let ast_module = ast::Module::parse(source)?;
 
         let mut ir = Ir::new();
-        ir.module(&ast_module)?;
+        ir.load(&ast_module)?;
         ir.check_types();
 
         test_util::render_graph(concat!(module_path!(), "::entity_assignments"), &ir)?;
@@ -713,7 +712,7 @@ b = || Int {
         let ast_module = ast::Module::parse(source)?;
 
         let mut ir = Ir::new();
-        ir.module(&ast_module)?;
+        ir.load(&ast_module)?;
         ir.check_types();
 
         test_util::render_graph(concat!(module_path!(), "::recursive_module_variables"), &ir)?;
@@ -741,7 +740,7 @@ a = || Int {
         let ast_module = ast::Module::parse(source)?;
 
         let mut ir = Ir::new();
-        let result = ir.module(&ast_module);
+        let result = ir.load(&ast_module);
         assert_eq!(
             Err(Error::UndefinedReference {
                 reference: "c".to_owned()
@@ -770,7 +769,7 @@ a = || Int {
         let ast_module = ast::Module::parse(source)?;
 
         let mut ir = Ir::new();
-        let result = ir.module(&ast_module);
+        let result = ir.load(&ast_module);
         assert_eq!(
             Err(Error::UndefinedReference {
                 reference: "c".to_owned()

@@ -1,5 +1,3 @@
-#![allow(missing_docs)]
-
 use std::collections;
 use std::fmt;
 
@@ -30,7 +28,6 @@ where
     variables: collections::HashMap<specs::Entity, Variable>,
 }
 
-#[allow(unused)]
 impl<'a, 'f> FunctionTranslator<'a, 'f> {
     pub fn new(
         module: &'a mut cranelift_module::Module<cranelift_simplejit::SimpleJITBackend>,
@@ -89,7 +86,7 @@ impl<'a, 'f> FunctionTranslator<'a, 'f> {
 
     pub fn eval_number_value(
         &mut self,
-        entity: specs::Entity,
+        _entity: specs::Entity,
         number_value: &element::NumberValue,
     ) -> Value {
         match *number_value {
@@ -109,8 +106,9 @@ impl<'a, 'f> FunctionTranslator<'a, 'f> {
     pub fn eval_string_value(
         &mut self,
         entity: specs::Entity,
-        string_value: &element::StringValue,
+        _string_value: &element::StringValue,
     ) -> Value {
+        // TODO: create data symbol
         let symbol = self
             .module
             .declare_data(
@@ -170,7 +168,7 @@ impl<'a, 'f> FunctionTranslator<'a, 'f> {
         result
     }
 
-    pub fn eval_un_op(&mut self, entity: specs::Entity, un_op: &element::UnOp) -> Value {
+    pub fn eval_un_op(&mut self, _entity: specs::Entity, un_op: &element::UnOp) -> Value {
         let element::UnOp { operator, operand } = un_op;
         let operand = *operand;
 
@@ -199,7 +197,7 @@ impl<'a, 'f> FunctionTranslator<'a, 'f> {
         }
     }
 
-    pub fn eval_bi_op(&mut self, entity: specs::Entity, bi_op: &element::BiOp) -> Value {
+    pub fn eval_bi_op(&mut self, _entity: specs::Entity, bi_op: &element::BiOp) -> Value {
         let element::BiOp { lhs, operator, rhs } = bi_op;
         let lhs = *lhs;
         let rhs = *rhs;
@@ -277,20 +275,11 @@ impl<'a, 'f> FunctionTranslator<'a, 'f> {
         }
     }
 
-    pub fn eval_reference(
-        &mut self,
-        entity: specs::Entity,
-        reference: &element::Reference,
-    ) -> Value {
-        // TODO: return error
-        unreachable!()
-    }
-
-    pub fn eval_variable(&mut self, entity: specs::Entity, variable: &element::Variable) -> Value {
+    pub fn eval_variable(&mut self, entity: specs::Entity, _variable: &element::Variable) -> Value {
         self.builder.use_var(self.variables[&entity])
     }
 
-    pub fn eval_select(&mut self, entity: specs::Entity, select: &element::Select) -> Value {
+    pub fn eval_select(&mut self, _entity: specs::Entity, select: &element::Select) -> Value {
         let record_layout = self.layouts.get(select.record).unwrap();
         let record_type = match self.types.get(select.record).unwrap() {
             ty::Type::Record(r) => r,
@@ -318,7 +307,7 @@ impl<'a, 'f> FunctionTranslator<'a, 'f> {
     pub fn eval_parameter(
         &mut self,
         entity: specs::Entity,
-        parameter: &element::Parameter,
+        _parameter: &element::Parameter,
     ) -> Value {
         self.builder.use_var(self.variables[&entity])
     }
@@ -346,7 +335,7 @@ impl<'a, 'f> FunctionTranslator<'a, 'f> {
             .module
             .declare_func_in_func(callee, &mut self.builder.func);
 
-        let mut parameter_values = apply
+        let parameter_values = apply
             .parameters
             .iter()
             .map(|p| self.eval_element(*p, self.elements.get(*p).unwrap()))
@@ -357,15 +346,15 @@ impl<'a, 'f> FunctionTranslator<'a, 'f> {
         self.builder.inst_results(call)[0]
     }
 
-    pub fn eval_capture(&mut self, entity: specs::Entity, capture: &element::Capture) -> Value {
+    pub fn eval_capture(&mut self, entity: specs::Entity, _capture: &element::Capture) -> Value {
         self.builder.use_var(self.variables[&entity])
     }
 
-    pub fn eval_closure(&mut self, entity: specs::Entity, closure: &element::Closure) -> Value {
+    pub fn eval_closure(&mut self, _entity: specs::Entity, _closure: &element::Closure) -> Value {
         unimplemented!()
     }
 
-    pub fn eval_module(&mut self, entity: specs::Entity, module: &element::Module) -> Value {
+    pub fn eval_module(&mut self, _entity: specs::Entity, _module: &element::Module) -> Value {
         unimplemented!()
     }
 
