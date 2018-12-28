@@ -119,21 +119,14 @@ impl<'a> dot::GraphWalk<'a, Node, Edge<'a>> for Graph<'a> {
                             });
                         }
                     }
-                    element::Element::UnOp(element::UnOp {
-                        operand,
-                        ..
-                    }) => {
+                    element::Element::UnOp(element::UnOp { operand, .. }) => {
                         edges.push(Edge {
                             source: Node(entity),
                             target: Node(*operand),
                             label: Label::UnOperand,
                         });
                     }
-                    element::Element::BiOp(element::BiOp {
-                        lhs,
-                        rhs,
-                        ..
-                    }) => {
+                    element::Element::BiOp(element::BiOp { lhs, rhs, .. }) => {
                         edges.push(Edge {
                             source: Node(entity),
                             target: Node(*lhs),
@@ -145,14 +138,12 @@ impl<'a> dot::GraphWalk<'a, Node, Edge<'a>> for Graph<'a> {
                             label: Label::BiRhs,
                         });
                     }
-                    element::Element::Variable(element::Variable {
-                        initializer,
-                        ..
-                    }) => edges.push(Edge {
-                        source: Node(entity),
-                        target: Node(*initializer),
-                        label: Label::VariableInitializer,
-                    }),
+                    element::Element::Variable(element::Variable { initializer, .. }) => edges
+                        .push(Edge {
+                            source: Node(entity),
+                            target: Node(*initializer),
+                            label: Label::VariableInitializer,
+                        }),
                     element::Element::Select(element::Select { record, field }) => {
                         edges.push(Edge {
                             source: Node(entity),
@@ -288,25 +279,21 @@ impl<'a> dot::Labeller<'a, Node, Edge<'a>> for Graph<'a> {
                 element::Element::Record(element::Record { fields }) => {
                     write!(result, "record <br/> <b>{:?}</b> fields", fields.len()).unwrap()
                 }
-                element::Element::UnOp(element::UnOp {
-                    operator,
-                    ..
-                }) => write!(result, "un op <b>{}</b>", operator).unwrap(),
-                element::Element::BiOp(element::BiOp {
-                    operator,
-                    ..
-                }) => write!(result, "bi op <b>{}</b>", operator).unwrap(),
-                element::Element::Variable(element::Variable {
-                    name,
-                    ..
-                }) => write!(result, "variable <b>{:?}</b>", name).unwrap(),
-                element::Element::Select(element::Select {
-                    ..
-                }) => write!(result, "select").unwrap(),
-                element::Element::Apply(element::Apply {
-                    parameters,
-                    ..
-                }) => write!(result, "apply <br/> <b>{:?}</b> params", parameters.len()).unwrap(),
+                element::Element::UnOp(element::UnOp { operator, .. }) => {
+                    write!(result, "un op <b>{}</b>", operator).unwrap()
+                }
+                element::Element::BiOp(element::BiOp { operator, .. }) => {
+                    write!(result, "bi op <b>{}</b>", operator).unwrap()
+                }
+                element::Element::Variable(element::Variable { name, .. }) => {
+                    write!(result, "variable <b>{:?}</b>", name).unwrap()
+                }
+                element::Element::Select(element::Select { .. }) => {
+                    write!(result, "select").unwrap()
+                }
+                element::Element::Apply(element::Apply { parameters, .. }) => {
+                    write!(result, "apply <br/> <b>{:?}</b> params", parameters.len()).unwrap()
+                }
                 element::Element::Parameter(element::Parameter { name, .. }) => {
                     write!(result, "param <b>{:?}</b>", name).unwrap()
                 }

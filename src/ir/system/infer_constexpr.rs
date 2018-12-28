@@ -51,22 +51,14 @@ where
         element::Element::Record(element::Record { ref fields }) => {
             fields.values().all(|v| constexprs.contains(*v))
         }
-        element::Element::UnOp(element::UnOp {
-            operand,
-            ..
-        }) => constexprs.contains(operand),
-        element::Element::BiOp(element::BiOp {
-            lhs,
-            rhs,
-            ..
-        }) => constexprs.contains(lhs) && constexprs.contains(rhs),
-        element::Element::Variable(element::Variable {
-            initializer,
-            ..
-        }) => constexprs.contains(initializer),
-        element::Element::Select(element::Select { record, .. }) => {
-            constexprs.contains(record)
+        element::Element::UnOp(element::UnOp { operand, .. }) => constexprs.contains(operand),
+        element::Element::BiOp(element::BiOp { lhs, rhs, .. }) => {
+            constexprs.contains(lhs) && constexprs.contains(rhs)
         }
+        element::Element::Variable(element::Variable { initializer, .. }) => {
+            constexprs.contains(initializer)
+        }
+        element::Element::Select(element::Select { record, .. }) => constexprs.contains(record),
         element::Element::Apply(element::Apply {
             function,
             ref parameters,

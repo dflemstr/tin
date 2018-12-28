@@ -74,10 +74,9 @@ impl System {
             element::Element::BiOp(element::BiOp { lhs, operator, rhs }) => {
                 self.infer_bi_op_layout(lhs, operator, rhs, layouts)
             }
-            element::Element::Variable(element::Variable {
-                initializer,
-                ..
-            }) => self.infer_variable_layout(initializer, layouts),
+            element::Element::Variable(element::Variable { initializer, .. }) => {
+                self.infer_variable_layout(initializer, layouts)
+            }
             element::Element::Select(element::Select { record, ref field }) => {
                 self.infer_select_layout(record, field, elements, layouts)
             }

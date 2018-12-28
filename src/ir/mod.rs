@@ -74,16 +74,8 @@ impl Ir {
     pub fn check_types(&mut self) {
         let mut dispatcher = specs::DispatcherBuilder::new()
             .with(system::infer_types::System, "infer_types", &[])
-            .with(
-                system::infer_constexpr::System,
-                "infer_constexpr",
-                &[],
-            )
-            .with(
-                system::infer_layouts::System::new(8),
-                "infer_layouts",
-                &[],
-            )
+            .with(system::infer_constexpr::System, "infer_constexpr", &[])
+            .with(system::infer_layouts::System::new(8), "infer_layouts", &[])
             .build();
 
         dispatcher.dispatch(&mut self.world.res);

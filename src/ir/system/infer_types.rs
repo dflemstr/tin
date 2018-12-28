@@ -56,10 +56,9 @@ where
         element::Element::BiOp(element::BiOp { lhs, operator, rhs }) => {
             infer_bi_op_type(lhs, operator, rhs, types)
         }
-        element::Element::Variable(element::Variable {
-            initializer,
-            ..
-        }) => infer_variable_type(initializer, types),
+        element::Element::Variable(element::Variable { initializer, .. }) => {
+            infer_variable_type(initializer, types)
+        }
         element::Element::Select(element::Select { record, ref field }) => {
             infer_select_type(record, field, types)
         }
