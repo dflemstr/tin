@@ -11,6 +11,14 @@ extern {
     type Error = parser::Error;
 }
 
+match {
+    r"/\*(\*[^/]|[^*])*\*/" => Comment,
+    r"\p{XID_Start}\p{XID_Continue}*" => IdentifierName,
+    r"-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?(?:u8|u16|u32|u64|i8|i16|i32|i64|f32|f64)" => NumberValue,
+    r#""(?:[^"\\]|\\(?:["\\/bfnrt]|u\{[a-fA-F0-9]{1,6}\}))*""# => StringValue,
+    _
+}
+
 #[inline]
 Comma0<A>: Vec<A> = {
     <v:(<A> ",")*> <e: A?> => {
@@ -46,10 +54,6 @@ SemiRequired0<A>: Vec<A> = {
 pub Module: ast::Module<parser::Context> = {
     <lo:@L> <ds:SemiRequired0<(Comment? <Definition>)>> <hi:@R> =>
         ast::Module { context: parser::Context::new(ast::Kind::Module, lo, hi), variables: ds },
-}
-
-Comment: () = {
-    r"/\*(\*[^/]|[^*])*\*/"=> ()
 }
 
 Definition: ast::Variable<parser::Context> = {
@@ -223,7 +227,7 @@ BiOperatorCmp: ast::BiOperator = {
 }
 
 Identifier: ast::Identifier<parser::Context> = {
-    <lo:@L> <id:r"\p{XID_Start}\p{XID_Continue}*"> <hi:@R> =>
+    <lo:@L> <id:IdentifierName> <hi:@R> =>
         ast::Identifier { context: parser::Context::new(ast::Kind::Identifier, lo, hi), value: id.into() },
 }
 
@@ -244,7 +248,7 @@ Field: (ast::Identifier<parser::Context>, ast::Expression<parser::Context>) = {
 }
 
 NumberLiteral: ast::NumberLiteral<parser::Context> = {
-    <lo:@L> <v:r"-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?(?:u8|u16|u32|u64|i8|i16|i32|i64|f32|f64)"> <hi:@R> =>
+    <lo:@L> <v:NumberValue> <hi:@R> =>
         ast::NumberLiteral {
             context: parser::Context::new(ast::Kind::NumberLiteral, lo, hi),
             value: if v.ends_with("u8") {
@@ -274,7 +278,7 @@ NumberLiteral: ast::NumberLiteral<parser::Context> = {
 }
 
 StringLiteral: ast::StringLiteral<parser::Context> = {
-    <lo:@L> <v:r#""(?:[^"\\]|\\(?:["\\/bfnrt]|u\{[a-fA-F0-9]{1,6}\}))*""#> <hi:@R> =>
+    <lo:@L> <v:StringValue> <hi:@R> =>
         ast::StringLiteral { context: parser::Context::new(ast::Kind::StringLiteral, lo, hi), value: parser::util::parse_escaped_string(v).into_owned() },
 }
 
