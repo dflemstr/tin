@@ -6,8 +6,8 @@
 //!
 //! To generically interact with the context of a node, the [`AstNode`] trait can be used.  All of
 //! the contexts of an entire AST can additionally be transformed using the [`MapContext`] trait.
-pub(crate) mod ast_node;
-pub(crate) mod map_context;
+mod ast_node;
+mod map_context;
 
 pub use self::ast_node::AstNode;
 pub use self::map_context::MapContext;

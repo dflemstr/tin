@@ -134,7 +134,7 @@ mod tests {
 
     use super::tin;
     use ast;
-    use ast::map_context::MapContext;
+    use ast::MapContext;
 
     #[test]
     fn e2e() {
