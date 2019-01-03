@@ -197,6 +197,7 @@ impl<'a> ModuleBuilder<'a> {
         match *expression {
             ast::Expression::NumberLiteral(ref v) => self.add_number(entity, v),
             ast::Expression::StringLiteral(ref v) => self.add_string(entity, v),
+            ast::Expression::Symbol(ref v) => self.add_symbol(entity, v),
             ast::Expression::Tuple(ref v) => self.add_tuple(entity, v),
             ast::Expression::Record(ref v) => self.add_record(entity, v),
             ast::Expression::UnOp(ref v) => self.add_un_op(entity, v),
@@ -281,6 +282,24 @@ impl<'a> ModuleBuilder<'a> {
             .insert(
                 entity,
                 component::element::Element::Tuple(component::element::Tuple { fields }),
+            )
+            .unwrap();
+
+        Ok(())
+    }
+
+    fn add_symbol(
+        &mut self,
+        entity: specs::Entity,
+        symbol: &ast::Symbol<parser::Context>,
+    ) -> Result<(), Error> {
+        let label = symbol.label.clone();
+
+        self.world
+            .write_storage()
+            .insert(
+                entity,
+                component::element::Element::Symbol(component::element::Symbol { label }),
             )
             .unwrap();
 

@@ -11,6 +11,7 @@ use specs::VecStorage;
 pub enum Element {
     NumberValue(NumberValue),
     StringValue(StringValue),
+    Symbol(Symbol),
     Tuple(Tuple),
     Record(Record),
     UnOp(UnOp),
@@ -40,6 +41,11 @@ pub enum NumberValue {
 
 #[derive(Debug, VisitEntities)]
 pub struct StringValue(pub String);
+
+#[derive(Debug, VisitEntities)]
+pub struct Symbol {
+    pub label: String,
+}
 
 #[derive(Debug, VisitEntities)]
 pub struct Tuple {

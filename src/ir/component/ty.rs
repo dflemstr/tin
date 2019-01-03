@@ -9,6 +9,7 @@ pub enum Type {
     Boolean,
     Number(Number),
     String,
+    Symbol(String),
     Tuple(Tuple),
     Record(Record),
     Function(Function),
@@ -18,6 +19,7 @@ pub enum Type {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, VisitEntities)]
 pub enum ScalarClass {
+    Void,
     Boolean,
     Integral(IntegralScalarClass),
     Fractional,
@@ -80,6 +82,7 @@ impl Type {
             Type::Boolean => ScalarClass::Boolean,
             Type::Number(ref n) => n.scalar_class(),
             Type::String => ScalarClass::Complex,
+            Type::Symbol(_) => ScalarClass::Void,
             Type::Tuple(_) => ScalarClass::Complex,
             Type::Record(_) => ScalarClass::Complex,
             Type::Function(_) => ScalarClass::Undefined,

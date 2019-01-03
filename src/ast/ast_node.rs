@@ -46,6 +46,7 @@ where
         match *self {
             ast::Expression::NumberLiteral(ref v) => v.context(),
             ast::Expression::StringLiteral(ref v) => v.context(),
+            ast::Expression::Symbol(ref v) => v.context(),
             ast::Expression::Tuple(ref v) => v.context(),
             ast::Expression::Record(ref v) => v.context(),
             ast::Expression::UnOp(ref v) => v.context(),
@@ -61,6 +62,7 @@ where
         match *self {
             ast::Expression::NumberLiteral(ref mut v) => v.context_mut(),
             ast::Expression::StringLiteral(ref mut v) => v.context_mut(),
+            ast::Expression::Symbol(ref mut v) => v.context_mut(),
             ast::Expression::Tuple(ref mut v) => v.context_mut(),
             ast::Expression::Record(ref mut v) => v.context_mut(),
             ast::Expression::UnOp(ref mut v) => v.context_mut(),
@@ -87,6 +89,19 @@ where
 }
 
 impl<C> AstNode<C> for ast::StringLiteral<C>
+where
+    C: fmt::Debug,
+{
+    fn context(&self) -> &C {
+        &self.context
+    }
+
+    fn context_mut(&mut self) -> &mut C {
+        &mut self.context
+    }
+}
+
+impl<C> AstNode<C> for ast::Symbol<C>
 where
     C: fmt::Debug,
 {

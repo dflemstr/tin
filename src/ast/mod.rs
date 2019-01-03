@@ -23,6 +23,8 @@ pub enum Kind {
     NumberLiteral,
     /// A [`StringLiteral`] AST node.
     StringLiteral,
+    /// A [`Symbol`] AST node.
+    Symbol,
     /// A [`Tuple`] AST node.
     Tuple,
     /// A [`Record`] AST node.
@@ -68,6 +70,8 @@ pub enum Expression<C> {
     NumberLiteral(NumberLiteral<C>),
     /// A string literal.
     StringLiteral(StringLiteral<C>),
+    /// A symbol literal.
+    Symbol(Symbol<C>),
     /// A tuple literal.
     Tuple(Tuple<C>),
     /// A record literal.
@@ -127,6 +131,15 @@ pub struct StringLiteral<C> {
     pub context: C,
     /// The value of the literal.
     pub value: String,
+}
+
+/// A symbol.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Symbol<C> {
+    /// This node's AST context.
+    pub context: C,
+    /// The label of the symbol.
+    pub label: String,
 }
 
 /// A tuple expression.

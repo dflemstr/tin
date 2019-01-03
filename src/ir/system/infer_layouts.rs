@@ -62,6 +62,7 @@ impl System {
         match *element {
             element::Element::NumberValue(ref n) => self.infer_number_layout(n),
             element::Element::StringValue(_) => Some(layout::Layout::scalar(self.ptr_size)),
+            element::Element::Symbol(_) => Some(layout::Layout::zero()),
             element::Element::Tuple(element::Tuple { ref fields }) => {
                 self.infer_tuple_layout(fields, layouts)
             }

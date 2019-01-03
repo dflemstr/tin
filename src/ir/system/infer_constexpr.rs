@@ -45,6 +45,7 @@ where
     match *element {
         element::Element::NumberValue(_) => true,
         element::Element::StringValue(_) => true,
+        element::Element::Symbol(_) => true,
         element::Element::Tuple(element::Tuple { ref fields }) => {
             fields.iter().all(|f| constexprs.contains(*f))
         }

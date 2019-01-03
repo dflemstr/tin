@@ -101,6 +101,7 @@ impl<'a> dot::GraphWalk<'a, Node, Edge<'a>> for Graph<'a> {
                 match element {
                     element::Element::NumberValue(_) => {}
                     element::Element::StringValue(_) => {}
+                    element::Element::Symbol(_) => {}
                     element::Element::Tuple(element::Tuple { fields }) => {
                         for (idx, field) in fields.iter().enumerate() {
                             edges.push(Edge {
@@ -273,6 +274,9 @@ impl<'a> dot::Labeller<'a, Node, Edge<'a>> for Graph<'a> {
                 element::Element::StringValue(element::StringValue(s)) => {
                     write!(result, "str <b>{:?}</b>", s).unwrap()
                 }
+                element::Element::Symbol(element::Symbol{ref label}) => {
+                    write!(result, "sym <b>{:?}</b>", label).unwrap()
+                }
                 element::Element::Tuple(element::Tuple { fields }) => {
                     write!(result, "tuple <br/> <b>{:?}</b> fields", fields.len()).unwrap()
                 }
@@ -417,6 +421,7 @@ impl<'a> fmt::Display for PrettyTy<&'a ty::Type> {
             ty::Type::Boolean => write!(f, "bool"),
             ty::Type::Number(ref number) => PrettyTy(number).fmt(f),
             ty::Type::String => write!(f, "str"),
+            ty::Type::Symbol(ref label) => write!(f, "sym:{}", label),
             ty::Type::Tuple(ref tuple) => PrettyTy(tuple).fmt(f),
             ty::Type::Record(ref record) => PrettyTy(record).fmt(f),
             ty::Type::Function(ref function) => PrettyTy(function).fmt(f),
@@ -514,6 +519,7 @@ impl<'a> fmt::Display for PrettyTy<&'a ty::ExpectedType> {
 impl<'a> fmt::Display for PrettyTy<&'a ty::ScalarClass> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self.0 {
+            ty::ScalarClass::Void => f.write_str("(any zero-sized type)"),
             ty::ScalarClass::Boolean => f.write_str("(any bool type)"),
             ty::ScalarClass::Integral(ty::IntegralScalarClass::Unsigned) => {
                 f.write_str("(any unsigned integer type)")

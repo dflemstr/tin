@@ -22,6 +22,7 @@ impl AbiType {
             ty::Type::Boolean => AbiType::Scalar(types::B1),
             ty::Type::Number(ref n) => AbiType::from_ir_number_type(n),
             ty::Type::String => AbiType::Ptr,
+            ty::Type::Symbol(_) => AbiType::Scalar(types::I8),
             ty::Type::Tuple(_) => AbiType::Ptr,
             ty::Type::Record(_) => AbiType::Ptr,
             ty::Type::Function(_) => AbiType::Ptr,

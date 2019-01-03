@@ -16,6 +16,7 @@ match {
     r"\p{XID_Start}\p{XID_Continue}*" => IdentifierName,
     r"-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?(?:u8|u16|u32|u64|i8|i16|i32|i64|f32|f64)" => NumberValue,
     r#""(?:[^"\\]|\\(?:["\\/bfnrt]|u\{[a-fA-F0-9]{1,6}\}))*""# => StringValue,
+    r":\p{XID_Start}\p{XID_Continue}*" => SymbolLabel,
     _
 }
 
@@ -138,6 +139,7 @@ ExpressionAtom: ast::Expression<parser::Context> = {
     Identifier => ast::Expression::Identifier(<>),
     NumberLiteral => ast::Expression::NumberLiteral(<>),
     StringLiteral => ast::Expression::StringLiteral(<>),
+    Symbol => ast::Expression::Symbol(<>),
     Tuple => ast::Expression::Tuple(<>),
     Record => ast::Expression::Record(<>),
     Lambda => ast::Expression::Lambda(<>),
@@ -280,6 +282,11 @@ NumberLiteral: ast::NumberLiteral<parser::Context> = {
 StringLiteral: ast::StringLiteral<parser::Context> = {
     <lo:@L> <v:StringValue> <hi:@R> =>
         ast::StringLiteral { context: parser::Context::new(ast::Kind::StringLiteral, lo, hi), value: parser::util::parse_escaped_string(v).into_owned() },
+}
+
+Symbol: ast::Symbol<parser::Context> = {
+    <lo:@L> <label:SymbolLabel> <hi:@R> =>
+        ast::Symbol { context: parser::Context::new(ast::Kind::Symbol, lo, hi), label: (&label[1..]).to_owned() },
 }
 
 Lambda: ast::Lambda<parser::Context> = {

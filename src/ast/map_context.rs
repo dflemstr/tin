@@ -76,6 +76,7 @@ where
             ast::Expression::StringLiteral(e) => {
                 ast::Expression::StringLiteral(e.map_context(mapping))
             }
+            ast::Expression::Symbol(e) => ast::Expression::Symbol(e.map_context(mapping)),
             ast::Expression::Tuple(e) => ast::Expression::Tuple(e.map_context(mapping)),
             ast::Expression::Record(e) => ast::Expression::Record(e.map_context(mapping)),
             ast::Expression::UnOp(e) => ast::Expression::UnOp(e.map_context(mapping)),
@@ -119,6 +120,23 @@ where
         let context = mapping(self.context);
         let value = self.value;
         ast::StringLiteral { context, value }
+    }
+}
+
+impl<C1, C2> MapContext<C1, C2> for ast::Symbol<C1>
+where
+    C1: fmt::Debug,
+    C2: fmt::Debug,
+{
+    type Output = ast::Symbol<C2>;
+
+    fn map_context<F>(self, mapping: &mut F) -> Self::Output
+    where
+        F: FnMut(C1) -> C2,
+    {
+        let context = mapping(self.context);
+        let label = self.label;
+        ast::Symbol { context, label }
     }
 }
 
