@@ -1,7 +1,7 @@
 use specs;
 
-use ir::component::constexpr;
-use ir::component::element;
+use crate::ir::component::constexpr;
+use crate::ir::component::element;
 use std::ops;
 
 pub struct System;

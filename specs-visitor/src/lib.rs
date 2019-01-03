@@ -3,7 +3,6 @@ extern crate specs;
 
 use std::collections;
 use std::hash;
-use std::mem;
 
 use rayon::prelude::*;
 

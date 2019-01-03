@@ -1,7 +1,7 @@
 use failure;
 
-use graph;
-use ir;
+use crate::graph;
+use crate::ir;
 
 pub fn render_graph(name: &str, ir: &ir::Ir) -> Result<(), failure::Error> {
     if cfg!(feature = "test-render-graphs") {

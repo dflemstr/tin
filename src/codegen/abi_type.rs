@@ -4,7 +4,7 @@ use std::u32;
 use std::u64;
 use std::u8;
 
-use ir::component::ty;
+use crate::ir::component::ty;
 
 use cranelift::prelude::*;
 

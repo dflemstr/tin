@@ -3,11 +3,11 @@ use std::collections;
 use specs;
 use specs_visitor;
 
-use ir::component::element;
-use ir::component::layout;
-use ir::component::replacement;
-use ir::component::symbol;
-use ir::component::ty;
+use crate::ir::component::element;
+use crate::ir::component::layout;
+use crate::ir::component::replacement;
+use crate::ir::component::symbol;
+use crate::ir::component::ty;
 
 pub struct System;
 

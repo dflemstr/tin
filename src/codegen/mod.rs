@@ -7,12 +7,12 @@ use cranelift_module;
 use cranelift_simplejit;
 use specs;
 
-use ir;
-use ir::component::element;
-use ir::component::layout;
-use ir::component::symbol;
-use ir::component::ty;
-use module;
+use crate::ir;
+use crate::ir::component::element;
+use crate::ir::component::layout;
+use crate::ir::component::symbol;
+use crate::ir::component::ty;
+use crate::module;
 
 use cranelift::prelude::*;
 
@@ -254,9 +254,9 @@ mod tests {
     use failure;
 
     use super::*;
-    use ast;
-    use ir;
-    use test_util;
+    use crate::ast;
+    use crate::ir;
+    use crate::test_util;
 
     #[test]
     fn immediate() -> Result<(), failure::Error> {
@@ -616,7 +616,7 @@ main = || F32 { a = 2f32; b = 1f32; a - b };
     }
 
     fn compile_module(name: &str, source: &str) -> Result<module::Module, failure::Error> {
-        use parser::Parse;
+        use crate::parser::Parse;
 
         let ast_module = ast::Module::parse(source)?;
         let mut ir = ir::Ir::new();

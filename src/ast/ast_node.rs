@@ -1,7 +1,7 @@
 //! Generic node manipulation of AST nodes.
 use std::fmt;
 
-use ast;
+use crate::ast;
 
 /// A Tin AST node.
 pub trait AstNode<C>: fmt::Debug + Sized {

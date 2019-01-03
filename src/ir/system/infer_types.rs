@@ -2,8 +2,8 @@ use std::collections;
 
 use specs;
 
-use ir::component::element;
-use ir::component::ty;
+use crate::ir::component::element;
+use crate::ir::component::ty;
 use std::ops;
 
 lazy_static! {

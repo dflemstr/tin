@@ -1,5 +1,5 @@
-use ast;
-use parser;
+use crate::ast;
+use crate::parser;
 
 use std::str::FromStr;
 

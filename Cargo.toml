@@ -5,6 +5,7 @@ license = "MIT"
 version = "0.2.2"
 authors = ["David Flemström <david.flemstrom@gmail.com>"]
 repository = "https://github.com/dflemstr/tin"
+edition = "2018"
 
 [build-dependencies]
 lalrpop = "0.16.2"

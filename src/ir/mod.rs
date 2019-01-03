@@ -6,8 +6,8 @@ use std::mem;
 
 use specs;
 
-use ast;
-use parser;
+use crate::ast;
+use crate::parser;
 
 pub mod component;
 mod system;
@@ -675,12 +675,12 @@ mod tests {
     use failure;
 
     use super::*;
-    use ast;
-    use test_util;
+    use crate::ast;
+    use crate::test_util;
 
     #[test]
     fn entity_assignments() -> Result<(), failure::Error> {
-        use parser::Parse;
+        use crate::parser::Parse;
 
         let _ = env_logger::try_init();
 
@@ -706,7 +706,7 @@ main = || Int { pickFirst(1u32, 2u32) };
 
     #[test]
     fn recursive_module_variables() -> Result<(), failure::Error> {
-        use parser::Parse;
+        use crate::parser::Parse;
 
         let _ = env_logger::try_init();
 
@@ -733,7 +733,7 @@ b = || Int {
 
     #[test]
     fn lexically_scoped_closure_vars() -> Result<(), failure::Error> {
-        use parser::Parse;
+        use crate::parser::Parse;
 
         let _ = env_logger::try_init();
 
@@ -764,7 +764,7 @@ a = || Int {
 
     #[test]
     fn ordered_local_vars() -> Result<(), failure::Error> {
-        use parser::Parse;
+        use crate::parser::Parse;
 
         let _ = env_logger::try_init();
 

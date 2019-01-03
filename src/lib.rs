@@ -43,10 +43,6 @@
 )]
 #![cfg_attr(feature = "cargo-clippy", deny(clippy::all, clippy::pedantic))]
 
-extern crate cranelift;
-extern crate cranelift_module;
-extern crate cranelift_simplejit;
-extern crate dot;
 #[macro_use]
 extern crate failure;
 #[macro_use]
@@ -55,14 +51,10 @@ extern crate lalrpop_util;
 extern crate lazy_static;
 #[macro_use]
 extern crate log;
-extern crate specs;
 #[macro_use]
 extern crate specs_derive;
-extern crate specs_visitor;
 #[macro_use]
 extern crate specs_visitor_derive;
-#[cfg(test)]
-extern crate env_logger;
 
 use std::fmt;
 
@@ -77,8 +69,8 @@ pub mod error;
 pub mod graph;
 pub mod module;
 
-pub use error::Error;
-pub use error::Result;
+pub use crate::error::Error;
+pub use crate::error::Result;
 
 /// An instance of the Tin runtime.
 pub struct Tin {
@@ -89,7 +81,7 @@ pub struct Tin {
 impl Tin {
     /// Creates a new instance of the Tin runtime.
     pub fn new() -> Tin {
-        use parser::Parse;
+        use crate::parser::Parse;
 
         let ir = ir::Ir::new();
         let parser = ast::Module::new_parser();

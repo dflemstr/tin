@@ -8,11 +8,11 @@ use std::fmt;
 use dot;
 use specs;
 
-use ir;
-use ir::component::element;
-use ir::component::layout;
-use ir::component::symbol;
-use ir::component::ty;
+use crate::ir;
+use crate::ir::component::element;
+use crate::ir::component::layout;
+use crate::ir::component::symbol;
+use crate::ir::component::ty;
 
 /// A graph representation of IR.
 pub struct Graph<'a> {

@@ -3,8 +3,8 @@ use std::usize;
 
 use specs;
 
-use ir::component::element;
-use ir::component::layout;
+use crate::ir::component::element;
+use crate::ir::component::layout;
 use std::ops;
 
 pub struct System {

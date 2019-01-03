@@ -3,7 +3,7 @@ use std::fmt;
 
 use lalrpop_util;
 
-use ast;
+use crate::ast;
 
 mod util;
 
@@ -90,16 +90,16 @@ impl Context {
 macro_rules! parser_impl {
     ($parser:ident, $result:ty) => {
         impl Parse for $result {
-            type Parser = ::parser::tin::$parser;
+            type Parser = crate::parser::tin::$parser;
 
             fn new_parser() -> Self::Parser {
-                ::parser::tin::$parser::new()
+                crate::parser::tin::$parser::new()
             }
         }
 
-        impl Parser<$result> for ::parser::tin::$parser {
+        impl Parser<$result> for crate::parser::tin::$parser {
             fn parse(&mut self, source: &str) -> Result<$result, Error> {
-                ::parser::tin::$parser::parse(self, source).map_err(Into::into)
+                crate::parser::tin::$parser::parse(self, source).map_err(Into::into)
             }
         }
     };
@@ -133,8 +133,8 @@ mod tests {
     use env_logger;
 
     use super::tin;
-    use ast;
-    use ast::MapContext;
+    use crate::ast;
+    use crate::ast::MapContext;
 
     #[test]
     fn e2e() {

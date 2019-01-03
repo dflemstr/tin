@@ -1,8 +1,8 @@
 //! Common error types and utilities.
 use std::result;
 
-use ir;
-use parser;
+use crate::ir;
+use crate::parser;
 
 /// An error that occurs while interacting with Tin.
 #[derive(Debug, Fail, PartialEq)]

@@ -1,8 +1,8 @@
 use std::alloc;
 use std::num;
 
-use codegen::abi_type;
-use codegen::abi_type::AbiType::*;
+use crate::codegen::abi_type;
+use crate::codegen::abi_type::AbiType::*;
 
 #[derive(Debug)]
 pub struct Builtin {
