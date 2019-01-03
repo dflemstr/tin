@@ -25,6 +25,7 @@ specs-visitor-derive = { version = "0.1.0", path = "specs-visitor-derive" }
 specs-visitor = { version = "0.1.0", path = "specs-visitor" }
 pretty_env_logger = "0.3.0"
 structopt = "0.2.14"
+lazy_static = "1.2.0"
 
 [features]
 test-render-graphs = []

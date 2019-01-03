@@ -52,6 +52,8 @@ extern crate failure;
 #[macro_use]
 extern crate lalrpop_util;
 #[macro_use]
+extern crate lazy_static;
+#[macro_use]
 extern crate log;
 extern crate specs;
 #[macro_use]

@@ -1,4 +1,9 @@
 //! Mappings to ABI-specific types.
+use std::u16;
+use std::u32;
+use std::u64;
+use std::u8;
+
 use ir::component::ty;
 
 use cranelift::prelude::*;
@@ -19,15 +24,31 @@ impl AbiType {
     /// Create an ABI-specific type given an IR type.
     pub fn from_ir_type(ir_type: &ty::Type) -> AbiType {
         match *ir_type {
-            ty::Type::Boolean => AbiType::Scalar(types::B1),
             ty::Type::Number(ref n) => AbiType::from_ir_number_type(n),
             ty::Type::String => AbiType::Ptr,
             ty::Type::Symbol(_) => AbiType::Scalar(types::I8),
             ty::Type::Tuple(_) => AbiType::Ptr,
+            ty::Type::Union(ty::Union { ref alternatives }) => {
+                let n = alternatives.len();
+
+                // Assumes unions only store symbols for now
+                if n <= 2 {
+                    AbiType::Scalar(types::B1)
+                } else if n <= u8::MAX as usize {
+                    AbiType::Scalar(types::I8)
+                } else if n <= u16::MAX as usize {
+                    AbiType::Scalar(types::I16)
+                } else if n <= u32::MAX as usize {
+                    AbiType::Scalar(types::I32)
+                } else if n <= u64::MAX as usize {
+                    AbiType::Scalar(types::I64)
+                } else {
+                    unimplemented!()
+                }
+            }
             ty::Type::Record(_) => AbiType::Ptr,
             ty::Type::Function(_) => AbiType::Ptr,
             ty::Type::Conflict(_) => panic!("type conflict"),
-            ty::Type::Any => panic!("can't map any type to concrete type"),
         }
     }
 

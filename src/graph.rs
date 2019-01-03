@@ -56,8 +56,6 @@ enum Label<'a> {
     BiRhs,
 }
 
-struct PrettyTy<T>(T);
-
 impl<'a> Graph<'a> {
     /// Creates a new IR graph based on the supplied intermediate representation.
     pub(crate) fn new(ir: &'a ir::Ir) -> Graph<'a> {
@@ -328,7 +326,7 @@ impl<'a> dot::Labeller<'a, Node, Edge<'a>> for Graph<'a> {
         };
 
         if let Some(ty) = self.types.get(n.0) {
-            write!(result, "<br/> <font color=\"blue\">{}</font>", PrettyTy(ty)).unwrap();
+            write!(result, "<br/> <font color=\"blue\">{}</font>", ty).unwrap();
         }
 
         if let Some(layout) = self.layouts.get(n.0) {
@@ -412,127 +410,5 @@ impl<'a> dot::Labeller<'a, Node, Edge<'a>> for Graph<'a> {
 impl<'a> fmt::Debug for Graph<'a> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_struct("Graph").finish()
-    }
-}
-
-impl<'a> fmt::Display for PrettyTy<&'a ty::Type> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self.0 {
-            ty::Type::Boolean => write!(f, "bool"),
-            ty::Type::Number(ref number) => PrettyTy(number).fmt(f),
-            ty::Type::String => write!(f, "str"),
-            ty::Type::Symbol(ref label) => write!(f, "sym:{}", label),
-            ty::Type::Tuple(ref tuple) => PrettyTy(tuple).fmt(f),
-            ty::Type::Record(ref record) => PrettyTy(record).fmt(f),
-            ty::Type::Function(ref function) => PrettyTy(function).fmt(f),
-            ty::Type::Conflict(ref conflict) => PrettyTy(conflict).fmt(f),
-            ty::Type::Any => write!(f, "any"),
-        }
-    }
-}
-
-impl<'a> fmt::Display for PrettyTy<&'a ty::Number> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self.0 {
-            ty::Number::U8 => write!(f, "u8"),
-            ty::Number::U16 => write!(f, "u16"),
-            ty::Number::U32 => write!(f, "u32"),
-            ty::Number::U64 => write!(f, "u64"),
-            ty::Number::I8 => write!(f, "i8"),
-            ty::Number::I16 => write!(f, "i16"),
-            ty::Number::I32 => write!(f, "i32"),
-            ty::Number::I64 => write!(f, "i64"),
-            ty::Number::F32 => write!(f, "f32"),
-            ty::Number::F64 => write!(f, "f64"),
-        }
-    }
-}
-
-impl<'a> fmt::Display for PrettyTy<&'a ty::Tuple> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "(")?;
-        let mut needs_sep = false;
-        for ty in &self.0.fields {
-            if needs_sep {
-                write!(f, ",")?;
-            }
-            PrettyTy(ty).fmt(f)?;
-            needs_sep = true;
-        }
-        write!(f, ")")?;
-        Ok(())
-    }
-}
-
-impl<'a> fmt::Display for PrettyTy<&'a ty::Record> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "\\{{")?;
-        let mut needs_sep = false;
-        for (id, ty) in &self.0.fields {
-            if needs_sep {
-                write!(f, ",")?;
-            }
-            write!(f, "{}:", id)?;
-            PrettyTy(ty).fmt(f)?;
-            needs_sep = true;
-        }
-        write!(f, "\\}}")?;
-        Ok(())
-    }
-}
-
-impl<'a> fmt::Display for PrettyTy<&'a ty::Function> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "\\|")?;
-        let mut needs_sep = false;
-        for ty in &self.0.parameters {
-            if needs_sep {
-                write!(f, ",")?;
-            }
-            PrettyTy(ty).fmt(f)?;
-            needs_sep = true;
-        }
-        write!(f, "\\|:")?;
-        PrettyTy(&*self.0.result).fmt(f)?;
-        Ok(())
-    }
-}
-
-impl<'a> fmt::Display for PrettyTy<&'a ty::Conflict> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        PrettyTy(&self.0.expected).fmt(f)?;
-        write!(f, "!=")?;
-        PrettyTy(&*self.0.actual).fmt(f)?;
-        Ok(())
-    }
-}
-
-impl<'a> fmt::Display for PrettyTy<&'a ty::ExpectedType> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match *self.0 {
-            ty::ExpectedType::Specific(ref ty) => PrettyTy(&**ty).fmt(f),
-            ty::ExpectedType::ScalarClass(ref class) => PrettyTy(class).fmt(f),
-        }
-    }
-}
-
-impl<'a> fmt::Display for PrettyTy<&'a ty::ScalarClass> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match *self.0 {
-            ty::ScalarClass::Void => f.write_str("(any zero-sized type)"),
-            ty::ScalarClass::Boolean => f.write_str("(any bool type)"),
-            ty::ScalarClass::Integral(ty::IntegralScalarClass::Unsigned) => {
-                f.write_str("(any unsigned integer type)")
-            }
-            ty::ScalarClass::Integral(ty::IntegralScalarClass::Signed) => {
-                f.write_str("(any signed integer type)")
-            }
-            ty::ScalarClass::Integral(ty::IntegralScalarClass::Any) => {
-                f.write_str("(any integer type)")
-            }
-            ty::ScalarClass::Fractional => f.write_str("(any floating point type)"),
-            ty::ScalarClass::Complex => f.write_str("(any complex type)"),
-            ty::ScalarClass::Undefined => f.write_str("(any non-scalar type)"),
-        }
     }
 }

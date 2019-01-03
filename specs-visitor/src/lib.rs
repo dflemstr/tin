@@ -3,6 +3,7 @@ extern crate specs;
 
 use std::collections;
 use std::hash;
+use std::mem;
 
 use rayon::prelude::*;
 
@@ -68,9 +69,7 @@ where
     where
         V: EntityVisitor,
     {
-        self.par_iter()
-            .map(|element| element.accept(visitor))
-            .collect()
+        self.par_iter().for_each(|element| element.accept(visitor))
     }
 
     fn accept_mut<V>(&mut self, visitor: &V)
@@ -78,8 +77,7 @@ where
         V: EntityVisitorMut,
     {
         self.par_iter_mut()
-            .map(|element| element.accept_mut(visitor))
-            .collect()
+            .for_each(|element| element.accept_mut(visitor))
     }
 }
 
@@ -112,8 +110,7 @@ where
         V: EntityVisitor,
     {
         self.par_iter()
-            .map(|(_, element)| element.accept(visitor))
-            .collect()
+            .for_each(|(_, element)| element.accept(visitor))
     }
 
     fn accept_mut<V>(&mut self, visitor: &V)
@@ -121,8 +118,7 @@ where
         V: EntityVisitorMut,
     {
         self.par_iter_mut()
-            .map(|(_, element)| element.accept_mut(visitor))
-            .collect()
+            .for_each(|(_, element)| element.accept_mut(visitor))
     }
 }
 

@@ -6,6 +6,20 @@ use ir::component::element;
 use ir::component::ty;
 use std::ops;
 
+lazy_static! {
+    static ref BOOL_TYPE: ty::Type = {
+        let alternatives = vec![
+            ty::Symbol {
+                label: "f".to_owned(),
+            },
+            ty::Symbol {
+                label: "t".to_owned(),
+            },
+        ];
+        ty::Type::Union(ty::Union { alternatives })
+    };
+}
+
 pub struct System;
 
 impl<'a> specs::System<'a> for System {
@@ -47,7 +61,9 @@ where
         element::Element::NumberValue(ref n) => Some(ty::Type::Number(infer_number_type(n))),
         element::Element::StringValue(_) => Some(ty::Type::String),
         element::Element::Symbol(element::Symbol { ref label }) => {
-            Some(ty::Type::Symbol(label.clone()))
+            Some(ty::Type::Symbol(ty::Symbol {
+                label: label.clone(),
+            }))
         }
         element::Element::Tuple(element::Tuple { ref fields }) => infer_tuple_type(fields, types),
         element::Element::Record(element::Record { ref fields }) => {
@@ -141,11 +157,11 @@ where
     if let Some(ty) = types.get(operand) {
         let result = match operator {
             element::UnOperator::Not => {
-                if ty.scalar_class() == ty::ScalarClass::Boolean {
-                    ty::Type::Boolean
+                if *ty == *BOOL_TYPE {
+                    BOOL_TYPE.clone()
                 } else {
                     ty::Type::Conflict(ty::Conflict {
-                        expected: ty::ExpectedType::Specific(Box::new(ty::Type::Boolean)),
+                        expected: ty::ExpectedType::Specific(Box::new(BOOL_TYPE.clone())),
                         actual: Box::new(ty.clone()),
                     })
                 }
@@ -179,12 +195,12 @@ where
     match (types.get(lhs), types.get(rhs)) {
         (Some(lhs_ty), Some(rhs_ty)) => {
             let result = match operator {
-                element::BiOperator::Eq => if_eq_then(lhs_ty, rhs_ty, &ty::Type::Boolean),
-                element::BiOperator::Ne => if_eq_then(lhs_ty, rhs_ty, &ty::Type::Boolean),
-                element::BiOperator::Lt => if_eq_then(lhs_ty, rhs_ty, &ty::Type::Boolean),
-                element::BiOperator::Ge => if_eq_then(lhs_ty, rhs_ty, &ty::Type::Boolean),
-                element::BiOperator::Gt => if_eq_then(lhs_ty, rhs_ty, &ty::Type::Boolean),
-                element::BiOperator::Le => if_eq_then(lhs_ty, rhs_ty, &ty::Type::Boolean),
+                element::BiOperator::Eq => if_eq_then(lhs_ty, rhs_ty, &*BOOL_TYPE),
+                element::BiOperator::Ne => if_eq_then(lhs_ty, rhs_ty, &*BOOL_TYPE),
+                element::BiOperator::Lt => if_eq_then(lhs_ty, rhs_ty, &*BOOL_TYPE),
+                element::BiOperator::Ge => if_eq_then(lhs_ty, rhs_ty, &*BOOL_TYPE),
+                element::BiOperator::Gt => if_eq_then(lhs_ty, rhs_ty, &*BOOL_TYPE),
+                element::BiOperator::Le => if_eq_then(lhs_ty, rhs_ty, &*BOOL_TYPE),
                 element::BiOperator::Cmp => unimplemented!(),
                 element::BiOperator::Add => if_eq_then(lhs_ty, rhs_ty, lhs_ty),
                 element::BiOperator::Sub => if_eq_then(lhs_ty, rhs_ty, lhs_ty),
@@ -193,7 +209,7 @@ where
                 element::BiOperator::Rem => if_eq_then(lhs_ty, rhs_ty, lhs_ty),
                 element::BiOperator::And => bool_op(lhs_ty, rhs_ty),
                 element::BiOperator::BAnd => if_eq_then(lhs_ty, rhs_ty, lhs_ty),
-                element::BiOperator::Or => bool_op(lhs_ty, rhs_ty),
+                element::BiOperator::Or => or_op(lhs_ty, rhs_ty),
                 element::BiOperator::BOr => if_eq_then(lhs_ty, rhs_ty, lhs_ty),
                 element::BiOperator::Xor => bool_op(lhs_ty, rhs_ty),
                 element::BiOperator::BXor => if_eq_then(lhs_ty, rhs_ty, lhs_ty),
@@ -240,7 +256,12 @@ where
                     Some(t.clone())
                 } else {
                     let mut expected_fields = collections::HashMap::new();
-                    expected_fields.insert(field.to_owned(), ty::Type::Any);
+                    expected_fields.insert(
+                        field.to_owned(),
+                        ty::Type::Symbol(ty::Symbol {
+                            label: "something".to_owned(),
+                        }),
+                    );
                     Some(ty::Type::Conflict(ty::Conflict {
                         expected: ty::ExpectedType::Specific(Box::new(ty::Type::Record(
                             ty::Record {
@@ -253,7 +274,12 @@ where
             }
             something => {
                 let mut expected_fields = collections::HashMap::new();
-                expected_fields.insert(field.to_owned(), ty::Type::Any);
+                expected_fields.insert(
+                    field.to_owned(),
+                    ty::Type::Symbol(ty::Symbol {
+                        label: "something".to_owned(),
+                    }),
+                );
                 Some(ty::Type::Conflict(ty::Conflict {
                     expected: ty::ExpectedType::Specific(Box::new(ty::Type::Record(ty::Record {
                         fields: expected_fields,
@@ -295,7 +321,9 @@ where
                             expected: ty::ExpectedType::Specific(Box::new(ty::Type::Function(
                                 ty::Function {
                                     parameters,
-                                    result: Box::new(ty::Type::Any),
+                                    result: Box::new(ty::Type::Symbol(ty::Symbol {
+                                        label: "something".to_owned(),
+                                    })),
                                 },
                             ))),
                             actual: Box::new(f.clone()),
@@ -307,8 +335,12 @@ where
             }
             something => Some(ty::Type::Conflict(ty::Conflict {
                 expected: ty::ExpectedType::Specific(Box::new(ty::Type::Function(ty::Function {
-                    parameters: vec![ty::Type::Any],
-                    result: Box::new(ty::Type::Any),
+                    parameters: vec![ty::Type::Symbol(ty::Symbol {
+                        label: "something".to_owned(),
+                    })],
+                    result: Box::new(ty::Type::Symbol(ty::Symbol {
+                        label: "something".to_owned(),
+                    })),
                 }))),
                 actual: Box::new(something.clone()),
             })),
@@ -404,16 +436,50 @@ fn if_eq_then(lhs: &ty::Type, rhs: &ty::Type, result: &ty::Type) -> ty::Type {
 }
 
 fn bool_op(lhs: &ty::Type, rhs: &ty::Type) -> ty::Type {
-    match (lhs.scalar_class(), rhs.scalar_class()) {
-        (ty::ScalarClass::Boolean, ty::ScalarClass::Boolean) => ty::Type::Boolean,
-        (ty::ScalarClass::Boolean, _) => ty::Type::Conflict(ty::Conflict {
-            expected: ty::ExpectedType::Specific(Box::new(ty::Type::Boolean)),
-            actual: Box::new(rhs.clone()),
-        }),
-        _ => ty::Type::Conflict(ty::Conflict {
-            expected: ty::ExpectedType::Specific(Box::new(ty::Type::Boolean)),
+    if *lhs == *BOOL_TYPE {
+        if *rhs == *BOOL_TYPE {
+            BOOL_TYPE.clone()
+        } else {
+            ty::Type::Conflict(ty::Conflict {
+                expected: ty::ExpectedType::Specific(Box::new(BOOL_TYPE.clone())),
+                actual: Box::new(rhs.clone()),
+            })
+        }
+    } else {
+        ty::Type::Conflict(ty::Conflict {
+            expected: ty::ExpectedType::Specific(Box::new(BOOL_TYPE.clone())),
             actual: Box::new(lhs.clone()),
-        }),
+        })
+    }
+}
+
+fn or_op(lhs: &ty::Type, rhs: &ty::Type) -> ty::Type {
+    if let ty::Type::Union(u) = lhs {
+        if let ty::Type::Symbol(ref symbol) = rhs {
+            ty::Type::Union(u.clone().with(symbol))
+        } else {
+            ty::Type::Conflict(ty::Conflict {
+                expected: ty::ExpectedType::ScalarClass(ty::ScalarClass::Symbol),
+                actual: Box::new(rhs.clone()),
+            })
+        }
+    } else if *lhs == *BOOL_TYPE {
+        if *rhs == *BOOL_TYPE {
+            BOOL_TYPE.clone()
+        } else {
+            ty::Type::Conflict(ty::Conflict {
+                expected: ty::ExpectedType::Specific(Box::new(BOOL_TYPE.clone())),
+                actual: Box::new(rhs.clone()),
+            })
+        }
+    } else {
+        ty::Type::Conflict(ty::Conflict {
+            expected: ty::ExpectedType::AnyOf(vec![
+                ty::ExpectedType::Specific(Box::new(BOOL_TYPE.clone())),
+                ty::ExpectedType::Union,
+            ]),
+            actual: Box::new(lhs.clone()),
+        })
     }
 }
 
