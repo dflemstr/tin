@@ -46,7 +46,9 @@ where
     match *element {
         element::Element::NumberValue(ref n) => Some(ty::Type::Number(infer_number_type(n))),
         element::Element::StringValue(_) => Some(ty::Type::String),
-        element::Element::Symbol(element::Symbol{ref label }) => Some(ty::Type::Symbol(label.clone())),
+        element::Element::Symbol(element::Symbol { ref label }) => {
+            Some(ty::Type::Symbol(label.clone()))
+        }
         element::Element::Tuple(element::Tuple { ref fields }) => infer_tuple_type(fields, types),
         element::Element::Record(element::Record { ref fields }) => {
             infer_record_type(fields, types)

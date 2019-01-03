@@ -73,7 +73,7 @@ impl<'a, 'f> FunctionTranslator<'a, 'f> {
             element::Element::Symbol(_) => {
                 // A single symbol is zero sized, and should never be evaluated.
                 unreachable!()
-            },
+            }
             element::Element::Tuple(ref v) => self.eval_tuple(entity, v),
             element::Element::Record(ref v) => self.eval_record(entity, v),
             element::Element::UnOp(ref v) => self.eval_un_op(entity, v),

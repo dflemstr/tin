@@ -274,7 +274,7 @@ impl<'a> dot::Labeller<'a, Node, Edge<'a>> for Graph<'a> {
                 element::Element::StringValue(element::StringValue(s)) => {
                     write!(result, "str <b>{:?}</b>", s).unwrap()
                 }
-                element::Element::Symbol(element::Symbol{ref label}) => {
+                element::Element::Symbol(element::Symbol { ref label }) => {
                     write!(result, "sym <b>{:?}</b>", label).unwrap()
                 }
                 element::Element::Tuple(element::Tuple { fields }) => {
