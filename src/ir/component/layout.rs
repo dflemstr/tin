@@ -4,7 +4,7 @@ use std::fmt;
 use specs::Component;
 use specs::VecStorage;
 
-#[derive(Clone, Component, Debug, VisitEntities)]
+#[derive(Clone, Component, Debug, VisitEntities, VisitEntitiesMut)]
 #[storage(VecStorage)]
 pub struct Layout {
     pub size: usize,

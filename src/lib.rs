@@ -60,8 +60,11 @@ use std::fmt;
 
 mod ast;
 mod codegen;
+mod interpreter;
 mod ir;
 mod parser;
+mod value;
+
 #[cfg(test)]
 mod test_util;
 

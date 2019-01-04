@@ -97,8 +97,8 @@ impl<'a> dot::GraphWalk<'a, Node, Edge<'a>> for Graph<'a> {
         for entity in self.entities.join() {
             if let Some(element) = self.elements.get(entity) {
                 match element {
-                    element::Element::NumberValue(_) => {}
-                    element::Element::StringValue(_) => {}
+                    element::Element::Number(_) => {}
+                    element::Element::String(_) => {}
                     element::Element::Symbol(_) => {}
                     element::Element::Tuple(element::Tuple { fields }) => {
                         for (idx, field) in fields.iter().enumerate() {
@@ -268,10 +268,8 @@ impl<'a> dot::Labeller<'a, Node, Edge<'a>> for Graph<'a> {
 
         if let Some(element) = self.elements.get(n.0) {
             match element {
-                element::Element::NumberValue(n) => write!(result, "num <b>{:?}</b>", n).unwrap(),
-                element::Element::StringValue(element::StringValue(s)) => {
-                    write!(result, "str <b>{:?}</b>", s).unwrap()
-                }
+                element::Element::Number(n) => write!(result, "num <b>{:?}</b>", n).unwrap(),
+                element::Element::String(s) => write!(result, "str <b>{:?}</b>", s).unwrap(),
                 element::Element::Symbol(element::Symbol { ref label }) => {
                     write!(result, "sym <b>{:?}</b>", label).unwrap()
                 }

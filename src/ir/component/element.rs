@@ -6,11 +6,11 @@ use specs;
 use specs::Component;
 use specs::VecStorage;
 
-#[derive(Component, Debug, VisitEntities)]
+#[derive(Component, Debug, VisitEntities, VisitEntitiesMut)]
 #[storage(VecStorage)]
 pub enum Element {
-    NumberValue(NumberValue),
-    StringValue(StringValue),
+    Number(Number),
+    String(String),
     Symbol(Symbol),
     Tuple(Tuple),
     Record(Record),
@@ -25,8 +25,8 @@ pub enum Element {
     Module(Module),
 }
 
-#[derive(Clone, Copy, Debug, VisitEntities)]
-pub enum NumberValue {
+#[derive(Clone, Copy, Debug, VisitEntities, VisitEntitiesMut)]
+pub enum Number {
     U8(u8),
     U16(u16),
     U32(u32),
@@ -39,26 +39,23 @@ pub enum NumberValue {
     F64(f64),
 }
 
-#[derive(Debug, VisitEntities)]
-pub struct StringValue(pub String);
-
-#[derive(Debug, VisitEntities)]
+#[derive(Debug, VisitEntities, VisitEntitiesMut)]
 pub struct Symbol {
     pub label: String,
 }
 
-#[derive(Debug, VisitEntities)]
+#[derive(Debug, VisitEntities, VisitEntitiesMut)]
 pub struct Tuple {
     pub fields: Vec<specs::Entity>,
 }
 
-#[derive(Debug, VisitEntities)]
+#[derive(Debug, VisitEntities, VisitEntitiesMut)]
 pub struct Record {
     pub fields: collections::HashMap<String, specs::Entity>,
 }
 
 /// An unary operator.
-#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd, VisitEntities)]
+#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd, VisitEntities, VisitEntitiesMut)]
 pub enum UnOperator {
     /// Logical not.
     Not,
@@ -87,7 +84,7 @@ pub enum UnOperator {
 }
 
 /// An operator application with one operand.
-#[derive(Clone, Copy, Debug, PartialEq, VisitEntities)]
+#[derive(Clone, Copy, Debug, PartialEq, VisitEntities, VisitEntitiesMut)]
 pub struct UnOp {
     /// The unary operator that is being applied.
     pub operator: UnOperator,
@@ -96,7 +93,7 @@ pub struct UnOp {
 }
 
 /// A binary operator.
-#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd, VisitEntities)]
+#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd, VisitEntities, VisitEntitiesMut)]
 pub enum BiOperator {
     /// The equal-to operator.
     Eq,
@@ -160,7 +157,7 @@ pub enum BiOperator {
 }
 
 /// An operator application with two operands.
-#[derive(Clone, Copy, Debug, PartialEq, VisitEntities)]
+#[derive(Clone, Copy, Debug, PartialEq, VisitEntities, VisitEntitiesMut)]
 pub struct BiOp {
     /// The left-hand-side operand of the operator.
     pub lhs: specs::Entity,
@@ -170,37 +167,37 @@ pub struct BiOp {
     pub rhs: specs::Entity,
 }
 
-#[derive(Debug, VisitEntities)]
+#[derive(Debug, VisitEntities, VisitEntitiesMut)]
 pub struct Variable {
     pub name: String,
     pub initializer: specs::Entity,
 }
 
-#[derive(Debug, VisitEntities)]
+#[derive(Debug, VisitEntities, VisitEntitiesMut)]
 pub struct Select {
     pub record: specs::Entity,
     pub field: String,
 }
 
-#[derive(Debug, VisitEntities)]
+#[derive(Debug, VisitEntities, VisitEntitiesMut)]
 pub struct Apply {
     pub function: specs::Entity,
     pub parameters: Vec<specs::Entity>,
 }
 
-#[derive(Debug, VisitEntities)]
+#[derive(Debug, VisitEntities, VisitEntitiesMut)]
 pub struct Parameter {
     pub name: String,
     pub signature: Option<specs::Entity>,
 }
 
-#[derive(Debug, VisitEntities)]
+#[derive(Debug, VisitEntities, VisitEntitiesMut)]
 pub struct Capture {
     pub name: String,
     pub captured: specs::Entity,
 }
 
-#[derive(Debug, VisitEntities)]
+#[derive(Debug, VisitEntities, VisitEntitiesMut)]
 pub struct Closure {
     pub captures: Vec<specs::Entity>,
     pub parameters: Vec<specs::Entity>,
@@ -209,7 +206,7 @@ pub struct Closure {
     pub result: specs::Entity,
 }
 
-#[derive(Debug, VisitEntities)]
+#[derive(Debug, VisitEntities, VisitEntitiesMut)]
 pub struct Module {
     pub variables: collections::HashMap<String, specs::Entity>,
 }
@@ -258,10 +255,10 @@ impl fmt::Display for BiOperator {
             BiOperator::BOrNot => "~|!",
             BiOperator::XorNot => "^!",
             BiOperator::BXorNot => "~^!",
-            BiOperator::RotL => ">->",
-            BiOperator::RotR => "<-<",
-            BiOperator::ShL => ">>",
-            BiOperator::ShR => "<<",
+            BiOperator::RotL => "<-<",
+            BiOperator::RotR => ">->",
+            BiOperator::ShL => "<<",
+            BiOperator::ShR => ">>",
         })
     }
 }

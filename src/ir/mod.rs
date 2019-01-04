@@ -218,27 +218,25 @@ impl<'a> ModuleBuilder<'a> {
             .write_storage()
             .insert(
                 entity,
-                component::element::Element::NumberValue(ModuleBuilder::from_ast_number(
-                    number.value,
-                )),
+                component::element::Element::Number(ModuleBuilder::from_ast_number(number.value)),
             )
             .unwrap();
 
         Ok(())
     }
 
-    fn from_ast_number(number: ast::NumberValue) -> component::element::NumberValue {
+    fn from_ast_number(number: ast::NumberValue) -> component::element::Number {
         match number {
-            ast::NumberValue::U8(n) => component::element::NumberValue::U8(n),
-            ast::NumberValue::U16(n) => component::element::NumberValue::U16(n),
-            ast::NumberValue::U32(n) => component::element::NumberValue::U32(n),
-            ast::NumberValue::U64(n) => component::element::NumberValue::U64(n),
-            ast::NumberValue::I8(n) => component::element::NumberValue::I8(n),
-            ast::NumberValue::I16(n) => component::element::NumberValue::I16(n),
-            ast::NumberValue::I32(n) => component::element::NumberValue::I32(n),
-            ast::NumberValue::I64(n) => component::element::NumberValue::I64(n),
-            ast::NumberValue::F32(n) => component::element::NumberValue::F32(n),
-            ast::NumberValue::F64(n) => component::element::NumberValue::F64(n),
+            ast::NumberValue::U8(n) => component::element::Number::U8(n),
+            ast::NumberValue::U16(n) => component::element::Number::U16(n),
+            ast::NumberValue::U32(n) => component::element::Number::U32(n),
+            ast::NumberValue::U64(n) => component::element::Number::U64(n),
+            ast::NumberValue::I8(n) => component::element::Number::I8(n),
+            ast::NumberValue::I16(n) => component::element::Number::I16(n),
+            ast::NumberValue::I32(n) => component::element::Number::I32(n),
+            ast::NumberValue::I64(n) => component::element::Number::I64(n),
+            ast::NumberValue::F32(n) => component::element::Number::F32(n),
+            ast::NumberValue::F64(n) => component::element::Number::F64(n),
         }
     }
 
@@ -251,9 +249,7 @@ impl<'a> ModuleBuilder<'a> {
             .write_storage()
             .insert(
                 entity,
-                component::element::Element::StringValue(component::element::StringValue(
-                    string.value.clone(),
-                )),
+                component::element::Element::String(string.value.clone()),
             )
             .unwrap();
 

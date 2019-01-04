@@ -3,13 +3,13 @@ use std::fmt;
 use specs::Component;
 use specs::VecStorage;
 
-#[derive(Component, Clone, Debug, VisitEntities)]
+#[derive(Component, Clone, Debug, VisitEntities, VisitEntitiesMut)]
 #[storage(VecStorage)]
 pub struct Symbol {
     parts: Vec<Part>,
 }
 
-#[derive(Clone, Debug, VisitEntities)]
+#[derive(Clone, Debug, VisitEntities, VisitEntitiesMut)]
 pub enum Part {
     Named(String),
     #[allow(unused)]

@@ -60,8 +60,8 @@ impl System {
         DL: ops::Deref<Target = specs::storage::MaskedStorage<layout::Layout>>,
     {
         match *element {
-            element::Element::NumberValue(ref n) => self.infer_number_layout(n),
-            element::Element::StringValue(_) => Some(layout::Layout::scalar(self.ptr_size)),
+            element::Element::Number(ref n) => self.infer_number_layout(n),
+            element::Element::String(_) => Some(layout::Layout::scalar(self.ptr_size)),
             element::Element::Symbol(_) => Some(layout::Layout::zero()),
             element::Element::Tuple(element::Tuple { ref fields }) => {
                 self.infer_tuple_layout(fields, layouts)
@@ -103,18 +103,18 @@ impl System {
         }
     }
 
-    fn infer_number_layout(&self, number: &element::NumberValue) -> Option<layout::Layout> {
+    fn infer_number_layout(&self, number: &element::Number) -> Option<layout::Layout> {
         match *number {
-            element::NumberValue::U8(_) => Some(layout::Layout::scalar(1)),
-            element::NumberValue::U16(_) => Some(layout::Layout::scalar(2)),
-            element::NumberValue::U32(_) => Some(layout::Layout::scalar(4)),
-            element::NumberValue::U64(_) => Some(layout::Layout::scalar(8)),
-            element::NumberValue::I8(_) => Some(layout::Layout::scalar(1)),
-            element::NumberValue::I16(_) => Some(layout::Layout::scalar(2)),
-            element::NumberValue::I32(_) => Some(layout::Layout::scalar(4)),
-            element::NumberValue::I64(_) => Some(layout::Layout::scalar(8)),
-            element::NumberValue::F32(_) => Some(layout::Layout::scalar(4)),
-            element::NumberValue::F64(_) => Some(layout::Layout::scalar(8)),
+            element::Number::U8(_) => Some(layout::Layout::scalar(1)),
+            element::Number::U16(_) => Some(layout::Layout::scalar(2)),
+            element::Number::U32(_) => Some(layout::Layout::scalar(4)),
+            element::Number::U64(_) => Some(layout::Layout::scalar(8)),
+            element::Number::I8(_) => Some(layout::Layout::scalar(1)),
+            element::Number::I16(_) => Some(layout::Layout::scalar(2)),
+            element::Number::I32(_) => Some(layout::Layout::scalar(4)),
+            element::Number::I64(_) => Some(layout::Layout::scalar(8)),
+            element::Number::F32(_) => Some(layout::Layout::scalar(4)),
+            element::Number::F64(_) => Some(layout::Layout::scalar(8)),
         }
     }
 

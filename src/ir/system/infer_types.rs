@@ -58,8 +58,8 @@ where
     D: ops::Deref<Target = specs::storage::MaskedStorage<ty::Type>>,
 {
     match *element {
-        element::Element::NumberValue(ref n) => Some(ty::Type::Number(infer_number_type(n))),
-        element::Element::StringValue(_) => Some(ty::Type::String),
+        element::Element::Number(ref n) => Some(ty::Type::Number(infer_number_type(n))),
+        element::Element::String(_) => Some(ty::Type::String),
         element::Element::Symbol(element::Symbol { ref label }) => {
             Some(ty::Type::Symbol(ty::Symbol {
                 label: label.clone(),
@@ -103,18 +103,18 @@ where
     }
 }
 
-fn infer_number_type(number: &element::NumberValue) -> ty::Number {
+fn infer_number_type(number: &element::Number) -> ty::Number {
     match *number {
-        element::NumberValue::U8(_) => ty::Number::U8,
-        element::NumberValue::U16(_) => ty::Number::U16,
-        element::NumberValue::U32(_) => ty::Number::U32,
-        element::NumberValue::U64(_) => ty::Number::U64,
-        element::NumberValue::I8(_) => ty::Number::I8,
-        element::NumberValue::I16(_) => ty::Number::I16,
-        element::NumberValue::I32(_) => ty::Number::I32,
-        element::NumberValue::I64(_) => ty::Number::I64,
-        element::NumberValue::F32(_) => ty::Number::F32,
-        element::NumberValue::F64(_) => ty::Number::F64,
+        element::Number::U8(_) => ty::Number::U8,
+        element::Number::U16(_) => ty::Number::U16,
+        element::Number::U32(_) => ty::Number::U32,
+        element::Number::U64(_) => ty::Number::U64,
+        element::Number::I8(_) => ty::Number::I8,
+        element::Number::I16(_) => ty::Number::I16,
+        element::Number::I32(_) => ty::Number::I32,
+        element::Number::I64(_) => ty::Number::I64,
+        element::Number::F32(_) => ty::Number::F32,
+        element::Number::F64(_) => ty::Number::F64,
     }
 }
 
@@ -154,32 +154,27 @@ fn infer_un_op_type<D>(
 where
     D: ops::Deref<Target = specs::storage::MaskedStorage<ty::Type>>,
 {
-    if let Some(ty) = types.get(operand) {
-        let result = match operator {
-            element::UnOperator::Not => {
-                if *ty == *BOOL_TYPE {
-                    BOOL_TYPE.clone()
-                } else {
-                    ty::Type::Conflict(ty::Conflict {
-                        expected: ty::ExpectedType::Specific(Box::new(BOOL_TYPE.clone())),
-                        actual: Box::new(ty.clone()),
-                    })
-                }
+    types.get(operand).map(|ty| match operator {
+        element::UnOperator::Not => {
+            if *ty == *BOOL_TYPE {
+                BOOL_TYPE.clone()
+            } else {
+                ty::Type::Conflict(ty::Conflict {
+                    expected: ty::ExpectedType::Specific(Box::new(BOOL_TYPE.clone())),
+                    actual: Box::new(ty.clone()),
+                })
             }
-            element::UnOperator::BNot => same_integral_type(ty),
-            element::UnOperator::Cl0 => same_integral_type(ty),
-            element::UnOperator::Cl1 => same_integral_type(ty),
-            element::UnOperator::Cls => same_integral_type(ty),
-            element::UnOperator::Ct0 => same_integral_type(ty),
-            element::UnOperator::Ct1 => same_integral_type(ty),
-            element::UnOperator::C0 => same_integral_type(ty),
-            element::UnOperator::C1 => same_integral_type(ty),
-            element::UnOperator::Sqrt => same_fractional_type(ty),
-        };
-        Some(result)
-    } else {
-        None
-    }
+        }
+        element::UnOperator::BNot => if_integral_then(ty, ty),
+        element::UnOperator::Cl0 => if_integral_then(ty, &ty::Type::Number(ty::Number::U32)),
+        element::UnOperator::Cl1 => if_integral_then(ty, &ty::Type::Number(ty::Number::U32)),
+        element::UnOperator::Cls => if_integral_then(ty, &ty::Type::Number(ty::Number::U32)),
+        element::UnOperator::Ct0 => if_integral_then(ty, &ty::Type::Number(ty::Number::U32)),
+        element::UnOperator::Ct1 => if_integral_then(ty, &ty::Type::Number(ty::Number::U32)),
+        element::UnOperator::C0 => if_integral_then(ty, &ty::Type::Number(ty::Number::U32)),
+        element::UnOperator::C1 => if_integral_then(ty, &ty::Type::Number(ty::Number::U32)),
+        element::UnOperator::Sqrt => if_fractional_then(ty, ty),
+    })
 }
 
 fn infer_bi_op_type<D>(
@@ -483,9 +478,9 @@ fn or_op(lhs: &ty::Type, rhs: &ty::Type) -> ty::Type {
     }
 }
 
-fn same_integral_type(ty: &ty::Type) -> ty::Type {
+fn if_integral_then(ty: &ty::Type, result: &ty::Type) -> ty::Type {
     match ty.scalar_class() {
-        ty::ScalarClass::Integral(_) => ty.clone(),
+        ty::ScalarClass::Integral(_) => result.clone(),
         _ => ty::Type::Conflict(ty::Conflict {
             expected: ty::ExpectedType::ScalarClass(ty::ScalarClass::Integral(
                 ty::IntegralScalarClass::Any,
@@ -495,9 +490,9 @@ fn same_integral_type(ty: &ty::Type) -> ty::Type {
     }
 }
 
-fn same_fractional_type(ty: &ty::Type) -> ty::Type {
+fn if_fractional_then(ty: &ty::Type, result: &ty::Type) -> ty::Type {
     match ty.scalar_class() {
-        ty::ScalarClass::Fractional => ty.clone(),
+        ty::ScalarClass::Fractional => result.clone(),
         _ => ty::Type::Conflict(ty::Conflict {
             expected: ty::ExpectedType::ScalarClass(ty::ScalarClass::Fractional),
             actual: Box::new(ty.clone()),

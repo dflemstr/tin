@@ -46,22 +46,22 @@ impl<'a> specs::System<'a> for System {
         let visitor = ReplacementEntityVisitor { replacements };
 
         (&mut elements).par_join().for_each(|element| {
-            use specs_visitor::VisitEntities;
+            use specs_visitor::VisitEntitiesMut;
             element.accept_mut(&visitor);
         });
 
         (&mut layouts).par_join().for_each(|layout| {
-            use specs_visitor::VisitEntities;
+            use specs_visitor::VisitEntitiesMut;
             layout.accept_mut(&visitor);
         });
 
         (&mut symbols).par_join().for_each(|symbol| {
-            use specs_visitor::VisitEntities;
+            use specs_visitor::VisitEntitiesMut;
             symbol.accept_mut(&visitor);
         });
 
         (&mut types).par_join().for_each(|ty| {
-            use specs_visitor::VisitEntities;
+            use specs_visitor::VisitEntitiesMut;
             ty.accept_mut(&visitor);
         });
     }

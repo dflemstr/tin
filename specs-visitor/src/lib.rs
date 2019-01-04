@@ -3,6 +3,7 @@ extern crate specs;
 
 use std::collections;
 use std::hash;
+use std::sync;
 
 use rayon::prelude::*;
 
@@ -10,7 +11,9 @@ pub trait VisitEntities {
     fn accept<V>(&self, visitor: &V)
     where
         V: EntityVisitor;
+}
 
+pub trait VisitEntitiesMut {
     fn accept_mut<V>(&mut self, visitor: &V)
     where
         V: EntityVisitorMut;
@@ -31,7 +34,9 @@ impl VisitEntities for specs::Entity {
     {
         visitor.visit_entity(*self)
     }
+}
 
+impl VisitEntitiesMut for specs::Entity {
     fn accept_mut<V>(&mut self, visitor: &V)
     where
         V: EntityVisitorMut,
@@ -50,7 +55,12 @@ where
     {
         self.par_iter().for_each(|element| element.accept(visitor))
     }
+}
 
+impl<A> VisitEntitiesMut for Option<A>
+where
+    A: VisitEntitiesMut + Send + Sync,
+{
     fn accept_mut<V>(&mut self, visitor: &V)
     where
         V: EntityVisitorMut,
@@ -70,7 +80,12 @@ where
     {
         self.par_iter().for_each(|element| element.accept(visitor))
     }
+}
 
+impl<A> VisitEntitiesMut for Vec<A>
+where
+    A: VisitEntitiesMut + Send + Sync,
+{
     fn accept_mut<V>(&mut self, visitor: &V)
     where
         V: EntityVisitorMut,
@@ -90,7 +105,12 @@ where
     {
         (**self).accept(visitor)
     }
+}
 
+impl<A> VisitEntitiesMut for Box<A>
+where
+    A: VisitEntitiesMut + Send + Sync,
+{
     fn accept_mut<V>(&mut self, visitor: &V)
     where
         V: EntityVisitorMut,
@@ -111,13 +131,31 @@ where
         self.par_iter()
             .for_each(|(_, element)| element.accept(visitor))
     }
+}
 
+impl<A, B> VisitEntitiesMut for collections::HashMap<A, B>
+where
+    A: Eq + hash::Hash + Send + Sync,
+    B: VisitEntitiesMut + Send + Sync,
+{
     fn accept_mut<V>(&mut self, visitor: &V)
     where
         V: EntityVisitorMut,
     {
         self.par_iter_mut()
             .for_each(|(_, element)| element.accept_mut(visitor))
+    }
+}
+
+impl<A> VisitEntities for sync::Arc<A>
+where
+    A: VisitEntities,
+{
+    fn accept<V>(&self, visitor: &V)
+    where
+        V: EntityVisitor,
+    {
+        (**self).accept(visitor)
     }
 }
 
@@ -130,6 +168,9 @@ macro_rules! impl_visit_entities_empty {
                 V: EntityVisitor,
             {
             }
+        }
+
+        impl VisitEntitiesMut for $t {
             #[inline(always)]
             fn accept_mut<V>(&mut self, _visitor: &V)
             where

@@ -68,8 +68,8 @@ impl<'a, 'f> FunctionTranslator<'a, 'f> {
 
     pub fn eval_element(&mut self, entity: specs::Entity, element: &element::Element) -> Value {
         match *element {
-            element::Element::NumberValue(ref v) => self.eval_number_value(entity, v),
-            element::Element::StringValue(ref v) => self.eval_string_value(entity, v),
+            element::Element::Number(ref v) => self.eval_number_value(entity, v),
+            element::Element::String(ref v) => self.eval_string_value(entity, v),
             element::Element::Symbol(_) => {
                 // A single symbol is zero sized, and should never be evaluated.
                 unreachable!()
@@ -91,27 +91,23 @@ impl<'a, 'f> FunctionTranslator<'a, 'f> {
     pub fn eval_number_value(
         &mut self,
         _entity: specs::Entity,
-        number_value: &element::NumberValue,
+        number_value: &element::Number,
     ) -> Value {
         match *number_value {
-            element::NumberValue::U8(v) => self.builder.ins().iconst(types::I8, v as i64),
-            element::NumberValue::U16(v) => self.builder.ins().iconst(types::I16, v as i64),
-            element::NumberValue::U32(v) => self.builder.ins().iconst(types::I32, v as i64),
-            element::NumberValue::U64(v) => self.builder.ins().iconst(types::I64, v as i64),
-            element::NumberValue::I8(v) => self.builder.ins().iconst(types::I8, v as i64),
-            element::NumberValue::I16(v) => self.builder.ins().iconst(types::I16, v as i64),
-            element::NumberValue::I32(v) => self.builder.ins().iconst(types::I32, v as i64),
-            element::NumberValue::I64(v) => self.builder.ins().iconst(types::I64, v),
-            element::NumberValue::F32(v) => self.builder.ins().f32const(Ieee32::with_float(v)),
-            element::NumberValue::F64(v) => self.builder.ins().f64const(Ieee64::with_float(v)),
+            element::Number::U8(v) => self.builder.ins().iconst(types::I8, v as i64),
+            element::Number::U16(v) => self.builder.ins().iconst(types::I16, v as i64),
+            element::Number::U32(v) => self.builder.ins().iconst(types::I32, v as i64),
+            element::Number::U64(v) => self.builder.ins().iconst(types::I64, v as i64),
+            element::Number::I8(v) => self.builder.ins().iconst(types::I8, v as i64),
+            element::Number::I16(v) => self.builder.ins().iconst(types::I16, v as i64),
+            element::Number::I32(v) => self.builder.ins().iconst(types::I32, v as i64),
+            element::Number::I64(v) => self.builder.ins().iconst(types::I64, v),
+            element::Number::F32(v) => self.builder.ins().f32const(Ieee32::with_float(v)),
+            element::Number::F64(v) => self.builder.ins().f64const(Ieee64::with_float(v)),
         }
     }
 
-    pub fn eval_string_value(
-        &mut self,
-        entity: specs::Entity,
-        _string_value: &element::StringValue,
-    ) -> Value {
+    pub fn eval_string_value(&mut self, entity: specs::Entity, _string_value: &str) -> Value {
         // TODO: create data symbol
         let symbol = self
             .module

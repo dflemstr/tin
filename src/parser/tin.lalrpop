@@ -182,10 +182,10 @@ BiOperatorSum: ast::BiOperator = {
 }
 
 BiOperatorShift: ast::BiOperator = {
-    ">->" => ast::BiOperator::RotL,
-    "<-<" => ast::BiOperator::RotR,
-    ">>" => ast::BiOperator::ShL,
-    "<<" => ast::BiOperator::ShR,
+    "<-<" => ast::BiOperator::RotL,
+    ">->" => ast::BiOperator::RotR,
+    "<<" => ast::BiOperator::ShL,
+    ">>" => ast::BiOperator::ShR,
 }
 
 BiOperatorBAnd: ast::BiOperator = {

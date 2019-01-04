@@ -4,7 +4,7 @@ use std::fmt;
 use specs::Component;
 use specs::VecStorage;
 
-#[derive(Component, Clone, Debug, Eq, PartialEq, VisitEntities)]
+#[derive(Component, Clone, Debug, Eq, PartialEq, VisitEntities, VisitEntitiesMut)]
 #[storage(VecStorage)]
 pub enum Type {
     Number(Number),
@@ -17,7 +17,7 @@ pub enum Type {
     Conflict(Conflict),
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq, VisitEntities)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, VisitEntities, VisitEntitiesMut)]
 pub enum ScalarClass {
     Symbol,
     Integral(IntegralScalarClass),
@@ -26,14 +26,14 @@ pub enum ScalarClass {
     Undefined,
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq, VisitEntities)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, VisitEntities, VisitEntitiesMut)]
 pub enum IntegralScalarClass {
     Unsigned,
     Signed,
     Any,
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq, VisitEntities)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, VisitEntities, VisitEntitiesMut)]
 pub enum Number {
     U8,
     U16,
@@ -47,39 +47,39 @@ pub enum Number {
     F64,
 }
 
-#[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd, VisitEntities)]
+#[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd, VisitEntities, VisitEntitiesMut)]
 pub struct Symbol {
     pub label: String,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq, VisitEntities)]
+#[derive(Clone, Debug, Eq, PartialEq, VisitEntities, VisitEntitiesMut)]
 pub struct Tuple {
     pub fields: Vec<Type>,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq, VisitEntities)]
+#[derive(Clone, Debug, Eq, PartialEq, VisitEntities, VisitEntitiesMut)]
 pub struct Union {
     pub alternatives: Vec<Symbol>,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq, VisitEntities)]
+#[derive(Clone, Debug, Eq, PartialEq, VisitEntities, VisitEntitiesMut)]
 pub struct Record {
     pub fields: collections::HashMap<String, Type>,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq, VisitEntities)]
+#[derive(Clone, Debug, Eq, PartialEq, VisitEntities, VisitEntitiesMut)]
 pub struct Function {
     pub parameters: Vec<Type>,
     pub result: Box<Type>,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq, VisitEntities)]
+#[derive(Clone, Debug, Eq, PartialEq, VisitEntities, VisitEntitiesMut)]
 pub struct Conflict {
     pub expected: ExpectedType,
     pub actual: Box<Type>,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq, VisitEntities)]
+#[derive(Clone, Debug, Eq, PartialEq, VisitEntities, VisitEntitiesMut)]
 pub enum ExpectedType {
     Specific(Box<Type>),
     ScalarClass(ScalarClass),
