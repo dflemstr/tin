@@ -1,12 +1,9 @@
 #![recursion_limit = "128"]
 
-#[cfg(test)]
-extern crate specs;
 #[macro_use]
 extern crate synstructure;
 #[macro_use]
 extern crate quote;
-extern crate proc_macro2;
 
 fn visit_entities_derive(mut s: synstructure::Structure) -> proc_macro2::TokenStream {
     let accept_body = s.each(|bi| {
@@ -77,16 +74,16 @@ mod test {
             expands to {
                 #[allow(non_upper_case_globals)]
                 const _DERIVE_specs_visitor_VisitEntities_FOR_Foo: () = {
-                    impl specs_visitor::VisitEntities for Foo {
+                    impl ::specs_visitor::VisitEntities for Foo {
                         fn accept<V>(&self, visitor: &V)
                         where
-                            V: specs_visitor::EntityVisitor,
+                            V: ::specs_visitor::EntityVisitor,
                         {
                             match *self {
                                 Foo {
                                     entity: ref __binding_0,
                                 } => {{
-                                    specs_visitor::VisitEntities::accept(__binding_0, visitor);
+                                    ::specs_visitor::VisitEntities::accept(__binding_0, visitor);
                                 }}
                             }
                         }
@@ -106,17 +103,17 @@ mod test {
             }
             expands to {
                 #[allow(non_upper_case_globals)]
-                const _DERIVE_specs_visitor_VisitEntities_FOR_Foo: () = {
-                    impl specs_visitor::VisitEntitiesMut for Foo {
+                const _DERIVE_specs_visitor_VisitEntitiesMut_FOR_Foo: () = {
+                    impl ::specs_visitor::VisitEntitiesMut for Foo {
                         fn accept_mut<V>(&mut self, visitor: &V)
                         where
-                            V: specs_visitor::EntityVisitorMut,
+                            V: ::specs_visitor::EntityVisitorMut,
                         {
                             match *self {
                                 Foo {
                                     entity: ref mut __binding_0,
                                 } => {{
-                                    specs_visitor::VisitEntitiesMut::accept_mut(__binding_0, visitor);
+                                    ::specs_visitor::VisitEntitiesMut::accept_mut(__binding_0, visitor);
                                 }}
                             }
                         }
@@ -137,19 +134,19 @@ mod test {
             expands to {
                 #[allow(non_upper_case_globals)]
                 const _DERIVE_specs_visitor_VisitEntities_FOR_Foo: () = {
-                    impl<T> specs_visitor::VisitEntities for Foo<T>
+                    impl<T> ::specs_visitor::VisitEntities for Foo<T>
                         where
-                            T: specs_visitor::VisitEntities
+                            T: ::specs_visitor::VisitEntities
                     {
                         fn accept<V>(&self, visitor: &V)
                         where
-                            V: specs_visitor::EntityVisitor,
+                            V: ::specs_visitor::EntityVisitor,
                         {
                             match *self {
                                 Foo {
                                     entity_stuff: ref __binding_0,
                                 } => {{
-                                    specs_visitor::VisitEntities::accept(__binding_0, visitor);
+                                    ::specs_visitor::VisitEntities::accept(__binding_0, visitor);
                                 }}
                             }
                         }
@@ -169,20 +166,20 @@ mod test {
             }
             expands to {
                 #[allow(non_upper_case_globals)]
-                const _DERIVE_specs_visitor_VisitEntities_FOR_Foo: () = {
-                    impl<T> specs_visitor::VisitEntitiesMut for Foo<T>
+                const _DERIVE_specs_visitor_VisitEntitiesMut_FOR_Foo: () = {
+                    impl<T> ::specs_visitor::VisitEntitiesMut for Foo<T>
                         where
-                            T: specs_visitor::VisitEntitiesMut
+                            T: ::specs_visitor::VisitEntitiesMut
                     {
                         fn accept_mut<V>(&mut self, visitor: &V)
                         where
-                            V: specs_visitor::EntityVisitorMut,
+                            V: ::specs_visitor::EntityVisitorMut,
                         {
                             match *self {
                                 Foo {
                                     entity_stuff: ref mut __binding_0,
                                 } => {{
-                                    specs_visitor::VisitEntitiesMut::accept_mut(__binding_0, visitor);
+                                    ::specs_visitor::VisitEntitiesMut::accept_mut(__binding_0, visitor);
                                 }}
                             }
                         }

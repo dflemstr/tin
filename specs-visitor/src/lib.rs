@@ -1,6 +1,3 @@
-extern crate rayon;
-extern crate specs;
-
 use std::collections;
 use std::hash;
 use std::sync;
