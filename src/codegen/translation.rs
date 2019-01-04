@@ -9,10 +9,17 @@ use cranelift_simplejit;
 
 use crate::codegen::abi_type;
 use crate::codegen::builtin;
+use crate::ir::component::constexpr;
 use crate::ir::component::element;
 use crate::ir::component::layout;
 use crate::ir::component::symbol;
 use crate::ir::component::ty;
+use crate::value;
+
+pub struct DataTranslator<'a> {
+    storage: &'a mut Vec<u8>,
+    ptr_type: Type,
+}
 
 pub struct FunctionTranslator<'a, 'f>
 where
@@ -20,6 +27,7 @@ where
 {
     module: &'a mut cranelift_module::Module<cranelift_simplejit::SimpleJITBackend>,
     builder: &'a mut FunctionBuilder<'f>,
+    constexprs: &'a specs::ReadStorage<'a, constexpr::Constexpr>,
     elements: &'a specs::ReadStorage<'a, element::Element>,
     layouts: &'a specs::ReadStorage<'a, layout::Layout>,
     symbols: &'a specs::ReadStorage<'a, symbol::Symbol>,
@@ -28,10 +36,131 @@ where
     variables: collections::HashMap<specs::Entity, Variable>,
 }
 
+impl<'a> DataTranslator<'a> {
+    pub fn new(storage: &'a mut Vec<u8>, ptr_type: Type) -> Self {
+        DataTranslator { storage, ptr_type }
+    }
+
+    pub fn store_value(&mut self, layout: &layout::Layout, value: &value::Value) {
+        self.storage.reserve(layout.size);
+        match value {
+            value::Value::Number(v) => self.store_number(layout, *v),
+            value::Value::String(v) => self.store_string(layout, v),
+            value::Value::Symbol(_) => {} // TODO type dependent
+            value::Value::Tuple(v) => self.store_tuple(layout, v),
+            value::Value::Record(v) => self.store_record(layout, v),
+        }
+    }
+
+    pub fn store_number(&mut self, _layout: &layout::Layout, number: value::Number) {
+        use byteorder::WriteBytesExt;
+
+        match number {
+            value::Number::U8(v) => self.storage.write_u8(v).unwrap(),
+            value::Number::U16(v) => self
+                .storage
+                .write_u16::<byteorder::NativeEndian>(v)
+                .unwrap(),
+            value::Number::U32(v) => self
+                .storage
+                .write_u32::<byteorder::NativeEndian>(v)
+                .unwrap(),
+            value::Number::U64(v) => self
+                .storage
+                .write_u64::<byteorder::NativeEndian>(v)
+                .unwrap(),
+            value::Number::I8(v) => self.storage.write_i8(v).unwrap(),
+            value::Number::I16(v) => self
+                .storage
+                .write_i16::<byteorder::NativeEndian>(v)
+                .unwrap(),
+            value::Number::I32(v) => self
+                .storage
+                .write_i32::<byteorder::NativeEndian>(v)
+                .unwrap(),
+            value::Number::I64(v) => self
+                .storage
+                .write_i64::<byteorder::NativeEndian>(v)
+                .unwrap(),
+            value::Number::F32(v) => self
+                .storage
+                .write_f32::<byteorder::NativeEndian>(v)
+                .unwrap(),
+            value::Number::F64(v) => self
+                .storage
+                .write_f64::<byteorder::NativeEndian>(v)
+                .unwrap(),
+        }
+    }
+
+    pub fn store_string(&mut self, _layout: &layout::Layout, string: &str) {
+        use byteorder::WriteBytesExt;
+        use std::io::Write;
+
+        let len = string.len();
+        match self.ptr_type.bits() {
+            8 => self.storage.write_u8(len as u8).unwrap(),
+            16 => self
+                .storage
+                .write_u16::<byteorder::NativeEndian>(len as u16)
+                .unwrap(),
+            32 => self
+                .storage
+                .write_u32::<byteorder::NativeEndian>(len as u32)
+                .unwrap(),
+            64 => self
+                .storage
+                .write_u64::<byteorder::NativeEndian>(len as u64)
+                .unwrap(),
+            _ => unreachable!(),
+        }
+
+        self.storage.write_all(string.as_bytes()).unwrap();
+    }
+
+    pub fn store_tuple(&mut self, layout: &layout::Layout, tuple: &value::Tuple) {
+        use std::io::Write;
+
+        let unnamed_fields = layout.unnamed_fields.as_ref().unwrap();
+        let mut pos = 0;
+        assert_eq!(tuple.fields.len(), unnamed_fields.len());
+
+        for (value, offset_layout) in tuple.fields.iter().zip(unnamed_fields.iter()) {
+            assert!(offset_layout.offset >= pos);
+            while pos < offset_layout.offset {
+                self.storage.write_all(&[0u8]).unwrap();
+                pos += 1;
+            }
+            self.store_value(&offset_layout.layout, &**value);
+            pos += offset_layout.layout.size;
+        }
+    }
+
+    pub fn store_record(&mut self, layout: &layout::Layout, record: &value::Record) {
+        use std::io::Write;
+
+        let named_fields = layout.named_fields.as_ref().unwrap();
+        let mut pos = 0;
+        assert_eq!(record.fields.len(), named_fields.len());
+
+        for ((_, value), named_field) in record.fields.iter().zip(named_fields.iter()) {
+            let offset_layout = &named_field.offset_layout;
+            assert!(offset_layout.offset >= pos);
+            while pos < offset_layout.offset {
+                self.storage.write_all(&[0u8]).unwrap();
+                pos += 1;
+            }
+            self.store_value(&offset_layout.layout, &**value);
+            pos += offset_layout.layout.size;
+        }
+    }
+}
+
 impl<'a, 'f> FunctionTranslator<'a, 'f> {
     pub fn new(
         module: &'a mut cranelift_module::Module<cranelift_simplejit::SimpleJITBackend>,
         builder: &'a mut FunctionBuilder<'f>,
+        constexprs: &'a specs::ReadStorage<'a, constexpr::Constexpr>,
         elements: &'a specs::ReadStorage<'a, element::Element>,
         layouts: &'a specs::ReadStorage<'a, layout::Layout>,
         symbols: &'a specs::ReadStorage<'a, symbol::Symbol>,
@@ -42,6 +171,7 @@ impl<'a, 'f> FunctionTranslator<'a, 'f> {
         FunctionTranslator {
             module,
             builder,
+            constexprs,
             elements,
             layouts,
             symbols,
@@ -67,24 +197,68 @@ impl<'a, 'f> FunctionTranslator<'a, 'f> {
     }
 
     pub fn eval_element(&mut self, entity: specs::Entity, element: &element::Element) -> Value {
-        match *element {
-            element::Element::Number(ref v) => self.eval_number_value(entity, v),
-            element::Element::String(ref v) => self.eval_string_value(entity, v),
-            element::Element::Symbol(_) => {
-                // A single symbol is zero sized, and should never be evaluated.
-                unreachable!()
+        if let Some(constexpr) = self.constexprs.get(entity) {
+            self.eval_constexpr(&entity, constexpr)
+        } else {
+            match *element {
+                element::Element::Number(ref v) => self.eval_number_value(entity, v),
+                element::Element::String(ref v) => self.eval_string_value(entity, v),
+                element::Element::Symbol(_) => {
+                    // TODO type dependent
+                    unimplemented!()
+                }
+                element::Element::Tuple(ref v) => self.eval_tuple(entity, v),
+                element::Element::Record(ref v) => self.eval_record(entity, v),
+                element::Element::UnOp(ref v) => self.eval_un_op(entity, v),
+                element::Element::BiOp(ref v) => self.eval_bi_op(entity, v),
+                element::Element::Variable(ref v) => self.eval_variable(entity, v),
+                element::Element::Select(ref v) => self.eval_select(entity, v),
+                element::Element::Apply(ref v) => self.eval_apply(entity, v),
+                element::Element::Parameter(ref v) => self.eval_parameter(entity, v),
+                element::Element::Capture(ref v) => self.eval_capture(entity, v),
+                element::Element::Closure(ref v) => self.eval_closure(entity, v),
+                element::Element::Module(ref v) => self.eval_module(entity, v),
             }
-            element::Element::Tuple(ref v) => self.eval_tuple(entity, v),
-            element::Element::Record(ref v) => self.eval_record(entity, v),
-            element::Element::UnOp(ref v) => self.eval_un_op(entity, v),
-            element::Element::BiOp(ref v) => self.eval_bi_op(entity, v),
-            element::Element::Variable(ref v) => self.eval_variable(entity, v),
-            element::Element::Select(ref v) => self.eval_select(entity, v),
-            element::Element::Apply(ref v) => self.eval_apply(entity, v),
-            element::Element::Parameter(ref v) => self.eval_parameter(entity, v),
-            element::Element::Capture(ref v) => self.eval_capture(entity, v),
-            element::Element::Closure(ref v) => self.eval_closure(entity, v),
-            element::Element::Module(ref v) => self.eval_module(entity, v),
+        }
+    }
+
+    fn eval_constexpr(
+        &mut self,
+        entity: &specs::Entity,
+        constexpr: &constexpr::Constexpr,
+    ) -> Value {
+        match *constexpr.value {
+            value::Value::Number(n) => match n {
+                value::Number::U8(v) => self.builder.ins().iconst(types::I8, v as i64),
+                value::Number::U16(v) => self.builder.ins().iconst(types::I16, v as i64),
+                value::Number::U32(v) => self.builder.ins().iconst(types::I32, v as i64),
+                value::Number::U64(v) => self.builder.ins().iconst(types::I64, v as i64),
+                value::Number::I8(v) => self.builder.ins().iconst(types::I8, v as i64),
+                value::Number::I16(v) => self.builder.ins().iconst(types::I16, v as i64),
+                value::Number::I32(v) => self.builder.ins().iconst(types::I32, v as i64),
+                value::Number::I64(v) => self.builder.ins().iconst(types::I64, v),
+                value::Number::F32(v) => self.builder.ins().f32const(Ieee32::with_float(v)),
+                value::Number::F64(v) => self.builder.ins().f64const(Ieee64::with_float(v)),
+            },
+            _ => {
+                let ty = self.types.get(*entity).unwrap();
+                let abi_type = abi_type::AbiType::from_ir_type(ty).into_specific(self.ptr_type);
+
+                assert_eq!(self.ptr_type, abi_type);
+
+                let data_id = self
+                    .module
+                    .declare_data(
+                        &entity.id().to_string(),
+                        cranelift_module::Linkage::Local,
+                        false,
+                    )
+                    .unwrap();
+                let global_value = self
+                    .module
+                    .declare_data_in_func(data_id, &mut self.builder.func);
+                self.builder.ins().global_value(self.ptr_type, global_value)
+            }
         }
     }
 
@@ -137,9 +311,10 @@ impl<'a, 'f> FunctionTranslator<'a, 'f> {
         mem_flags.set_notrap();
         mem_flags.set_aligned();
 
-        for (idx, value) in tuple.fields.iter().enumerate() {
-            let value = self.eval_element(*value, self.elements.get(*value).unwrap());
-            let offset = layout.unnamed_field_offsets.as_ref().unwrap()[idx] as i32;
+        for (idx, offset_layout) in layout.unnamed_fields.as_ref().unwrap().iter().enumerate() {
+            let value = tuple.fields[idx];
+            let value = self.eval_element(value, self.elements.get(value).unwrap());
+            let offset = offset_layout.offset as i32;
             self.builder.ins().store(mem_flags, value, result, offset);
         }
 
@@ -159,9 +334,10 @@ impl<'a, 'f> FunctionTranslator<'a, 'f> {
         mem_flags.set_notrap();
         mem_flags.set_aligned();
 
-        for (field, value) in &record.fields {
-            let value = self.eval_element(*value, self.elements.get(*value).unwrap());
-            let offset = layout.named_field_offsets.as_ref().unwrap()[field] as i32;
+        for named_field in layout.named_fields.as_ref().unwrap() {
+            let value = record.fields[&named_field.field];
+            let value = self.eval_element(value, self.elements.get(value).unwrap());
+            let offset = named_field.offset_layout.offset as i32;
             self.builder.ins().store(mem_flags, value, result, offset);
         }
 
@@ -289,8 +465,15 @@ impl<'a, 'f> FunctionTranslator<'a, 'f> {
         let field_type = &record_type.fields[&select.field];
         let field_abi_type =
             abi_type::AbiType::from_ir_type(field_type).into_specific(self.ptr_type);
-        let field_offset =
-            record_layout.named_field_offsets.as_ref().unwrap()[&select.field] as i32;
+        let field_offset = record_layout
+            .named_fields
+            .as_ref()
+            .unwrap()
+            .iter()
+            .find(|f| *f.field == select.field)
+            .unwrap()
+            .offset_layout
+            .offset as i32;
 
         let mut mem_flags = MemFlags::new();
         mem_flags.set_notrap();
@@ -407,6 +590,12 @@ impl<'a, 'f> FunctionTranslator<'a, 'f> {
 
         self.module
             .declare_func_in_func(callee, &mut self.builder.func)
+    }
+}
+
+impl<'a> fmt::Debug for DataTranslator<'a> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.debug_struct("DataTranslator").finish()
     }
 }
 

@@ -8,6 +8,7 @@ use cranelift_simplejit;
 use specs;
 
 use crate::ir;
+use crate::ir::component::constexpr;
 use crate::ir::component::element;
 use crate::ir::component::layout;
 use crate::ir::component::symbol;
@@ -22,6 +23,8 @@ mod translation;
 
 /// A codegen system, that can be used for JIT compilation.
 pub struct Codegen<'a> {
+    entities: specs::Entities<'a>,
+    constexprs: specs::ReadStorage<'a, constexpr::Constexpr>,
     elements: specs::ReadStorage<'a, element::Element>,
     layouts: specs::ReadStorage<'a, layout::Layout>,
     symbols: specs::ReadStorage<'a, symbol::Symbol>,
@@ -31,12 +34,16 @@ pub struct Codegen<'a> {
 impl<'a> Codegen<'a> {
     /// Creates a new codegen instance around the specified IR.
     pub fn new(ir: &'a ir::Ir) -> Self {
+        let entities = ir.world.entities();
+        let constexprs = ir.world.read_storage();
         let elements = ir.world.read_storage();
         let layouts = ir.world.read_storage();
         let symbols = ir.world.read_storage();
         let types = ir.world.read_storage();
 
         Codegen {
+            entities,
+            constexprs,
             elements,
             layouts,
             symbols,
@@ -46,9 +53,13 @@ impl<'a> Codegen<'a> {
 
     /// Compiles the captured IR into a module.
     pub fn compile(&self) -> module::Module {
+        use rayon::iter::ParallelIterator;
         use specs::Join;
+        use specs::ParJoin;
 
         let Codegen {
+            ref entities,
+            ref constexprs,
             ref elements,
             ref layouts,
             ref symbols,
@@ -62,7 +73,18 @@ impl<'a> Codegen<'a> {
         let mut module: cranelift_module::Module<cranelift_simplejit::SimpleJITBackend> =
             cranelift_module::Module::new(builder);
         let ptr_type = module.target_config().pointer_type();
-        // let data_ctx = cranelift_module::DataContext::new();
+
+        let data_ctxs = (entities, layouts, constexprs)
+            .par_join()
+            .map(|(entity, layout, constexpr)| {
+                let mut ctx = cranelift_module::DataContext::new();
+                let mut data = Vec::new();
+                translation::DataTranslator::new(&mut data, ptr_type)
+                    .store_value(layout, &constexpr.value);
+                ctx.define(data.into_boxed_slice());
+                (entity, ctx)
+            })
+            .collect::<Vec<_>>();
 
         let function_ctxs = (elements, symbols, types)
             .join()
@@ -100,6 +122,7 @@ impl<'a> Codegen<'a> {
                         let mut translation_ctx = translation::FunctionTranslator::new(
                             &mut module,
                             &mut builder,
+                            constexprs,
                             elements,
                             layouts,
                             symbols,
@@ -129,7 +152,16 @@ impl<'a> Codegen<'a> {
             .collect::<Vec<_>>();
 
         let mut declared_functions = Vec::new();
+        let mut declared_data = Vec::new();
         let mut function_ids = collections::HashMap::new();
+
+        for (entity, ctx) in data_ctxs {
+            let data_name = entity.id().to_string();
+            let data_id = module
+                .declare_data(&data_name, cranelift_module::Linkage::Local, false)
+                .unwrap();
+            declared_data.push((data_id, ctx));
+        }
 
         for (sy, ctx) in function_ctxs {
             let fn_name = sy.to_string();
@@ -142,6 +174,10 @@ impl<'a> Codegen<'a> {
                 .unwrap();
             declared_functions.push((fn_id, ctx));
             function_ids.insert(fn_name, fn_id);
+        }
+
+        for (id, data_ctx) in declared_data {
+            module.define_data(id, &data_ctx).unwrap();
         }
 
         for (id, mut function_ctx) in declared_functions {

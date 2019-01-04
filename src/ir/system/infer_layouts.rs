@@ -139,18 +139,19 @@ impl System {
                 let alignment = layouts.iter().map(|(_, l)| l.alignment).max().unwrap();
                 let mut size = 0;
 
-                let mut unnamed_field_offsets = vec![0; layouts.len()];
+                let mut unnamed_fields = vec![layout::OffsetLayout::zero(); layouts.len()];
 
                 for (i, layout) in layouts {
                     let offset = align_up(size, layout.alignment);
                     size = offset + layout.size;
-                    unnamed_field_offsets[i] = offset;
+                    let layout = layout.clone();
+                    unnamed_fields[i] = layout::OffsetLayout { offset, layout };
                 }
 
                 Some(layout::Layout::unnamed_fields(
                     size,
                     alignment,
-                    unnamed_field_offsets,
+                    unnamed_fields,
                 ))
             }
         } else {
@@ -178,20 +179,23 @@ impl System {
                 let alignment = layouts.iter().map(|(_, l)| l.alignment).max().unwrap();
                 let mut size = 0;
 
-                let named_field_offsets = layouts
+                let named_fields = layouts
                     .into_iter()
-                    .map(|(n, l)| {
-                        let offset = align_up(size, l.alignment);
-                        size = offset + l.size;
-                        (n.clone(), offset)
-                    })
-                    .collect::<collections::HashMap<_, _>>();
+                    .map(|(field, layout)| {
+                        let offset = align_up(size, layout.alignment);
+                        size = offset + layout.size;
+                        let field = field.clone();
+                        let layout = layout.clone();
+                        let offset_layout = layout::OffsetLayout { offset, layout };
 
-                Some(layout::Layout::named_fields(
-                    size,
-                    alignment,
-                    named_field_offsets,
-                ))
+                        layout::NamedField {
+                            field,
+                            offset_layout,
+                        }
+                    })
+                    .collect::<Vec<_>>();
+
+                Some(layout::Layout::named_fields(size, alignment, named_fields))
             }
         } else {
             None
