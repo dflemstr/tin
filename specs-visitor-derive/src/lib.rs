@@ -1,3 +1,21 @@
+//! Procedural macros for deriving specs entity visitors.
+//!
+//! These visitors can be used to implement generic transformations of ECS graphs that compile down
+//! to very effective code.
+//!
+//! See the [`specs-visitor`](https://crates.io/crates/specs-visitor) crate for API documentation
+//! for the actual types derived by this crate.
+#![deny(nonstandard_style, warnings, unused)]
+#![deny(
+    missing_debug_implementations,
+    missing_copy_implementations,
+    trivial_casts,
+    trivial_numeric_casts,
+    unstable_features,
+    unused_import_braces,
+    unused_qualifications
+)]
+#![cfg_attr(feature = "cargo-clippy", deny(clippy::all, clippy::pedantic))]
 #![recursion_limit = "128"]
 
 #[macro_use]

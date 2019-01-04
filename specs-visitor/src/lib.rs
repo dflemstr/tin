@@ -1,26 +1,80 @@
+//! Utilities for visiting specs components and resources very efficiently.
+//!
+//! This can be used to implement generic transformations of ECS graphs that compile down to very
+//! effective code.
+//!
+//! Use the [`specs-visitor-derive`](https://crates.io/crates/specs-visitor-derive) crate to
+//! automatically derive the traits in this crate.
+#![deny(nonstandard_style, warnings, unused)]
+#![deny(
+    missing_docs,
+    missing_debug_implementations,
+    missing_copy_implementations,
+    trivial_casts,
+    trivial_numeric_casts,
+    unstable_features,
+    unused_import_braces,
+    unused_qualifications
+)]
+#![cfg_attr(feature = "cargo-clippy", deny(clippy::all, clippy::pedantic))]
+
 use std::collections;
 use std::hash;
 use std::sync;
 
 use rayon::prelude::*;
 
+/// Support for generically visiting all `specs` entities of a type with a
+/// visitor.
+///
+/// This trait can be derived automatically with `#[derive(VisitEntities)]` using the
+/// [`specs-visitor-derive`](https://crates.io/crates/specs-visitor-derive) crate.
 pub trait VisitEntities {
+    /// Accepts the given visitor.
+    ///
+    /// The visitor's `visit_entity` method will be called for every entity contained within this
+    /// type.  The visitor could potentially be called in parallel.
     fn accept<V>(&self, visitor: &V)
     where
         V: EntityVisitor;
 }
 
+/// Support for generically mutably visiting all `specs` entities of a type with a
+/// visitor.
+///
+/// This trait can be derived automatically with `#[derive(VisitEntitiesMut)]` using the
+/// [`specs-visitor-derive`](https://crates.io/crates/specs-visitor-derive) crate.
 pub trait VisitEntitiesMut {
+    /// Accepts the given visitor.
+    ///
+    /// The visitor's `visit_entity_mut` method will be called for every entity contained within
+    /// this type.  This gives the visitor mutable references to each entity, allowing them to be
+    /// changed.  Note that the visitor itself has a shared borrow instead of a mutable borrow,
+    /// because it might potentially be called in parallel.
     fn accept_mut<V>(&mut self, visitor: &V)
     where
         V: EntityVisitorMut;
 }
 
+/// A visitor for visiting entities in a read-only fashion.
+///
+/// Types implementing this trait are compatible with the `accept` method on the `VisitEntities`
+/// trait.
 pub trait EntityVisitor: Send + Sync {
+    /// Allows the visitor to visit the specified entity.
+    ///
+    /// This method could potentially be called in parallel.
     fn visit_entity(&self, entity: specs::Entity);
 }
 
+/// A visitor for visiting entities mutably.
+///
+/// Types implementing this trait are compatible with the `accept_mut` method on the
+/// `VisitEntitiesMut` trait.
 pub trait EntityVisitorMut: Send + Sync {
+    /// Allows the visitor to visit the specified entity mutably.
+    ///
+    /// This method could potentially be called in parallel.
     fn visit_entity_mut(&self, entity: &mut specs::Entity);
 }
 
