@@ -7,6 +7,7 @@ extern crate tin_lang;
 use std::fs;
 use std::io;
 use std::path;
+use std::process;
 
 #[derive(Debug, StructOpt)]
 #[structopt(name = "tin")]
@@ -40,11 +41,10 @@ fn main() -> Result<(), failure::Error> {
     let mut module = tin.compile()?;
 
     let entrypoint = module
-        .function::<tin_lang::module::Function0<u32>>("main")
+        .function::<tin_lang::module::Function0<i32>>("main")
         .ok_or(failure::err_msg("missing a main function"))?;
 
     let result = entrypoint();
 
-    eprintln!("{}", result);
-    Ok(())
+    process::exit(result)
 }
