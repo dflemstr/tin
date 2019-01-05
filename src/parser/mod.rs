@@ -20,7 +20,7 @@ lalrpop_mod!(
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Context {
     /// The source code span that this AST was parsed from.
-    pub span: codemap::Span,
+    pub span: codespan::ByteSpan,
     /// The kind of AST node that the parser identified.
     pub kind: ast::Kind,
 }
@@ -32,13 +32,13 @@ pub enum Error {
     #[fail(display = "invalid token")]
     Invalid {
         /// The location of the invalid token.
-        location: codemap::Span,
+        location: codespan::ByteSpan,
     },
     /// There was an unexpected token in the code.
     #[fail(display = "unexpected token")]
     Unexpected {
         /// The seen token's span.
-        token: codemap::Span,
+        token: codespan::ByteSpan,
         /// Tokens that would have been valid at this point.
         expected: Vec<String>,
     },
@@ -46,7 +46,7 @@ pub enum Error {
     #[fail(display = "extra token")]
     Extra {
         /// The seen token's span.
-        token: codemap::Span,
+        token: codespan::ByteSpan,
     },
     /// There were multiple parse errors.
     #[fail(display = "multiple parse errors")]
@@ -64,7 +64,7 @@ pub trait Parse: Sized {
     fn new_parser() -> Self::Parser;
 
     /// Parses the supplied string into a value.
-    fn parse(span: codemap::Span, source: &str) -> Result<Self, Error> {
+    fn parse(span: codespan::ByteSpan, source: &str) -> Result<Self, Error> {
         Self::new_parser().parse(span, source)
     }
 }
@@ -72,18 +72,22 @@ pub trait Parse: Sized {
 /// A re-usable parser for a specific type.
 pub trait Parser<A> {
     /// Parses the supplied string into a value.
-    fn parse(&mut self, span: codemap::Span, source: &str) -> Result<A, Error>;
+    fn parse(&mut self, span: codespan::ByteSpan, source: &str) -> Result<A, Error>;
 }
 
 impl Context {
     /// Creates a new context from span start and end points.
-    pub fn new(kind: ast::Kind, span: codemap::Span) -> Context {
+    pub fn new(kind: ast::Kind, span: codespan::ByteSpan, lo: usize, hi: usize) -> Context {
+        let span = span.subspan(
+            codespan::ByteOffset(lo as codespan::RawOffset),
+            codespan::ByteOffset(hi as codespan::RawOffset),
+        );
         Context { span, kind }
     }
 }
 
 fn handle_parse_result<A, T1, T2>(
-    span: codemap::Span,
+    span: codespan::ByteSpan,
     result: Result<A, lalrpop_util::ParseError<usize, T1, Error>>,
     errors: Vec<lalrpop_util::ParseError<usize, T2, Error>>,
 ) -> Result<A, Error> {
@@ -123,7 +127,7 @@ macro_rules! parser_impl {
         }
 
         impl Parser<$result> for crate::parser::tin::$parser {
-            fn parse(&mut self, span: codemap::Span, source: &str) -> Result<$result, Error> {
+            fn parse(&mut self, span: codespan::ByteSpan, source: &str) -> Result<$result, Error> {
                 let mut errors = Vec::new();
                 let result = crate::parser::tin::$parser::parse(self, span, &mut errors, source);
                 handle_parse_result(span, result, errors)
@@ -137,21 +141,35 @@ parser_impl!(ExpressionParser, ast::Expression<Context>);
 
 impl Error {
     fn from_lalrpop<T>(
-        span: codemap::Span,
+        span: codespan::ByteSpan,
         error: lalrpop_util::ParseError<usize, T, Error>,
     ) -> Error {
         match error {
             lalrpop_util::ParseError::InvalidToken { location } => Error::Invalid {
-                location: span.subspan(location as u64, (location + 1) as u64),
+                location: span.subspan(
+                    codespan::ByteOffset(location as codespan::RawOffset),
+                    codespan::ByteOffset((location + 1) as codespan::RawOffset),
+                ),
             },
             lalrpop_util::ParseError::UnrecognizedToken { token, expected } => {
                 let token = token
-                    .map(|(s, _, e)| span.subspan(s as u64, e as u64))
-                    .unwrap_or(span.subspan(span.len() - 1, span.len() - 1));
+                    .map(|(s, _, e)| {
+                        span.subspan(
+                            codespan::ByteOffset(s as codespan::RawOffset),
+                            codespan::ByteOffset(e as codespan::RawOffset),
+                        )
+                    })
+                    .unwrap_or(codespan::Span::new(
+                        span.end() - codespan::ByteOffset(1),
+                        span.end() - codespan::ByteOffset(1),
+                    ));
                 Error::Unexpected { token, expected }
             }
             lalrpop_util::ParseError::ExtraToken { token: (s, _, e) } => {
-                let token = span.subspan(s as u64, e as u64);
+                let token = span.subspan(
+                    codespan::ByteOffset(s as codespan::RawOffset),
+                    codespan::ByteOffset(e as codespan::RawOffset),
+                );
                 Error::Extra { token }
             }
             lalrpop_util::ParseError::User { error } => error,
@@ -160,58 +178,58 @@ impl Error {
 }
 
 impl diagnostic::Diagnostic for Error {
-    fn into_diagnostics(self, result: &mut Vec<codemap_diagnostic::Diagnostic>) {
+    fn to_diagnostics(&self, result: &mut Vec<codespan_reporting::Diagnostic>) {
         let message = self.to_string();
         match self {
-            Error::Invalid { location } => result.push(codemap_diagnostic::Diagnostic {
-                level: codemap_diagnostic::Level::Error,
+            Error::Invalid { location } => result.push(codespan_reporting::Diagnostic {
+                severity: codespan_reporting::Severity::Error,
                 message,
                 code: None,
-                spans: vec![codemap_diagnostic::SpanLabel {
-                    span: location,
-                    label: None,
-                    style: codemap_diagnostic::SpanStyle::Primary,
+                labels: vec![codespan_reporting::Label {
+                    span: *location,
+                    message: None,
+                    style: codespan_reporting::LabelStyle::Primary,
                 }],
             }),
             Error::Unexpected { token, expected } => {
-                result.push(codemap_diagnostic::Diagnostic {
-                    level: codemap_diagnostic::Level::Error,
+                result.push(codespan_reporting::Diagnostic {
+                    severity: codespan_reporting::Severity::Error,
                     message,
                     code: None,
-                    spans: vec![codemap_diagnostic::SpanLabel {
-                        span: token,
-                        label: None,
-                        style: codemap_diagnostic::SpanStyle::Primary,
+                    labels: vec![codespan_reporting::Label {
+                        span: *token,
+                        message: None,
+                        style: codespan_reporting::LabelStyle::Primary,
                     }],
                 });
 
                 if !expected.is_empty() {
                     use itertools::Itertools;
 
-                    result.push(codemap_diagnostic::Diagnostic {
-                        level: codemap_diagnostic::Level::Help,
+                    result.push(codespan_reporting::Diagnostic {
+                        severity: codespan_reporting::Severity::Help,
                         message: format!(
                             "valid tokens at this point: [{}]",
                             expected.iter().join(", ")
                         ),
                         code: None,
-                        spans: vec![],
+                        labels: vec![],
                     })
                 }
             }
-            Error::Extra { token } => result.push(codemap_diagnostic::Diagnostic {
-                level: codemap_diagnostic::Level::Error,
+            Error::Extra { token } => result.push(codespan_reporting::Diagnostic {
+                severity: codespan_reporting::Severity::Error,
                 message,
                 code: None,
-                spans: vec![codemap_diagnostic::SpanLabel {
-                    span: token,
-                    label: None,
-                    style: codemap_diagnostic::SpanStyle::Primary,
+                labels: vec![codespan_reporting::Label {
+                    span: *token,
+                    message: None,
+                    style: codespan_reporting::LabelStyle::Primary,
                 }],
             }),
             Error::Multiple { errors } => {
                 for error in errors {
-                    error.into_diagnostics(result);
+                    error.to_diagnostics(result);
                 }
             }
         }
@@ -255,11 +273,9 @@ main = || {
         let _ = env_logger::try_init();
 
         let expected = Err(r#"error: invalid token
- --> test:1:1
-  |
+- <test>:1:1
 1 | #+-
   | ^
-
 "#
         .to_owned());
         let actual = parse_module("test", r#"#+-"#);
@@ -271,12 +287,10 @@ main = || {
         let _ = env_logger::try_init();
 
         let expected = Err(r#"error: unexpected token
- --> test:1:21
-  |
+- <test>:1:21
 1 | main = || { 0u32 }; <-<
   |                     ^^^
 help: valid tokens at this point: [Comment, IdentifierName]
-
 "#
         .to_owned());
         let actual = parse_module("test", r#"main = || { 0u32 }; <-<"#);
@@ -597,12 +611,10 @@ help: valid tokens at this point: [Comment, IdentifierName]
         let _ = env_logger::try_init();
 
         let expected = Err(r##"error: unexpected token
- --> test:1:2
-  |
+- <test>:1:2
 1 | (,)
   |  ^
 help: valid tokens at this point: ["!", "#$0", "#$1", "#0", "#1", "#^-", "#^0", "#^1", "(", ")", "^/", "{", "|", "~!", IdentifierName, NumberValue, StringValue, SymbolLabel]
-
 "##.to_owned());
         let actual = parse_expression("test", r#"(,)"#);
         assert_eq!(expected, actual);
@@ -1415,17 +1427,19 @@ help: valid tokens at this point: ["!", "#$0", "#$1", "#0", "#1", "#^-", "#^0", 
         assert_eq!(expected, actual);
     }
 
-    fn format_error(code_map: codemap::CodeMap, error: super::Error) -> String {
+    fn format_error(code_map: codespan::CodeMap, error: super::Error) -> String {
         use crate::diagnostic::Diagnostic;
 
         let mut diagnostics = Vec::new();
-        error.into_diagnostics(&mut diagnostics);
-        crate::diagnostic::format_string(&code_map, &diagnostics)
+        error.to_diagnostics(&mut diagnostics);
+        crate::test_util::format_diagnostics(&code_map, &diagnostics)
     }
 
-    fn parse_module(name: &str, source: &str) -> Result<ast::Module<()>, String> {
-        let mut code_map = codemap::CodeMap::new();
-        let span = code_map.add_file(name.to_owned(), source.to_owned()).span;
+    fn parse_module(name: &'static str, source: &str) -> Result<ast::Module<()>, String> {
+        let mut code_map = codespan::CodeMap::new();
+        let span = code_map
+            .add_filemap(codespan::FileName::Virtual(name.into()), source.to_owned())
+            .span();
 
         let mut errors = Vec::new();
         let result = crate::parser::tin::ModuleParser::new().parse(span, &mut errors, source);
@@ -1434,9 +1448,11 @@ help: valid tokens at this point: ["!", "#$0", "#$1", "#0", "#1", "#^-", "#^0", 
             .map_err(|e| format_error(code_map, e))
     }
 
-    fn parse_expression(name: &str, source: &str) -> Result<ast::Expression<()>, String> {
-        let mut code_map = codemap::CodeMap::new();
-        let span = code_map.add_file(name.to_owned(), source.to_owned()).span;
+    fn parse_expression(name: &'static str, source: &str) -> Result<ast::Expression<()>, String> {
+        let mut code_map = codespan::CodeMap::new();
+        let span = code_map
+            .add_filemap(codespan::FileName::Virtual(name.into()), source.to_owned())
+            .span();
 
         let mut errors = Vec::new();
         let result = crate::parser::tin::ExpressionParser::new().parse(span, &mut errors, source);

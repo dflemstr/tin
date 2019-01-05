@@ -60,7 +60,6 @@ use std::fmt;
 
 mod ast;
 mod codegen;
-mod diagnostic;
 mod interpreter;
 mod ir;
 mod parser;
@@ -69,6 +68,7 @@ mod value;
 #[cfg(test)]
 mod test_util;
 
+pub mod diagnostic;
 pub mod error;
 pub mod graph;
 pub mod module;
@@ -79,7 +79,7 @@ pub use crate::error::Result;
 /// An instance of the Tin runtime.
 pub struct Tin {
     ir: ir::Ir,
-    codemap: codemap::CodeMap,
+    codemap: codespan::CodeMap,
     parser: <ast::Module<parser::Context> as parser::Parse>::Parser,
 }
 
@@ -89,7 +89,7 @@ impl Tin {
         use crate::parser::Parse;
 
         let ir = ir::Ir::new();
-        let codemap = codemap::CodeMap::new();
+        let codemap = codespan::CodeMap::new();
         let parser = ast::Module::new_parser();
 
         Tin {
@@ -136,11 +136,14 @@ impl Tin {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn load(&mut self, file_name: &str, source: &str) -> Result<()> {
+    pub fn load<F>(&mut self, file_name: F, source: &str) -> Result<()>
+    where
+        F: Into<codespan::FileName>,
+    {
         let span = self
             .codemap
-            .add_file(file_name.to_owned(), source.to_owned())
-            .span;
+            .add_filemap(file_name.into(), source.to_owned())
+            .span();
         let module = parser::Parser::parse(&mut self.parser, span, source)?;
         self.ir.load(&module)?;
 
@@ -183,6 +186,12 @@ impl Tin {
         self.ir.check_types();
         let module = codegen::Codegen::new(&self.ir).compile();
         Ok(module)
+    }
+
+    /// Returns a reference to the current code map, which contains location mapping for all source
+    /// code loaded so far.
+    pub fn codemap(&self) -> &codespan::CodeMap {
+        &self.codemap
     }
 }
 

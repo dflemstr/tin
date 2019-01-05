@@ -1,6 +1,7 @@
 //! Common error types and utilities.
 use std::result;
 
+use crate::diagnostic;
 use crate::ir;
 use crate::parser;
 
@@ -17,6 +18,15 @@ pub enum Error {
 
 /// A convenience result wrapper for the [`Error`] type.
 pub type Result<A> = result::Result<A, Error>;
+
+impl diagnostic::Diagnostic for Error {
+    fn to_diagnostics(&self, result: &mut Vec<codespan_reporting::Diagnostic>) {
+        match self {
+            Error::Parser(e) => e.to_diagnostics(result),
+            Error::Ir(_) => {}
+        }
+    }
+}
 
 impl From<ir::Error> for Error {
     fn from(err: ir::Error) -> Self {

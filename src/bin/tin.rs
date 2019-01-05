@@ -10,6 +10,9 @@ use std::fs;
 use std::io;
 use std::path;
 use std::process;
+use std::sync::atomic;
+
+static REPORTED_DIAGNOSTICS: atomic::AtomicBool = atomic::AtomicBool::new(false);
 
 #[derive(Debug, StructOpt)]
 #[structopt(name = "tin")]
@@ -23,8 +26,10 @@ fn main() {
     match run() {
         Ok(result) => process::exit(result),
         Err(error) => {
-            for e in error.iter_chain() {
-                error!("{:?}", e);
+            if !REPORTED_DIAGNOSTICS.load(atomic::Ordering::Relaxed) {
+                for e in error.iter_chain() {
+                    error!("{}", e);
+                }
             }
             drop(error);
             process::exit(1)
@@ -43,20 +48,23 @@ fn run() -> Result<i32, failure::Error> {
     let mut source = String::new();
     let file_name;
     if let Some(path) = options.source {
-        file_name = path.to_string_lossy().into_owned();
-        let mut file = fs::File::open(path)?;
+        let mut file = fs::File::open(&path)?;
+        file_name = codespan::FileName::Real(path);
         file.read_to_string(&mut source)?;
     } else {
         let stdin = io::stdin();
-        file_name = "<stdin>".to_owned();
+        file_name = codespan::FileName::Virtual("stdin".into());
         let mut stdin = stdin.lock();
         stdin.read_to_string(&mut source)?;
     }
 
     let mut tin = tin_lang::Tin::new();
-    tin.load(&file_name, &source)?;
+    tin.load(file_name, &source)
+        .map_err(|e| report_diagnostics(tin.codemap(), e))?;
 
-    let mut module = tin.compile()?;
+    let mut module = tin
+        .compile()
+        .map_err(|e| report_diagnostics(tin.codemap(), e))?;
 
     let entrypoint = module
         .function::<tin_lang::module::Function0<i32>>("main")
@@ -65,4 +73,25 @@ fn run() -> Result<i32, failure::Error> {
     let result = entrypoint();
 
     Ok(result)
+}
+
+fn report_diagnostics(codemap: &codespan::CodeMap, error: tin_lang::Error) -> tin_lang::Error {
+    use codespan_reporting::termcolor;
+    use tin_lang::diagnostic::Diagnostic;
+
+    let mut diagnostics = Vec::new();
+    error.to_diagnostics(&mut diagnostics);
+
+    if !diagnostics.is_empty() {
+        let stream = termcolor::StandardStream::stderr(termcolor::ColorChoice::Auto);
+        let mut output = stream.lock();
+
+        for diagnostic in diagnostics {
+            codespan_reporting::emit(&mut output, codemap, &diagnostic).unwrap();
+        }
+
+        REPORTED_DIAGNOSTICS.store(true, atomic::Ordering::Relaxed);
+    }
+
+    error
 }

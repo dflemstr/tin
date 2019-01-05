@@ -651,11 +651,13 @@ main = || F32 { a = 2f32; b = 1f32; a - b };
         Ok(())
     }
 
-    fn compile_module(name: &str, source: &str) -> Result<module::Module, failure::Error> {
+    fn compile_module(name: &'static str, source: &str) -> Result<module::Module, failure::Error> {
         use crate::parser::Parse;
 
-        let mut codemap = codemap::CodeMap::new();
-        let span = codemap.add_file(name.to_owned(), source.to_owned()).span;
+        let mut codemap = codespan::CodeMap::new();
+        let span = codemap
+            .add_filemap(codespan::FileName::Virtual(name.into()), source.to_owned())
+            .span();
         let ast_module = ast::Module::parse(span, source)?;
         let mut ir = ir::Ir::new();
         ir.load(&ast_module)?;

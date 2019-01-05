@@ -690,10 +690,13 @@ pickFirst = |a: Int, b: Int| Int {
 main = || Int { pickFirst(1u32, 2u32) };
 "#;
 
-        let mut codemap = codemap::CodeMap::new();
+        let mut codemap = codespan::CodeMap::new();
         let span = codemap
-            .add_file("entity_assignments".to_owned(), source.to_owned())
-            .span;
+            .add_filemap(
+                codespan::FileName::Virtual("entity_assignments".into()),
+                source.to_owned(),
+            )
+            .span();
         let ast_module = ast::Module::parse(span, source)?;
 
         let mut ir = Ir::new();
@@ -721,10 +724,13 @@ b = || Int {
 };
 "#;
 
-        let mut codemap = codemap::CodeMap::new();
+        let mut codemap = codespan::CodeMap::new();
         let span = codemap
-            .add_file("recursive_module_variables".to_owned(), source.to_owned())
-            .span;
+            .add_filemap(
+                codespan::FileName::Virtual("recursive_module_variables".into()),
+                source.to_owned(),
+            )
+            .span();
         let ast_module = ast::Module::parse(span, source)?;
 
         let mut ir = Ir::new();
@@ -753,13 +759,13 @@ a = || Int {
 };
 "#;
 
-        let mut codemap = codemap::CodeMap::new();
+        let mut codemap = codespan::CodeMap::new();
         let span = codemap
-            .add_file(
-                "lexically_scoped_closure_vars".to_owned(),
+            .add_filemap(
+                codespan::FileName::Virtual("lexically_scoped_closure_vars".into()),
                 source.to_owned(),
             )
-            .span;
+            .span();
         let ast_module = ast::Module::parse(span, source)?;
 
         let mut ir = Ir::new();
@@ -789,10 +795,13 @@ a = || Int {
 };
 "#;
 
-        let mut codemap = codemap::CodeMap::new();
+        let mut codemap = codespan::CodeMap::new();
         let span = codemap
-            .add_file("ordered_local_vars".to_owned(), source.to_owned())
-            .span;
+            .add_filemap(
+                codespan::FileName::Virtual("ordered_local_vars".into()),
+                source.to_owned(),
+            )
+            .span();
         let ast_module = ast::Module::parse(span, source)?;
 
         let mut ir = Ir::new();
