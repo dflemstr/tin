@@ -60,6 +60,7 @@ pub enum Error {
 pub trait Parse: Sized {
     /// The type of parser created by `new_parser`.
     type Parser: Parser<Self>;
+
     /// Creates a re-usable parser that can be used for bulk parse operations.
     fn new_parser() -> Self::Parser;
 
@@ -118,16 +119,20 @@ fn handle_parse_result<A, T1, T2>(
 }
 
 macro_rules! parser_impl {
-    ($parser:ident, $result:ty) => {
+    ($stat:ident, $parser:ident, $result:ty) => {
+        lazy_static! {
+            static ref $stat: crate::parser::tin::$parser = { crate::parser::tin::$parser::new() };
+        }
+
         impl Parse for $result {
-            type Parser = crate::parser::tin::$parser;
+            type Parser = &'static crate::parser::tin::$parser;
 
             fn new_parser() -> Self::Parser {
-                crate::parser::tin::$parser::new()
+                &*$stat
             }
         }
 
-        impl Parser<$result> for crate::parser::tin::$parser {
+        impl Parser<$result> for &'static crate::parser::tin::$parser {
             fn parse(&mut self, span: codespan::ByteSpan, source: &str) -> Result<$result, Error> {
                 let mut errors = Vec::new();
                 let result = crate::parser::tin::$parser::parse(self, span, &mut errors, source);
@@ -137,8 +142,12 @@ macro_rules! parser_impl {
     };
 }
 
-parser_impl!(ModuleParser, ast::Module<Context>);
-parser_impl!(ExpressionParser, ast::Expression<Context>);
+parser_impl!(MODULE_PARSER, ModuleParser, ast::Module<Context>);
+parser_impl!(
+    EXPRESSION_PARSER,
+    ExpressionParser,
+    ast::Expression<Context>
+);
 
 impl Error {
     fn from_lalrpop<T>(
@@ -1454,26 +1463,30 @@ help: valid tokens at this point: ["!", "#$0", "#$1", "#0", "#1", "#^-", "#^0", 
     }
 
     fn parse_module(name: &'static str, source: &str) -> Result<ast::Module<()>, String> {
+        use crate::parser::Parse;
+
         let mut code_map = codespan::CodeMap::new();
         let span = code_map
             .add_filemap(codespan::FileName::Virtual(name.into()), source.to_owned())
             .span();
 
         let mut errors = Vec::new();
-        let result = crate::parser::tin::ModuleParser::new().parse(span, &mut errors, source);
+        let result = crate::ast::Module::new_parser().parse(span, &mut errors, source);
         super::handle_parse_result(source, span, result, errors)
             .map(|r| r.map_context(&mut |_| ()))
             .map_err(|e| test_util::format_error(&code_map, e))
     }
 
     fn parse_expression(name: &'static str, source: &str) -> Result<ast::Expression<()>, String> {
+        use crate::parser::Parse;
+
         let mut code_map = codespan::CodeMap::new();
         let span = code_map
             .add_filemap(codespan::FileName::Virtual(name.into()), source.to_owned())
             .span();
 
         let mut errors = Vec::new();
-        let result = crate::parser::tin::ExpressionParser::new().parse(span, &mut errors, source);
+        let result = crate::ast::Expression::new_parser().parse(span, &mut errors, source);
         super::handle_parse_result(source, span, result, errors)
             .map(|r| r.map_context(&mut |_| ()))
             .map_err(|e| test_util::format_error(&code_map, e))
