@@ -15,6 +15,7 @@ macro_rules! for_each_component {
         apply_component!(replacement::Replacement, $name, $body);
         apply_component!(symbol::Symbol, $name, $body);
         apply_component!(ty::Type, $name, $body);
+        apply_component!(ty::Conflict, $name, $body);
     };
 }
 

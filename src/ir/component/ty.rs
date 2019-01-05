@@ -14,7 +14,6 @@ pub enum Type {
     Union(Union),
     Record(Record),
     Function(Function),
-    Conflict(Conflict),
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, VisitEntities, VisitEntitiesMut)]
@@ -73,10 +72,19 @@ pub struct Function {
     pub result: Box<Type>,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq, VisitEntities, VisitEntitiesMut)]
+#[derive(Component, Clone, Debug, Eq, PartialEq, VisitEntities, VisitEntitiesMut)]
+#[storage(VecStorage)]
 pub struct Conflict {
     pub expected: ExpectedType,
     pub actual: Box<Type>,
+    pub main_entity: specs::Entity,
+    pub aux_entities: Vec<AuxEntity>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, VisitEntities, VisitEntitiesMut)]
+pub struct AuxEntity {
+    pub entity: specs::Entity,
+    pub label: String,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, VisitEntities, VisitEntitiesMut)]
@@ -97,7 +105,6 @@ impl Type {
             Type::Tuple(_) => ScalarClass::Complex,
             Type::Record(_) => ScalarClass::Complex,
             Type::Function(_) => ScalarClass::Undefined,
-            Type::Conflict(_) => ScalarClass::Undefined,
         }
     }
 }
@@ -140,7 +147,6 @@ impl fmt::Display for Type {
             Type::Union(ref union) => union.fmt(f),
             Type::Record(ref record) => record.fmt(f),
             Type::Function(ref function) => function.fmt(f),
-            Type::Conflict(ref conflict) => conflict.fmt(f),
         }
     }
 }
@@ -234,9 +240,10 @@ impl fmt::Display for Function {
 
 impl fmt::Display for Conflict {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        self.actual.fmt(f)?;
-        write!(f, "!=")?;
+        write!(f, "expected ")?;
         self.expected.fmt(f)?;
+        write!(f, " but got ")?;
+        self.actual.fmt(f)?;
         Ok(())
     }
 }

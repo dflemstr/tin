@@ -48,7 +48,6 @@ impl AbiType {
             }
             ty::Type::Record(_) => AbiType::Ptr,
             ty::Type::Function(_) => AbiType::Ptr,
-            ty::Type::Conflict(_) => panic!("type conflict"),
         }
     }
 
