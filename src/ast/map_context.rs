@@ -85,6 +85,7 @@ where
             ast::Expression::Lambda(e) => ast::Expression::Lambda(e.map_context(mapping)),
             ast::Expression::Select(e) => ast::Expression::Select(e.map_context(mapping)),
             ast::Expression::Apply(e) => ast::Expression::Apply(e.map_context(mapping)),
+            ast::Expression::Unknown => ast::Expression::Unknown,
         }
     }
 }

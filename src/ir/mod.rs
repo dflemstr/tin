@@ -206,6 +206,7 @@ impl<'a> ModuleBuilder<'a> {
             ast::Expression::Lambda(ref v) => self.add_lambda(entity, v),
             ast::Expression::Select(ref v) => self.add_select(entity, v),
             ast::Expression::Apply(ref v) => self.add_apply(entity, v),
+            ast::Expression::Unknown => panic!("'unknown' AST nodes should not escape the parser"),
         }
     }
 
@@ -689,7 +690,11 @@ pickFirst = |a: Int, b: Int| Int {
 main = || Int { pickFirst(1u32, 2u32) };
 "#;
 
-        let ast_module = ast::Module::parse(source)?;
+        let mut codemap = codemap::CodeMap::new();
+        let span = codemap
+            .add_file("entity_assignments".to_owned(), source.to_owned())
+            .span;
+        let ast_module = ast::Module::parse(span, source)?;
 
         let mut ir = Ir::new();
         ir.load(&ast_module)?;
@@ -716,7 +721,11 @@ b = || Int {
 };
 "#;
 
-        let ast_module = ast::Module::parse(source)?;
+        let mut codemap = codemap::CodeMap::new();
+        let span = codemap
+            .add_file("recursive_module_variables".to_owned(), source.to_owned())
+            .span;
+        let ast_module = ast::Module::parse(span, source)?;
 
         let mut ir = Ir::new();
         ir.load(&ast_module)?;
@@ -744,7 +753,14 @@ a = || Int {
 };
 "#;
 
-        let ast_module = ast::Module::parse(source)?;
+        let mut codemap = codemap::CodeMap::new();
+        let span = codemap
+            .add_file(
+                "lexically_scoped_closure_vars".to_owned(),
+                source.to_owned(),
+            )
+            .span;
+        let ast_module = ast::Module::parse(span, source)?;
 
         let mut ir = Ir::new();
         let result = ir.load(&ast_module);
@@ -773,7 +789,11 @@ a = || Int {
 };
 "#;
 
-        let ast_module = ast::Module::parse(source)?;
+        let mut codemap = codemap::CodeMap::new();
+        let span = codemap
+            .add_file("ordered_local_vars".to_owned(), source.to_owned())
+            .span;
+        let ast_module = ast::Module::parse(span, source)?;
 
         let mut ir = Ir::new();
         let result = ir.load(&ast_module);

@@ -29,6 +29,9 @@ structopt = "0.2.14"
 lazy_static = "1.2.0"
 byteorder = "1.2.7"
 rayon = "1.0.3"
+codemap = "0.1.1"
+codemap-diagnostic = "0.1.0"
+itertools = "0.8.0"
 
 [features]
 test-render-graphs = []
@@ -40,3 +43,6 @@ codegen-units = 1
 
 [workspace]
 members = ["specs-visitor", "specs-visitor-derive"]
+
+[patch.crates-io]
+codemap-diagnostic = { git = "https://github.com/dflemstr/codemap-diagnostic.git", branch = "scoped-emitter" }

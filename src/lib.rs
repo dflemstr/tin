@@ -11,14 +11,14 @@
 //! let source = r#"
 //! Int = 0u32;
 //! pickFirst = |a: Int, b: Int| Int {
-//!   capture = |x: Int| Int { a };
+//!   capture = |x: Int| Int { a + x };
 //!   capture(b)
 //! };
 //! main = || Int { pickFirst(42u32, 62u32) };
 //! "#;
 //!
 //! let mut tin = tin_lang::Tin::new();
-//! tin.load(source)?;
+//! tin.load("main.tn", source)?;
 //!
 //! /*
 //! let mut module = tin.compile()?;
@@ -60,6 +60,7 @@ use std::fmt;
 
 mod ast;
 mod codegen;
+mod diagnostic;
 mod interpreter;
 mod ir;
 mod parser;
@@ -78,6 +79,7 @@ pub use crate::error::Result;
 /// An instance of the Tin runtime.
 pub struct Tin {
     ir: ir::Ir,
+    codemap: codemap::CodeMap,
     parser: <ast::Module<parser::Context> as parser::Parse>::Parser,
 }
 
@@ -87,9 +89,14 @@ impl Tin {
         use crate::parser::Parse;
 
         let ir = ir::Ir::new();
+        let codemap = codemap::CodeMap::new();
         let parser = ast::Module::new_parser();
 
-        Tin { ir, parser }
+        Tin {
+            ir,
+            codemap,
+            parser,
+        }
     }
 
     /// Loads the specified source code as a module.
@@ -112,7 +119,7 @@ impl Tin {
     /// # extern crate tin_lang;
     /// # fn main() -> Result<(), failure::Error> {
     /// let mut tin = tin_lang::Tin::new();
-    /// tin.load("U32 = 0u32; main = || U32 { 42u32 };")?;
+    /// tin.load("main.tn", "U32 = 0u32; main = || U32 { 42u32 };")?;
     /// # Ok(())
     /// # }
     /// ```
@@ -124,13 +131,17 @@ impl Tin {
     /// # extern crate tin_lang;
     /// # fn main() -> Result<(), failure::Error> {
     /// let mut tin = tin_lang::Tin::new();
-    /// let result = tin.load("U32 = 0u32; main = || U32 { a };");
+    /// let result = tin.load("main.tn", "U32 = 0u32; main = || U32 { a };");
     /// assert!(result.is_err());
     /// # Ok(())
     /// # }
     /// ```
-    pub fn load(&mut self, source: &str) -> Result<()> {
-        let module = parser::Parser::parse(&mut self.parser, source)?;
+    pub fn load(&mut self, file_name: &str, source: &str) -> Result<()> {
+        let span = self
+            .codemap
+            .add_file(file_name.to_owned(), source.to_owned())
+            .span;
+        let module = parser::Parser::parse(&mut self.parser, span, source)?;
         self.ir.load(&module)?;
 
         Ok(())
@@ -158,7 +169,7 @@ impl Tin {
     /// # extern crate tin_lang;
     /// # fn main() -> Result<(), failure::Error> {
     /// let mut tin = tin_lang::Tin::new();
-    /// tin.load("U32 = 0u32; main = || U32 { 42u32 };")?;
+    /// tin.load("main.tn", "U32 = 0u32; main = || U32 { 42u32 };")?;
     ///
     /// let mut module = tin.compile()?;
     /// let main = module.function::<tin_lang::module::Function0<u32>>("main").unwrap();

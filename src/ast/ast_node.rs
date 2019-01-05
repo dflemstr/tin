@@ -55,6 +55,7 @@ where
             ast::Expression::Lambda(ref v) => v.context(),
             ast::Expression::Select(ref v) => v.context(),
             ast::Expression::Apply(ref v) => v.context(),
+            ast::Expression::Unknown => panic!("'unknown' AST nodes should not escape the parser"),
         }
     }
 
@@ -71,6 +72,7 @@ where
             ast::Expression::Lambda(ref mut v) => v.context_mut(),
             ast::Expression::Select(ref mut v) => v.context_mut(),
             ast::Expression::Apply(ref mut v) => v.context_mut(),
+            ast::Expression::Unknown => panic!("'unknown' AST nodes should not escape the parser"),
         }
     }
 }

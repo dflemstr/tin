@@ -654,7 +654,9 @@ main = || F32 { a = 2f32; b = 1f32; a - b };
     fn compile_module(name: &str, source: &str) -> Result<module::Module, failure::Error> {
         use crate::parser::Parse;
 
-        let ast_module = ast::Module::parse(source)?;
+        let mut codemap = codemap::CodeMap::new();
+        let span = codemap.add_file(name.to_owned(), source.to_owned()).span;
+        let ast_module = ast::Module::parse(span, source)?;
         let mut ir = ir::Ir::new();
         ir.load(&ast_module)?;
         ir.check_types();

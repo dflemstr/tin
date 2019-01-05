@@ -88,6 +88,9 @@ pub enum Expression<C> {
     Select(Select<C>),
     /// A function application.
     Apply(Apply<C>),
+
+    /// An unknown expression.
+    Unknown,
 }
 
 /// A numeric literal.

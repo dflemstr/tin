@@ -1,9 +1,8 @@
 //! A parser for Tin code.
-use std::fmt;
-
 use lalrpop_util;
 
 use crate::ast;
+use crate::diagnostic;
 
 mod util;
 
@@ -11,6 +10,7 @@ lalrpop_mod!(
     #[allow(clippy::all)]
     #[allow(clippy::pedantic)]
     #[allow(missing_debug_implementations)]
+    #[allow(trivial_numeric_casts)]
     #[allow(unused)]
     tin,
     "/parser/tin.rs"
@@ -20,43 +20,39 @@ lalrpop_mod!(
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Context {
     /// The source code span that this AST was parsed from.
-    pub span: Span,
+    pub span: codemap::Span,
     /// The kind of AST node that the parser identified.
     pub kind: ast::Kind,
-}
-
-/// A source code span.
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct Span {
-    /// The starting (byte) position of the span.
-    pub start: usize,
-    /// The ending (byte) position of the span.
-    pub end: usize,
 }
 
 /// An error that occurs while parsing Tin.
 #[derive(Debug, Fail, PartialEq)]
 pub enum Error {
     /// There was an invalid token in the code.
-    #[fail(display = "invalid token at {}", _0)]
+    #[fail(display = "invalid token")]
     Invalid {
-        /// The location (byte index) of the invalid token.
-        location: usize,
+        /// The location of the invalid token.
+        location: codemap::Span,
     },
     /// There was an unexpected token in the code.
-    #[fail(display = "unrecognized token {:?}, expected {:?}", _0, _1)]
-    Unrecognized {
-        /// The start (byte index), seen token, and end (byte index), or `None` if we are at the end
-        /// of the file.
-        token: Option<(usize, String, usize)>,
+    #[fail(display = "unexpected token")]
+    Unexpected {
+        /// The seen token's span.
+        token: codemap::Span,
         /// Tokens that would have been valid at this point.
         expected: Vec<String>,
     },
     /// There was an extra token at the end of the file.
-    #[fail(display = "got extra token {:?}", _0)]
-    Trailing {
-        /// The start (byte index), seen token, and end (byte index).
-        token: (usize, String, usize),
+    #[fail(display = "extra token")]
+    Extra {
+        /// The seen token's span.
+        token: codemap::Span,
+    },
+    /// There were multiple parse errors.
+    #[fail(display = "multiple parse errors")]
+    Multiple {
+        /// The errors, in the order they were encountered in the source code.
+        errors: Vec<Error>,
     },
 }
 
@@ -68,22 +64,51 @@ pub trait Parse: Sized {
     fn new_parser() -> Self::Parser;
 
     /// Parses the supplied string into a value.
-    fn parse(source: &str) -> Result<Self, Error> {
-        Self::new_parser().parse(source)
+    fn parse(span: codemap::Span, source: &str) -> Result<Self, Error> {
+        Self::new_parser().parse(span, source)
     }
 }
 
 /// A re-usable parser for a specific type.
 pub trait Parser<A> {
     /// Parses the supplied string into a value.
-    fn parse(&mut self, source: &str) -> Result<A, Error>;
+    fn parse(&mut self, span: codemap::Span, source: &str) -> Result<A, Error>;
 }
 
 impl Context {
     /// Creates a new context from span start and end points.
-    pub fn new(kind: ast::Kind, start: usize, end: usize) -> Context {
-        let span = Span { start, end };
+    pub fn new(kind: ast::Kind, span: codemap::Span) -> Context {
         Context { span, kind }
+    }
+}
+
+fn handle_parse_result<A, T1, T2>(
+    span: codemap::Span,
+    result: Result<A, lalrpop_util::ParseError<usize, T1, Error>>,
+    errors: Vec<lalrpop_util::ParseError<usize, T2, Error>>,
+) -> Result<A, Error> {
+    let mut errors = errors
+        .into_iter()
+        .map(|e| Error::from_lalrpop(span, e))
+        .collect::<Vec<_>>();
+
+    let result = match result {
+        Ok(r) => Some(r),
+        Err(e) => {
+            errors.push(Error::from_lalrpop(span, e));
+            None
+        }
+    };
+
+    let len = errors.len();
+    if errors.is_empty() {
+        Ok(result.unwrap())
+    } else {
+        if len == 1 {
+            Err(errors.pop().unwrap())
+        } else {
+            Err(Error::Multiple { errors })
+        }
     }
 }
 
@@ -98,8 +123,10 @@ macro_rules! parser_impl {
         }
 
         impl Parser<$result> for crate::parser::tin::$parser {
-            fn parse(&mut self, source: &str) -> Result<$result, Error> {
-                crate::parser::tin::$parser::parse(self, source).map_err(Into::into)
+            fn parse(&mut self, span: codemap::Span, source: &str) -> Result<$result, Error> {
+                let mut errors = Vec::new();
+                let result = crate::parser::tin::$parser::parse(self, span, &mut errors, source);
+                handle_parse_result(span, result, errors)
             }
         }
     };
@@ -108,22 +135,85 @@ macro_rules! parser_impl {
 parser_impl!(ModuleParser, ast::Module<Context>);
 parser_impl!(ExpressionParser, ast::Expression<Context>);
 
-impl<T> From<lalrpop_util::ParseError<usize, T, Error>> for Error
-where
-    T: fmt::Display,
-{
-    fn from(error: lalrpop_util::ParseError<usize, T, Error>) -> Self {
+impl Error {
+    fn from_lalrpop<T>(
+        span: codemap::Span,
+        error: lalrpop_util::ParseError<usize, T, Error>,
+    ) -> Error {
         match error {
-            lalrpop_util::ParseError::InvalidToken { location } => Error::Invalid { location },
+            lalrpop_util::ParseError::InvalidToken { location } => Error::Invalid {
+                location: span.subspan(location as u64, (location + 1) as u64),
+            },
             lalrpop_util::ParseError::UnrecognizedToken { token, expected } => {
-                let token = token.map(|(s, t, e)| (s, format!("{}", t), e));
-                Error::Unrecognized { token, expected }
+                let token = token
+                    .map(|(s, _, e)| span.subspan(s as u64, e as u64))
+                    .unwrap_or(span.subspan(span.len() - 1, span.len() - 1));
+                Error::Unexpected { token, expected }
             }
-            lalrpop_util::ParseError::ExtraToken { token } => {
-                let token = (token.0, format!("{}", token.1), token.2);
-                Error::Trailing { token }
+            lalrpop_util::ParseError::ExtraToken { token: (s, _, e) } => {
+                let token = span.subspan(s as u64, e as u64);
+                Error::Extra { token }
             }
             lalrpop_util::ParseError::User { error } => error,
+        }
+    }
+}
+
+impl diagnostic::Diagnostic for Error {
+    fn into_diagnostics(self, result: &mut Vec<codemap_diagnostic::Diagnostic>) {
+        let message = self.to_string();
+        match self {
+            Error::Invalid { location } => result.push(codemap_diagnostic::Diagnostic {
+                level: codemap_diagnostic::Level::Error,
+                message,
+                code: None,
+                spans: vec![codemap_diagnostic::SpanLabel {
+                    span: location,
+                    label: None,
+                    style: codemap_diagnostic::SpanStyle::Primary,
+                }],
+            }),
+            Error::Unexpected { token, expected } => {
+                result.push(codemap_diagnostic::Diagnostic {
+                    level: codemap_diagnostic::Level::Error,
+                    message,
+                    code: None,
+                    spans: vec![codemap_diagnostic::SpanLabel {
+                        span: token,
+                        label: None,
+                        style: codemap_diagnostic::SpanStyle::Primary,
+                    }],
+                });
+
+                if !expected.is_empty() {
+                    use itertools::Itertools;
+
+                    result.push(codemap_diagnostic::Diagnostic {
+                        level: codemap_diagnostic::Level::Help,
+                        message: format!(
+                            "valid tokens at this point: [{}]",
+                            expected.iter().join(", ")
+                        ),
+                        code: None,
+                        spans: vec![],
+                    })
+                }
+            }
+            Error::Extra { token } => result.push(codemap_diagnostic::Diagnostic {
+                level: codemap_diagnostic::Level::Error,
+                message,
+                code: None,
+                spans: vec![codemap_diagnostic::SpanLabel {
+                    span: token,
+                    label: None,
+                    style: codemap_diagnostic::SpanStyle::Primary,
+                }],
+            }),
+            Error::Multiple { errors } => {
+                for error in errors {
+                    error.into_diagnostics(result);
+                }
+            }
         }
     }
 }
@@ -132,7 +222,6 @@ where
 mod tests {
     use env_logger;
 
-    use super::tin;
     use crate::ast;
     use crate::ast::MapContext;
 
@@ -140,7 +229,8 @@ mod tests {
     fn e2e() {
         let _ = env_logger::try_init();
 
-        let actual = tin::ModuleParser::new().parse(
+        let actual = parse_module(
+            "test",
             r#"
 /* A record describing a person */
 Person = { name: String, age: U32 };
@@ -161,6 +251,39 @@ main = || {
     }
 
     #[test]
+    fn error_invalid_token() {
+        let _ = env_logger::try_init();
+
+        let expected = Err(r#"error: invalid token
+ --> test:1:1
+  |
+1 | #+-
+  | ^
+
+"#
+        .to_owned());
+        let actual = parse_module("test", r#"#+-"#);
+        assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn error_misplaced_token() {
+        let _ = env_logger::try_init();
+
+        let expected = Err(r#"error: unexpected token
+ --> test:1:21
+  |
+1 | main = || { 0u32 }; <-<
+  |                     ^^^
+help: valid tokens at this point: [Comment, IdentifierName]
+
+"#
+        .to_owned());
+        let actual = parse_module("test", r#"main = || { 0u32 }; <-<"#);
+        assert_eq!(expected, actual);
+    }
+
+    #[test]
     fn identifier() {
         let _ = env_logger::try_init();
 
@@ -168,9 +291,7 @@ main = || {
             context: (),
             value: "whatever".to_owned(),
         }));
-        let actual = tin::ExpressionParser::new()
-            .parse(r#"whatever"#)
-            .map(|r| r.map_context(&mut |_| ()));
+        let actual = parse_expression("test", r#"whatever"#);
         assert_eq!(expected, actual);
     }
 
@@ -182,9 +303,7 @@ main = || {
             context: (),
             value: "なんでも".to_owned(),
         }));
-        let actual = tin::ExpressionParser::new()
-            .parse(r#"なんでも"#)
-            .map(|r| r.map_context(&mut |_| ()));
+        let actual = parse_expression("test", r#"なんでも"#);
         assert_eq!(expected, actual);
     }
 
@@ -196,9 +315,7 @@ main = || {
             context: (),
             value: ast::NumberValue::F64(1.0),
         }));
-        let actual = tin::ExpressionParser::new()
-            .parse(r#"1f64"#)
-            .map(|r| r.map_context(&mut |_| ()));
+        let actual = parse_expression("test", r#"1f64"#);
         assert_eq!(expected, actual);
     }
 
@@ -210,9 +327,7 @@ main = || {
             context: (),
             value: ast::NumberValue::F64(-1.0),
         }));
-        let actual = tin::ExpressionParser::new()
-            .parse(r#"-1f64"#)
-            .map(|r| r.map_context(&mut |_| ()));
+        let actual = parse_expression("test", r#"-1f64"#);
         assert_eq!(expected, actual);
     }
 
@@ -224,9 +339,7 @@ main = || {
             context: (),
             value: ast::NumberValue::F64(0.0),
         }));
-        let actual = tin::ExpressionParser::new()
-            .parse(r#"0f64"#)
-            .map(|r| r.map_context(&mut |_| ()));
+        let actual = parse_expression("test", r#"0f64"#);
         assert_eq!(expected, actual);
     }
 
@@ -238,9 +351,7 @@ main = || {
             context: (),
             value: ast::NumberValue::F64(-0.0),
         }));
-        let actual = tin::ExpressionParser::new()
-            .parse(r#"-0f64"#)
-            .map(|r| r.map_context(&mut |_| ()));
+        let actual = parse_expression("test", r#"-0f64"#);
         assert_eq!(expected, actual);
     }
 
@@ -252,9 +363,7 @@ main = || {
             context: (),
             value: ast::NumberValue::F64(1.5),
         }));
-        let actual = tin::ExpressionParser::new()
-            .parse(r#"1.5f64"#)
-            .map(|r| r.map_context(&mut |_| ()));
+        let actual = parse_expression("test", r#"1.5f64"#);
         assert_eq!(expected, actual);
     }
 
@@ -266,9 +375,7 @@ main = || {
             context: (),
             value: ast::NumberValue::F64(-1.5),
         }));
-        let actual = tin::ExpressionParser::new()
-            .parse(r#"-1.5f64"#)
-            .map(|r| r.map_context(&mut |_| ()));
+        let actual = parse_expression("test", r#"-1.5f64"#);
         assert_eq!(expected, actual);
     }
 
@@ -280,9 +387,7 @@ main = || {
             context: (),
             value: ast::NumberValue::F64(1500.0),
         }));
-        let actual = tin::ExpressionParser::new()
-            .parse(r#"1.5000e3f64"#)
-            .map(|r| r.map_context(&mut |_| ()));
+        let actual = parse_expression("test", r#"1.5000e3f64"#);
         assert_eq!(expected, actual);
     }
 
@@ -294,9 +399,7 @@ main = || {
             context: (),
             value: ast::NumberValue::F64(-1500.0),
         }));
-        let actual = tin::ExpressionParser::new()
-            .parse(r#"-1.5000e3f64"#)
-            .map(|r| r.map_context(&mut |_| ()));
+        let actual = parse_expression("test", r#"-1.5000e3f64"#);
         assert_eq!(expected, actual);
     }
 
@@ -308,9 +411,7 @@ main = || {
             context: (),
             value: ast::NumberValue::F64(1500.0),
         }));
-        let actual = tin::ExpressionParser::new()
-            .parse(r#"1.5000E3f64"#)
-            .map(|r| r.map_context(&mut |_| ()));
+        let actual = parse_expression("test", r#"1.5000E3f64"#);
         assert_eq!(expected, actual);
     }
 
@@ -322,9 +423,7 @@ main = || {
             context: (),
             value: ast::NumberValue::F64(-1500.0),
         }));
-        let actual = tin::ExpressionParser::new()
-            .parse(r#"-1.5000E3f64"#)
-            .map(|r| r.map_context(&mut |_| ()));
+        let actual = parse_expression("test", r#"-1.5000E3f64"#);
         assert_eq!(expected, actual);
     }
 
@@ -336,9 +435,7 @@ main = || {
             context: (),
             value: ast::NumberValue::F64(0.0015),
         }));
-        let actual = tin::ExpressionParser::new()
-            .parse(r#"1.5000e-3f64"#)
-            .map(|r| r.map_context(&mut |_| ()));
+        let actual = parse_expression("test", r#"1.5000e-3f64"#);
         assert_eq!(expected, actual);
     }
 
@@ -350,9 +447,7 @@ main = || {
             context: (),
             value: ast::NumberValue::F64(1500.0),
         }));
-        let actual = tin::ExpressionParser::new()
-            .parse(r#"1.5000e0003f64"#)
-            .map(|r| r.map_context(&mut |_| ()));
+        let actual = parse_expression("test", r#"1.5000e0003f64"#);
         assert_eq!(expected, actual);
     }
 
@@ -364,9 +459,7 @@ main = || {
             context: (),
             value: ast::NumberValue::F64(1500.0),
         }));
-        let actual = tin::ExpressionParser::new()
-            .parse(r#"1.5000e+3f64"#)
-            .map(|r| r.map_context(&mut |_| ()));
+        let actual = parse_expression("test", r#"1.5000e+3f64"#);
         assert_eq!(expected, actual);
     }
 
@@ -378,9 +471,7 @@ main = || {
             context: (),
             value: ast::NumberValue::F64(1.5),
         }));
-        let actual = tin::ExpressionParser::new()
-            .parse(r#"1.5000e0f64"#)
-            .map(|r| r.map_context(&mut |_| ()));
+        let actual = parse_expression("test", r#"1.5000e0f64"#);
         assert_eq!(expected, actual);
     }
 
@@ -392,9 +483,7 @@ main = || {
             context: (),
             value: ast::NumberValue::F64(1.5),
         }));
-        let actual = tin::ExpressionParser::new()
-            .parse(r#"1.5000e+0f64"#)
-            .map(|r| r.map_context(&mut |_| ()));
+        let actual = parse_expression("test", r#"1.5000e+0f64"#);
         assert_eq!(expected, actual);
     }
 
@@ -406,9 +495,7 @@ main = || {
             context: (),
             value: "abc".to_owned(),
         }));
-        let actual = tin::ExpressionParser::new()
-            .parse(r#""abc""#)
-            .map(|r| r.map_context(&mut |_| ()));
+        let actual = parse_expression("test", r#""abc""#);
         assert_eq!(expected, actual);
     }
 
@@ -420,9 +507,7 @@ main = || {
             context: (),
             value: "なんでも".to_owned(),
         }));
-        let actual = tin::ExpressionParser::new()
-            .parse(r#""なんでも""#)
-            .map(|r| r.map_context(&mut |_| ()));
+        let actual = parse_expression("test", r#""なんでも""#);
         assert_eq!(expected, actual);
     }
 
@@ -434,9 +519,7 @@ main = || {
             context: (),
             value: "\"\\/\u{0008}\u{000C}\n\r\t\u{1234}".to_owned(),
         }));
-        let actual = tin::ExpressionParser::new()
-            .parse(r#""\"\\/\b\f\n\r\t\u{1234}""#)
-            .map(|r| r.map_context(&mut |_| ()));
+        let actual = parse_expression("test", r#""\"\\/\b\f\n\r\t\u{1234}""#);
         assert_eq!(expected, actual);
     }
 
@@ -457,9 +540,7 @@ main = || {
                 }),
             ],
         }));
-        let actual = tin::ExpressionParser::new()
-            .parse(r#"(1f64, 2f64)"#)
-            .map(|r| r.map_context(&mut |_| ()));
+        let actual = parse_expression("test", r#"(1f64, 2f64)"#);
         assert_eq!(expected, actual);
     }
 
@@ -480,9 +561,7 @@ main = || {
                 }),
             ],
         }));
-        let actual = tin::ExpressionParser::new()
-            .parse(r#"(1f64, 2f64,)"#)
-            .map(|r| r.map_context(&mut |_| ()));
+        let actual = parse_expression("test", r#"(1f64, 2f64,)"#);
         assert_eq!(expected, actual);
     }
 
@@ -497,9 +576,7 @@ main = || {
                 value: ast::NumberValue::F64(1.0),
             })],
         }));
-        let actual = tin::ExpressionParser::new()
-            .parse(r#"(1f64,)"#)
-            .map(|r| r.map_context(&mut |_| ()));
+        let actual = parse_expression("test", r#"(1f64,)"#);
         assert_eq!(expected, actual);
     }
 
@@ -511,9 +588,7 @@ main = || {
             context: (),
             fields: vec![],
         }));
-        let actual = tin::ExpressionParser::new()
-            .parse(r#"()"#)
-            .map(|r| r.map_context(&mut |_| ()));
+        let actual = parse_expression("test", r#"()"#);
         assert_eq!(expected, actual);
     }
 
@@ -521,10 +596,16 @@ main = || {
     fn tuple_empty_no_comma() {
         let _ = env_logger::try_init();
 
-        let actual = tin::ExpressionParser::new()
-            .parse(r#"(,)"#)
-            .map(|r| r.map_context(&mut |_| ()));
-        assert!(actual.is_err());
+        let expected = Err(r##"error: unexpected token
+ --> test:1:2
+  |
+1 | (,)
+  |  ^
+help: valid tokens at this point: ["!", "#$0", "#$1", "#0", "#1", "#^-", "#^0", "#^1", "(", ")", "^/", "{", "|", "~!", IdentifierName, NumberValue, StringValue, SymbolLabel]
+
+"##.to_owned());
+        let actual = parse_expression("test", r#"(,)"#);
+        assert_eq!(expected, actual);
     }
 
     #[test]
@@ -558,9 +639,7 @@ main = || {
             .into_iter()
             .collect(),
         }));
-        let actual = tin::ExpressionParser::new()
-            .parse(r#"{a: 1f64, b: "c"}"#)
-            .map(|r| r.map_context(&mut |_| ()));
+        let actual = parse_expression("test", r#"{a: 1f64, b: "c"}"#);
         assert_eq!(expected, actual);
     }
 
@@ -595,9 +674,7 @@ main = || {
             .into_iter()
             .collect(),
         }));
-        let actual = tin::ExpressionParser::new()
-            .parse(r#"{a: 1f64, b: "c",}"#)
-            .map(|r| r.map_context(&mut |_| ()));
+        let actual = parse_expression("test", r#"{a: 1f64, b: "c",}"#);
         assert_eq!(expected, actual);
     }
 
@@ -620,9 +697,7 @@ main = || {
             .into_iter()
             .collect(),
         }));
-        let actual = tin::ExpressionParser::new()
-            .parse(r#"{a: 1f64}"#)
-            .map(|r| r.map_context(&mut |_| ()));
+        let actual = parse_expression("test", r#"{a: 1f64}"#);
         assert_eq!(expected, actual);
     }
 
@@ -645,9 +720,7 @@ main = || {
             .into_iter()
             .collect(),
         }));
-        let actual = tin::ExpressionParser::new()
-            .parse(r#"{a: 1f64,}"#)
-            .map(|r| r.map_context(&mut |_| ()));
+        let actual = parse_expression("test", r#"{a: 1f64,}"#);
         assert_eq!(expected, actual);
     }
 
@@ -659,9 +732,7 @@ main = || {
             context: (),
             fields: vec![].into_iter().collect(),
         }));
-        let actual = tin::ExpressionParser::new()
-            .parse(r#"{}"#)
-            .map(|r| r.map_context(&mut |_| ()));
+        let actual = parse_expression("test", r#"{}"#);
         assert_eq!(expected, actual);
     }
 
@@ -669,9 +740,7 @@ main = || {
     fn record_empty_no_trailing_comma() {
         let _ = env_logger::try_init();
 
-        let actual = tin::ExpressionParser::new()
-            .parse(r#"{,}"#)
-            .map(|r| r.map_context(&mut |_| ()));
+        let actual = parse_expression("test", r#"{,}"#);
         assert!(actual.is_err());
     }
 
@@ -687,9 +756,7 @@ main = || {
                 value: ast::NumberValue::U32(0),
             })),
         }));
-        let actual = tin::ExpressionParser::new()
-            .parse(r#"!0u32"#)
-            .map(|r| r.map_context(&mut |_| ()));
+        let actual = parse_expression("test", r#"!0u32"#);
         assert_eq!(expected, actual);
     }
 
@@ -709,9 +776,7 @@ main = || {
                 })),
             })),
         }));
-        let actual = tin::ExpressionParser::new()
-            .parse(r#"!!0u32"#)
-            .map(|r| r.map_context(&mut |_| ()));
+        let actual = parse_expression("test", r#"!!0u32"#);
         assert_eq!(expected, actual);
     }
 
@@ -727,9 +792,7 @@ main = || {
                 value: ast::NumberValue::U32(0),
             })),
         }));
-        let actual = tin::ExpressionParser::new()
-            .parse(r#"~!0u32"#)
-            .map(|r| r.map_context(&mut |_| ()));
+        let actual = parse_expression("test", r#"~!0u32"#);
         assert_eq!(expected, actual);
     }
 
@@ -749,9 +812,7 @@ main = || {
                 })),
             })),
         }));
-        let actual = tin::ExpressionParser::new()
-            .parse(r#"~!~!0u32"#)
-            .map(|r| r.map_context(&mut |_| ()));
+        let actual = parse_expression("test", r#"~!~!0u32"#);
         assert_eq!(expected, actual);
     }
 
@@ -767,9 +828,7 @@ main = || {
                 value: ast::NumberValue::U32(0),
             })),
         }));
-        let actual = tin::ExpressionParser::new()
-            .parse(r#"#^0 0u32"#)
-            .map(|r| r.map_context(&mut |_| ()));
+        let actual = parse_expression("test", r#"#^0 0u32"#);
         assert_eq!(expected, actual);
     }
 
@@ -789,9 +848,7 @@ main = || {
                 })),
             })),
         }));
-        let actual = tin::ExpressionParser::new()
-            .parse(r#"#^0#^0 0u32"#)
-            .map(|r| r.map_context(&mut |_| ()));
+        let actual = parse_expression("test", r#"#^0#^0 0u32"#);
         assert_eq!(expected, actual);
     }
 
@@ -807,9 +864,7 @@ main = || {
                 value: ast::NumberValue::U32(0),
             })),
         }));
-        let actual = tin::ExpressionParser::new()
-            .parse(r#"#^1 0u32"#)
-            .map(|r| r.map_context(&mut |_| ()));
+        let actual = parse_expression("test", r#"#^1 0u32"#);
         assert_eq!(expected, actual);
     }
 
@@ -829,9 +884,7 @@ main = || {
                 })),
             })),
         }));
-        let actual = tin::ExpressionParser::new()
-            .parse(r#"#^1#^1 0u32"#)
-            .map(|r| r.map_context(&mut |_| ()));
+        let actual = parse_expression("test", r#"#^1#^1 0u32"#);
         assert_eq!(expected, actual);
     }
 
@@ -847,9 +900,7 @@ main = || {
                 value: ast::NumberValue::U32(0),
             })),
         }));
-        let actual = tin::ExpressionParser::new()
-            .parse(r#"#^- 0u32"#)
-            .map(|r| r.map_context(&mut |_| ()));
+        let actual = parse_expression("test", r#"#^- 0u32"#);
         assert_eq!(expected, actual);
     }
 
@@ -869,9 +920,7 @@ main = || {
                 })),
             })),
         }));
-        let actual = tin::ExpressionParser::new()
-            .parse(r#"#^-#^- 0u32"#)
-            .map(|r| r.map_context(&mut |_| ()));
+        let actual = parse_expression("test", r#"#^-#^- 0u32"#);
         assert_eq!(expected, actual);
     }
 
@@ -887,9 +936,7 @@ main = || {
                 value: ast::NumberValue::U32(0),
             })),
         }));
-        let actual = tin::ExpressionParser::new()
-            .parse(r#"#$0 0u32"#)
-            .map(|r| r.map_context(&mut |_| ()));
+        let actual = parse_expression("test", r#"#$0 0u32"#);
         assert_eq!(expected, actual);
     }
 
@@ -909,9 +956,7 @@ main = || {
                 })),
             })),
         }));
-        let actual = tin::ExpressionParser::new()
-            .parse(r#"#$0#$0 0u32"#)
-            .map(|r| r.map_context(&mut |_| ()));
+        let actual = parse_expression("test", r#"#$0#$0 0u32"#);
         assert_eq!(expected, actual);
     }
 
@@ -927,9 +972,7 @@ main = || {
                 value: ast::NumberValue::U32(0),
             })),
         }));
-        let actual = tin::ExpressionParser::new()
-            .parse(r#"#$1 0u32"#)
-            .map(|r| r.map_context(&mut |_| ()));
+        let actual = parse_expression("test", r#"#$1 0u32"#);
         assert_eq!(expected, actual);
     }
 
@@ -949,9 +992,7 @@ main = || {
                 })),
             })),
         }));
-        let actual = tin::ExpressionParser::new()
-            .parse(r#"#$1#$1 0u32"#)
-            .map(|r| r.map_context(&mut |_| ()));
+        let actual = parse_expression("test", r#"#$1#$1 0u32"#);
         assert_eq!(expected, actual);
     }
 
@@ -967,9 +1008,7 @@ main = || {
                 value: ast::NumberValue::U32(0),
             })),
         }));
-        let actual = tin::ExpressionParser::new()
-            .parse(r#"#0 0u32"#)
-            .map(|r| r.map_context(&mut |_| ()));
+        let actual = parse_expression("test", r#"#0 0u32"#);
         assert_eq!(expected, actual);
     }
 
@@ -989,9 +1028,7 @@ main = || {
                 })),
             })),
         }));
-        let actual = tin::ExpressionParser::new()
-            .parse(r#"#0#0 0u32"#)
-            .map(|r| r.map_context(&mut |_| ()));
+        let actual = parse_expression("test", r#"#0#0 0u32"#);
         assert_eq!(expected, actual);
     }
 
@@ -1007,9 +1044,7 @@ main = || {
                 value: ast::NumberValue::U32(0),
             })),
         }));
-        let actual = tin::ExpressionParser::new()
-            .parse(r#"#1 0u32"#)
-            .map(|r| r.map_context(&mut |_| ()));
+        let actual = parse_expression("test", r#"#1 0u32"#);
         assert_eq!(expected, actual);
     }
 
@@ -1029,9 +1064,7 @@ main = || {
                 })),
             })),
         }));
-        let actual = tin::ExpressionParser::new()
-            .parse(r#"#1#1 0u32"#)
-            .map(|r| r.map_context(&mut |_| ()));
+        let actual = parse_expression("test", r#"#1#1 0u32"#);
         assert_eq!(expected, actual);
     }
 
@@ -1047,9 +1080,7 @@ main = || {
                 value: ast::NumberValue::U32(0),
             })),
         }));
-        let actual = tin::ExpressionParser::new()
-            .parse(r#"^/ 0u32"#)
-            .map(|r| r.map_context(&mut |_| ()));
+        let actual = parse_expression("test", r#"^/ 0u32"#);
         assert_eq!(expected, actual);
     }
 
@@ -1069,9 +1100,7 @@ main = || {
                 })),
             })),
         }));
-        let actual = tin::ExpressionParser::new()
-            .parse(r#"^/^/ 0u32"#)
-            .map(|r| r.map_context(&mut |_| ()));
+        let actual = parse_expression("test", r#"^/^/ 0u32"#);
         assert_eq!(expected, actual);
     }
 
@@ -1113,9 +1142,7 @@ main = || {
                 })],
             })),
         }));
-        let actual = tin::ExpressionParser::new()
-            .parse(r#"|a, b| { a(b) }"#)
-            .map(|r| r.map_context(&mut |_| ()));
+        let actual = parse_expression("test", r#"|a, b| { a(b) }"#);
         assert_eq!(expected, actual);
     }
 
@@ -1187,9 +1214,7 @@ main = || {
                 })],
             })),
         }));
-        let actual = tin::ExpressionParser::new()
-            .parse(r#"|a, b| { c = |b| { a(b) }; c(b) }"#)
-            .map(|r| r.map_context(&mut |_| ()));
+        let actual = parse_expression("test", r#"|a, b| { c = |b| { a(b) }; c(b) }"#);
         assert_eq!(expected, actual);
     }
 
@@ -1262,9 +1287,10 @@ main = || {
                 })],
             })),
         }));
-        let actual = tin::ExpressionParser::new()
-            .parse(r#"|a, b| { /* define c */ c = |b| { a(b) }; /* call c */ c(b) }"#)
-            .map(|r| r.map_context(&mut |_| ()));
+        let actual = parse_expression(
+            "test",
+            r#"|a, b| { /* define c */ c = |b| { a(b) }; /* call c */ c(b) }"#,
+        );
         assert_eq!(expected, actual);
     }
 
@@ -1312,9 +1338,7 @@ main = || {
                 })],
             })),
         }));
-        let actual = tin::ExpressionParser::new()
-            .parse(r#"|a: Int, b: Int| { a(b) }"#)
-            .map(|r| r.map_context(&mut |_| ()));
+        let actual = parse_expression("test", r#"|a: Int, b: Int| { a(b) }"#);
         assert_eq!(expected, actual);
     }
 
@@ -1368,9 +1392,7 @@ main = || {
                 })],
             })),
         }));
-        let actual = tin::ExpressionParser::new()
-            .parse(r#"|a, b| { a(b); a(b) }"#)
-            .map(|r| r.map_context(&mut |_| ()));
+        let actual = parse_expression("test", r#"|a, b| { a(b); a(b) }"#);
         assert_eq!(expected, actual);
     }
 
@@ -1389,9 +1411,37 @@ main = || {
                 value: "b".to_owned(),
             })],
         }));
-        let actual = tin::ExpressionParser::new()
-            .parse(r#"a(b)"#)
-            .map(|r| r.map_context(&mut |_| ()));
+        let actual = parse_expression("test", r#"a(b)"#);
         assert_eq!(expected, actual);
+    }
+
+    fn format_error(code_map: codemap::CodeMap, error: super::Error) -> String {
+        use crate::diagnostic::Diagnostic;
+
+        let mut diagnostics = Vec::new();
+        error.into_diagnostics(&mut diagnostics);
+        crate::diagnostic::format_string(&code_map, &diagnostics)
+    }
+
+    fn parse_module(name: &str, source: &str) -> Result<ast::Module<()>, String> {
+        let mut code_map = codemap::CodeMap::new();
+        let span = code_map.add_file(name.to_owned(), source.to_owned()).span;
+
+        let mut errors = Vec::new();
+        let result = crate::parser::tin::ModuleParser::new().parse(span, &mut errors, source);
+        super::handle_parse_result(span, result, errors)
+            .map(|r| r.map_context(&mut |_| ()))
+            .map_err(|e| format_error(code_map, e))
+    }
+
+    fn parse_expression(name: &str, source: &str) -> Result<ast::Expression<()>, String> {
+        let mut code_map = codemap::CodeMap::new();
+        let span = code_map.add_file(name.to_owned(), source.to_owned()).span;
+
+        let mut errors = Vec::new();
+        let result = crate::parser::tin::ExpressionParser::new().parse(span, &mut errors, source);
+        super::handle_parse_result(span, result, errors)
+            .map(|r| r.map_context(&mut |_| ()))
+            .map_err(|e| format_error(code_map, e))
     }
 }
