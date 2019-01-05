@@ -9,12 +9,11 @@
 //! # extern crate tin_lang;
 //! # fn main() -> Result<(), failure::Error> {
 //! let source = r#"
-//! Int = 0u32;
-//! pickFirst = |a: Int, b: Int| Int {
-//!   capture = |x: Int| Int { a + x };
+//! pickFirst = |a: i32, b: i32| i32 {
+//!   capture = |x: i32| i32 { a + x };
 //!   capture(b)
 //! };
-//! main = || Int { pickFirst(42u32, 62u32) };
+//! main = || i32 { pickFirst(42i32, 62i32) };
 //! "#;
 //!
 //! let mut tin = tin_lang::Tin::new();
@@ -22,7 +21,7 @@
 //!
 //! /*
 //! let mut module = tin.compile()?;
-//! let main = module.function::<tin_lang::module::Function0<u32>>("main").unwrap();
+//! let main = module.function::<tin_lang::module::Function0<i32>>("main").unwrap();
 //!
 //! let result = main();
 //! assert_eq!(42, result);
@@ -55,6 +54,9 @@ extern crate log;
 extern crate specs_derive;
 #[macro_use]
 extern crate specs_visitor_derive;
+#[cfg(test)]
+#[macro_use]
+extern crate pretty_assertions;
 
 use std::fmt;
 
@@ -119,7 +121,7 @@ impl Tin {
     /// # extern crate tin_lang;
     /// # fn main() -> Result<(), failure::Error> {
     /// let mut tin = tin_lang::Tin::new();
-    /// tin.load("main.tn", "U32 = 0u32; main = || U32 { 42u32 };")?;
+    /// tin.load("main.tn", "main = || i32 { 42i32 };")?;
     /// # Ok(())
     /// # }
     /// ```
@@ -131,7 +133,7 @@ impl Tin {
     /// # extern crate tin_lang;
     /// # fn main() -> Result<(), failure::Error> {
     /// let mut tin = tin_lang::Tin::new();
-    /// let result = tin.load("main.tn", "U32 = 0u32; main = || U32 { a };");
+    /// let result = tin.load("main.tn", "main = || i32 { a };");
     /// assert!(result.is_err());
     /// # Ok(())
     /// # }
@@ -172,10 +174,10 @@ impl Tin {
     /// # extern crate tin_lang;
     /// # fn main() -> Result<(), failure::Error> {
     /// let mut tin = tin_lang::Tin::new();
-    /// tin.load("main.tn", "U32 = 0u32; main = || U32 { 42u32 };")?;
+    /// tin.load("main.tn", "main = || i32 { 42i32 };")?;
     ///
     /// let mut module = tin.compile()?;
-    /// let main = module.function::<tin_lang::module::Function0<u32>>("main").unwrap();
+    /// let main = module.function::<tin_lang::module::Function0<i32>>("main").unwrap();
     ///
     /// let result = main();
     /// assert_eq!(42, result);

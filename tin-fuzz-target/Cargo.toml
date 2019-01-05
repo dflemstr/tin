@@ -1,0 +1,9 @@
+[package]
+name = "tin-fuzz-target"
+version = "0.1.0"
+authors = ["David Flemström <david.flemstrom@gmail.com>"]
+edition = "2018"
+
+[dependencies]
+afl = "0.4.3"
+tin-lang = { path = ".." }

@@ -250,10 +250,38 @@ where
                 element::BiOperator::BOrNot => if_eq_then(lhs, lhs_ty, rhs, rhs_ty, lhs_ty),
                 element::BiOperator::XorNot => bool_op(lhs, lhs_ty, rhs, rhs_ty),
                 element::BiOperator::BXorNot => if_eq_then(lhs, lhs_ty, rhs, rhs_ty, lhs_ty),
-                element::BiOperator::RotL => if_eq_then(lhs, lhs_ty, rhs, rhs_ty, lhs_ty),
-                element::BiOperator::RotR => if_eq_then(lhs, lhs_ty, rhs, rhs_ty, lhs_ty),
-                element::BiOperator::ShL => if_eq_then(lhs, lhs_ty, rhs, rhs_ty, lhs_ty),
-                element::BiOperator::ShR => if_eq_then(lhs, lhs_ty, rhs, rhs_ty, lhs_ty),
+                element::BiOperator::RotL => if_integral_and_eq_then(
+                    lhs,
+                    lhs_ty,
+                    rhs,
+                    rhs_ty,
+                    &ty::Type::Number(ty::Number::U32),
+                    lhs_ty,
+                ),
+                element::BiOperator::RotR => if_integral_and_eq_then(
+                    lhs,
+                    lhs_ty,
+                    rhs,
+                    rhs_ty,
+                    &ty::Type::Number(ty::Number::U32),
+                    lhs_ty,
+                ),
+                element::BiOperator::ShL => if_integral_and_eq_then(
+                    lhs,
+                    lhs_ty,
+                    rhs,
+                    rhs_ty,
+                    &ty::Type::Number(ty::Number::U32),
+                    lhs_ty,
+                ),
+                element::BiOperator::ShR => if_integral_and_eq_then(
+                    lhs,
+                    lhs_ty,
+                    rhs,
+                    rhs_ty,
+                    &ty::Type::Number(ty::Number::U32),
+                    lhs_ty,
+                ),
             };
             Some(result)
         }
@@ -589,6 +617,44 @@ fn if_integral_then(
             actual: Box::new(ty.clone()),
             main_entity: entity,
             aux_entities: vec![],
+        }),
+    }
+}
+
+fn if_integral_and_eq_then(
+    lhs_entity: specs::Entity,
+    lhs: &ty::Type,
+    rhs_entity: specs::Entity,
+    rhs: &ty::Type,
+    expected: &ty::Type,
+    result: &ty::Type,
+) -> Inference<ty::Type> {
+    match lhs.scalar_class() {
+        ty::ScalarClass::Integral(_) => {
+            if rhs == expected {
+                Inference::Type(result.clone())
+            } else {
+                Inference::Error(ty::TypeError {
+                    expected: ty::ExpectedType::Specific(Box::new(expected.clone())),
+                    actual: Box::new(rhs.clone()),
+                    main_entity: rhs_entity,
+                    aux_entities: vec![ty::AuxEntity {
+                        entity: lhs_entity,
+                        label: format!("other operand has type {}", lhs),
+                    }],
+                })
+            }
+        }
+        _ => Inference::Error(ty::TypeError {
+            expected: ty::ExpectedType::ScalarClass(ty::ScalarClass::Integral(
+                ty::IntegralScalarClass::Any,
+            )),
+            actual: Box::new(lhs.clone()),
+            main_entity: lhs_entity,
+            aux_entities: vec![ty::AuxEntity {
+                entity: rhs_entity,
+                label: format!("other operand has type {}", rhs),
+            }],
         }),
     }
 }

@@ -5,7 +5,6 @@ use crate::parser;
 
 use std::str::FromStr;
 
-#[LALR]
 grammar<'err>(span: codespan::ByteSpan, errors: &'err mut Vec<lalrpop_util::ParseError<usize, Token<'input>, parser::Error>>);
 
 extern {

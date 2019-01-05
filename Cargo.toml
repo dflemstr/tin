@@ -9,6 +9,7 @@ edition = "2018"
 
 [build-dependencies]
 lalrpop = "0.16.2"
+failure = "0.1.5"
 
 [dependencies]
 cranelift = "0.26.0"
@@ -42,4 +43,7 @@ lto = true
 codegen-units = 1
 
 [workspace]
-members = ["specs-visitor", "specs-visitor-derive"]
+members = ["specs-visitor", "specs-visitor-derive", "tin-fuzz-target"]
+
+[dev-dependencies]
+pretty_assertions = "0.5.1"

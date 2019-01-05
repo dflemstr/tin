@@ -1,0 +1,6 @@
+add = |a: i32, b: i32| { a + b };
+sub = |a: i32, b: i32| { a - b };
+mul = |a: i32, b: i32| { a * b };
+div = |a: i32, b: i32| { a / b };
+
+main = || i32 { mul(div(add(1i32, sub(2i32, 1i32)), 2i32), 0i32) };

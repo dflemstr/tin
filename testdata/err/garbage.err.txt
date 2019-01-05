@@ -1,0 +1,4 @@
+error: invalid token
+- testdata/err/garbage.tn:1:1
+1 | ¤#"&"d!#%f
+  | ^^

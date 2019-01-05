@@ -87,19 +87,20 @@ impl Context {
 }
 
 fn handle_parse_result<A, T1, T2>(
+    source: &str,
     span: codespan::ByteSpan,
     result: Result<A, lalrpop_util::ParseError<usize, T1, Error>>,
     errors: Vec<lalrpop_util::ParseError<usize, T2, Error>>,
 ) -> Result<A, Error> {
     let mut errors = errors
         .into_iter()
-        .map(|e| Error::from_lalrpop(span, e))
+        .map(|e| Error::from_lalrpop(source, span, e))
         .collect::<Vec<_>>();
 
     let result = match result {
         Ok(r) => Some(r),
         Err(e) => {
-            errors.push(Error::from_lalrpop(span, e));
+            errors.push(Error::from_lalrpop(source, span, e));
             None
         }
     };
@@ -130,7 +131,7 @@ macro_rules! parser_impl {
             fn parse(&mut self, span: codespan::ByteSpan, source: &str) -> Result<$result, Error> {
                 let mut errors = Vec::new();
                 let result = crate::parser::tin::$parser::parse(self, span, &mut errors, source);
-                handle_parse_result(span, result, errors)
+                handle_parse_result(source, span, result, errors)
             }
         }
     };
@@ -141,16 +142,28 @@ parser_impl!(ExpressionParser, ast::Expression<Context>);
 
 impl Error {
     fn from_lalrpop<T>(
+        source: &str,
         span: codespan::ByteSpan,
         error: lalrpop_util::ParseError<usize, T, Error>,
     ) -> Error {
         match error {
-            lalrpop_util::ParseError::InvalidToken { location } => Error::Invalid {
-                location: span.subspan(
-                    codespan::ByteOffset(location as codespan::RawOffset),
-                    codespan::ByteOffset((location + 1) as codespan::RawOffset),
-                ),
-            },
+            lalrpop_util::ParseError::InvalidToken { mut location } => {
+                let start = location;
+
+                location += 1;
+                while !source.is_char_boundary(location) {
+                    location += 1;
+                }
+
+                let end = location;
+
+                Error::Invalid {
+                    location: span.subspan(
+                        codespan::ByteOffset(start as codespan::RawOffset),
+                        codespan::ByteOffset(end as codespan::RawOffset),
+                    ),
+                }
+            }
             lalrpop_util::ParseError::UnrecognizedToken { token, expected } => {
                 let token = token
                     .map(|(s, _, e)| {
@@ -1332,9 +1345,9 @@ help: valid tokens at this point: ["!", "#$0", "#$1", "#0", "#1", "#^-", "#^0", 
                         context: (),
                         value: "a".to_owned(),
                     },
-                    signature: Some(ast::Expression::Identifier(ast::Identifier {
+                    signature: Some(ast::Expression::NumberLiteral(ast::NumberLiteral {
                         context: (),
-                        value: "u32".to_owned(),
+                        value: ast::NumberValue::U32(0),
                     })),
                 },
                 ast::Parameter {
@@ -1343,9 +1356,9 @@ help: valid tokens at this point: ["!", "#$0", "#$1", "#0", "#1", "#^-", "#^0", 
                         context: (),
                         value: "b".to_owned(),
                     },
-                    signature: Some(ast::Expression::Identifier(ast::Identifier {
+                    signature: Some(ast::Expression::NumberLiteral(ast::NumberLiteral {
                         context: (),
-                        value: "u32".to_owned(),
+                        value: ast::NumberValue::U32(0),
                     })),
                 },
             ],
@@ -1448,7 +1461,7 @@ help: valid tokens at this point: ["!", "#$0", "#$1", "#0", "#1", "#^-", "#^0", 
 
         let mut errors = Vec::new();
         let result = crate::parser::tin::ModuleParser::new().parse(span, &mut errors, source);
-        super::handle_parse_result(span, result, errors)
+        super::handle_parse_result(source, span, result, errors)
             .map(|r| r.map_context(&mut |_| ()))
             .map_err(|e| test_util::format_error(&code_map, e))
     }
@@ -1461,7 +1474,7 @@ help: valid tokens at this point: ["!", "#$0", "#$1", "#0", "#1", "#^-", "#^0", 
 
         let mut errors = Vec::new();
         let result = crate::parser::tin::ExpressionParser::new().parse(span, &mut errors, source);
-        super::handle_parse_result(span, result, errors)
+        super::handle_parse_result(source, span, result, errors)
             .map(|r| r.map_context(&mut |_| ()))
             .map_err(|e| test_util::format_error(&code_map, e))
     }
