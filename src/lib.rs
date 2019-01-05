@@ -183,7 +183,7 @@ impl Tin {
     /// # }
     /// ```
     pub fn compile(&mut self) -> Result<module::Module> {
-        self.ir.check_types();
+        self.ir.check_types()?;
         let module = codegen::Codegen::new(&self.ir).compile();
         Ok(module)
     }

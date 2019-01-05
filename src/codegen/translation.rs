@@ -112,7 +112,7 @@ impl<'a> DataTranslator<'a> {
                 .storage
                 .write_u64::<byteorder::NativeEndian>(len as u64)
                 .unwrap(),
-            _ => unreachable!(),
+            _ => unimplemented!(),
         }
 
         self.storage.write_all(string.as_bytes()).unwrap();

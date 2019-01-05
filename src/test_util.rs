@@ -21,8 +21,16 @@ pub fn render_graph(name: &str, ir: &ir::Ir) -> Result<(), failure::Error> {
     Ok(())
 }
 
-#[cfg(test)]
-pub fn format_diagnostics(
+pub fn format_error<D>(code_map: &codespan::CodeMap, error: D) -> String
+where
+    D: crate::diagnostic::Diagnostic,
+{
+    let mut diagnostics = Vec::new();
+    error.to_diagnostics(&mut diagnostics);
+    format_diagnostics(code_map, &diagnostics)
+}
+
+fn format_diagnostics(
     code_map: &codespan::CodeMap,
     diagnostics: &[codespan_reporting::Diagnostic],
 ) -> String {

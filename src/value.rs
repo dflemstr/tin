@@ -35,7 +35,7 @@ lazy_static! {
     };
 }
 
-#[derive(Clone, Debug, PartialEq, VisitEntities)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum Value {
     Number(Number),
     String(sync::Arc<String>),
@@ -44,7 +44,7 @@ pub enum Value {
     Record(Record),
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, PartialOrd, VisitEntities)]
+#[derive(Clone, Copy, Debug, PartialEq, PartialOrd)]
 pub enum Number {
     U8(u8),
     U16(u16),
@@ -58,17 +58,17 @@ pub enum Number {
     F64(f64),
 }
 
-#[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd, VisitEntities)]
+#[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub struct Symbol {
     pub label: sync::Arc<String>,
 }
 
-#[derive(Clone, Debug, PartialEq, VisitEntities)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Tuple {
     pub fields: Vec<sync::Arc<Value>>,
 }
 
-#[derive(Clone, Debug, PartialEq, VisitEntities)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Record {
     pub fields: collections::HashMap<String, sync::Arc<Value>>,
 }

@@ -7,7 +7,7 @@ use std::ops;
 use cranelift_module;
 use cranelift_simplejit;
 
-/// A compiled module, the result of an invocation of `Compiler::compile`.
+/// A compiled module, the result of an invocation of `Tin::compile`.
 pub struct Module {
     compiled: cranelift_module::Module<cranelift_simplejit::SimpleJITBackend>,
     function_ids: collections::HashMap<String, cranelift_module::FuncId>,

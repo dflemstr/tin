@@ -72,18 +72,21 @@ pub struct Function {
     pub result: Box<Type>,
 }
 
-#[derive(Component, Clone, Debug, Eq, PartialEq, VisitEntities, VisitEntitiesMut)]
+#[derive(Component, Clone, Debug, Eq, Fail, PartialEq, VisitEntities, VisitEntitiesMut)]
 #[storage(VecStorage)]
-pub struct Conflict {
+pub struct TypeError<E>
+where
+    E: fmt::Debug + Send + Sync + 'static,
+{
     pub expected: ExpectedType,
     pub actual: Box<Type>,
-    pub main_entity: specs::Entity,
-    pub aux_entities: Vec<AuxEntity>,
+    pub main_entity: E,
+    pub aux_entities: Vec<AuxEntity<E>>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, VisitEntities, VisitEntitiesMut)]
-pub struct AuxEntity {
-    pub entity: specs::Entity,
+pub struct AuxEntity<E> {
+    pub entity: E,
     pub label: String,
 }
 
@@ -238,7 +241,10 @@ impl fmt::Display for Function {
     }
 }
 
-impl fmt::Display for Conflict {
+impl<E> fmt::Display for TypeError<E>
+where
+    E: fmt::Debug + Send + Sync,
+{
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "expected ")?;
         self.expected.fmt(f)?;

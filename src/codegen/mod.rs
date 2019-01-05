@@ -661,7 +661,7 @@ main = || F32 { a = 2f32; b = 1f32; a - b };
         let ast_module = ast::Module::parse(span, source)?;
         let mut ir = ir::Ir::new();
         ir.load(&ast_module)?;
-        ir.check_types();
+        ir.check_types()?;
         test_util::render_graph(&format!(concat!(module_path!(), "::{}"), name), &ir)?;
         let compiler = Codegen::new(&ir);
         let module = compiler.compile();

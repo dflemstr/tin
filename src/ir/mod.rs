@@ -7,6 +7,8 @@ use std::mem;
 use specs;
 
 use crate::ast;
+use crate::diagnostic;
+use crate::interpreter;
 use crate::parser;
 
 pub mod component;
@@ -25,6 +27,29 @@ pub enum Error {
     UndefinedReference {
         /// The identifier of the undefined reference.
         reference: String,
+        /// The location of the reference.
+        location: codespan::ByteSpan,
+    },
+
+    /// The IR has a type error.
+    #[fail(display = "type error")]
+    Type(
+        codespan::ByteSpan,
+        #[cause] component::ty::TypeError<codespan::ByteSpan>,
+    ),
+
+    /// The IR has a constexpr that cannot be evaluated.
+    #[fail(display = "constexpr error")]
+    Constexpr(
+        codespan::ByteSpan,
+        #[cause] component::constexpr::ConstexprError,
+    ),
+
+    /// There were multiple IR errors.
+    #[fail(display = "multiple IR errors")]
+    Multiple {
+        /// The errors, in the order they were encountered in the source code.
+        errors: Vec<Error>,
     },
 }
 
@@ -62,7 +87,7 @@ impl Ir {
 
         dispatcher.dispatch(&mut self.world.res);
 
-        self.world.maintain();
+        self.maintain()?;
 
         Ok(())
     }
@@ -71,7 +96,7 @@ impl Ir {
     ///
     /// `resolve_references` should be called before this; types will not be inferred for unresolved
     /// references.
-    pub fn check_types(&mut self) {
+    pub fn check_types(&mut self) -> Result<(), Error> {
         let mut dispatcher = specs::DispatcherBuilder::new()
             .with(system::infer_types::System, "infer_types", &[])
             .with(system::infer_constexpr::System, "infer_constexpr", &[])
@@ -80,7 +105,58 @@ impl Ir {
 
         dispatcher.dispatch(&mut self.world.res);
 
+        self.maintain()?;
+
+        Ok(())
+    }
+
+    fn maintain(&mut self) -> Result<(), Error> {
+        use specs::Join;
+
         self.world.maintain();
+
+        let mut errors = Vec::new();
+
+        let entities = self.world.entities();
+        let locations = self.world.read_storage::<component::location::Location>();
+        let type_errors = self
+            .world
+            .read_storage::<component::ty::TypeError<specs::Entity>>();
+        let constexpr_errors = self
+            .world
+            .read_storage::<component::constexpr::ConstexprError>();
+
+        for (entity, type_error) in (&entities, &type_errors).join() {
+            errors.push(Error::Type(
+                locations.get(entity).unwrap().0,
+                component::ty::TypeError {
+                    expected: type_error.expected.clone(),
+                    actual: type_error.actual.clone(),
+                    main_entity: locations.get(type_error.main_entity).unwrap().0,
+                    aux_entities: type_error
+                        .aux_entities
+                        .iter()
+                        .map(|aux_entity| component::ty::AuxEntity {
+                            entity: locations.get(aux_entity.entity).unwrap().0,
+                            label: aux_entity.label.clone(),
+                        })
+                        .collect(),
+                },
+            ))
+        }
+
+        for (entity, constexpr_error, _) in (&entities, &constexpr_errors, !&type_errors).join() {
+            errors.push(Error::Constexpr(
+                locations.get(entity).unwrap().0,
+                constexpr_error.clone(),
+            ));
+        }
+
+        if errors.is_empty() {
+            Ok(())
+        } else {
+            Err(errors.pop().unwrap_or_else(|| Error::Multiple { errors }))
+        }
     }
 }
 
@@ -137,6 +213,11 @@ impl<'a> ModuleBuilder<'a> {
             .insert(entity, component::symbol::Symbol::new(self.symbol.clone()))
             .unwrap();
 
+        self.world
+            .write_storage()
+            .insert(entity, component::location::Location(ast.context.span))
+            .unwrap();
+
         Ok(())
     }
 
@@ -173,9 +254,9 @@ impl<'a> ModuleBuilder<'a> {
                 })
         });
 
-        // TODO: handle undefined reference
         let definition = definition.ok_or_else(|| Error::UndefinedReference {
             reference: name.clone(),
+            location: identifier.context.span,
         })?;
 
         self.world
@@ -183,6 +264,14 @@ impl<'a> ModuleBuilder<'a> {
             .insert(
                 entity,
                 component::replacement::Replacement { to: definition },
+            )
+            .unwrap();
+
+        self.world
+            .write_storage()
+            .insert(
+                entity,
+                component::location::Location(identifier.context.span),
             )
             .unwrap();
 
@@ -223,6 +312,11 @@ impl<'a> ModuleBuilder<'a> {
             )
             .unwrap();
 
+        self.world
+            .write_storage()
+            .insert(entity, component::location::Location(number.context.span))
+            .unwrap();
+
         Ok(())
     }
 
@@ -254,6 +348,11 @@ impl<'a> ModuleBuilder<'a> {
             )
             .unwrap();
 
+        self.world
+            .write_storage()
+            .insert(entity, component::location::Location(string.context.span))
+            .unwrap();
+
         Ok(())
     }
 
@@ -282,6 +381,11 @@ impl<'a> ModuleBuilder<'a> {
             )
             .unwrap();
 
+        self.world
+            .write_storage()
+            .insert(entity, component::location::Location(tuple.context.span))
+            .unwrap();
+
         Ok(())
     }
 
@@ -298,6 +402,11 @@ impl<'a> ModuleBuilder<'a> {
                 entity,
                 component::element::Element::Symbol(component::element::Symbol { label }),
             )
+            .unwrap();
+
+        self.world
+            .write_storage()
+            .insert(entity, component::location::Location(symbol.context.span))
             .unwrap();
 
         Ok(())
@@ -328,6 +437,11 @@ impl<'a> ModuleBuilder<'a> {
             )
             .unwrap();
 
+        self.world
+            .write_storage()
+            .insert(entity, component::location::Location(record.context.span))
+            .unwrap();
+
         Ok(())
     }
 
@@ -349,6 +463,11 @@ impl<'a> ModuleBuilder<'a> {
                 entity,
                 component::element::Element::UnOp(component::element::UnOp { operator, operand }),
             )
+            .unwrap();
+
+        self.world
+            .write_storage()
+            .insert(entity, component::location::Location(un_op.context.span))
             .unwrap();
 
         Ok(())
@@ -375,6 +494,11 @@ impl<'a> ModuleBuilder<'a> {
                 entity,
                 component::element::Element::BiOp(component::element::BiOp { lhs, operator, rhs }),
             )
+            .unwrap();
+
+        self.world
+            .write_storage()
+            .insert(entity, component::location::Location(bi_op.context.span))
             .unwrap();
 
         Ok(())
@@ -456,6 +580,11 @@ impl<'a> ModuleBuilder<'a> {
             .insert(entity, component::symbol::Symbol::new(self.symbol.clone()))
             .unwrap();
 
+        self.world
+            .write_storage()
+            .insert(entity, component::location::Location(lambda.context.span))
+            .unwrap();
+
         self.pop_scope();
 
         Ok(())
@@ -492,6 +621,11 @@ impl<'a> ModuleBuilder<'a> {
             .insert(entity, component::symbol::Symbol::new(self.symbol.clone()))
             .unwrap();
 
+        self.world
+            .write_storage()
+            .insert(entity, component::location::Location(variable.context.span))
+            .unwrap();
+
         self.symbol.pop();
 
         Ok(())
@@ -515,6 +649,11 @@ impl<'a> ModuleBuilder<'a> {
                 entity,
                 component::element::Element::Select(component::element::Select { record, field }),
             )
+            .unwrap();
+
+        self.world
+            .write_storage()
+            .insert(entity, component::location::Location(select.context.span))
             .unwrap();
 
         Ok(())
@@ -551,6 +690,11 @@ impl<'a> ModuleBuilder<'a> {
             )
             .unwrap();
 
+        self.world
+            .write_storage()
+            .insert(entity, component::location::Location(apply.context.span))
+            .unwrap();
+
         Ok(())
     }
 
@@ -576,6 +720,14 @@ impl<'a> ModuleBuilder<'a> {
                     name,
                     signature,
                 }),
+            )
+            .unwrap();
+
+        self.world
+            .write_storage()
+            .insert(
+                entity,
+                component::location::Location(parameter.context.span),
             )
             .unwrap();
 
@@ -657,6 +809,87 @@ impl fmt::Debug for Ir {
     }
 }
 
+impl diagnostic::Diagnostic for Error {
+    fn to_diagnostics(&self, result: &mut Vec<codespan_reporting::Diagnostic>) {
+        let message = self.to_string();
+        match *self {
+            Error::UndefinedReference { location, .. } => {
+                result.push(codespan_reporting::Diagnostic {
+                    severity: codespan_reporting::Severity::Error,
+                    code: None,
+                    message,
+                    labels: vec![codespan_reporting::Label {
+                        span: location,
+                        message: None,
+                        style: codespan_reporting::LabelStyle::Primary,
+                    }],
+                });
+            }
+            Error::Type(entity, ref type_error) => match type_error {
+                component::ty::TypeError {
+                    ref main_entity,
+                    ref aux_entities,
+                    ..
+                } => {
+                    let mut labels = Vec::with_capacity(aux_entities.len() + 2);
+
+                    labels.push(codespan_reporting::Label {
+                        span: entity,
+                        message: None,
+                        style: codespan_reporting::LabelStyle::Primary,
+                    });
+
+                    labels.push(codespan_reporting::Label {
+                        span: *main_entity,
+                        message: Some(type_error.to_string()),
+                        style: codespan_reporting::LabelStyle::Primary,
+                    });
+
+                    for aux_entity in aux_entities {
+                        labels.push(codespan_reporting::Label {
+                            span: aux_entity.entity,
+                            message: Some(aux_entity.label.clone()),
+                            style: codespan_reporting::LabelStyle::Secondary,
+                        });
+                    }
+
+                    result.push(codespan_reporting::Diagnostic {
+                        severity: codespan_reporting::Severity::Error,
+                        code: None,
+                        message,
+                        labels,
+                    });
+                }
+            },
+            Error::Constexpr(entity, ref constexpr_error) => match constexpr_error {
+                component::constexpr::ConstexprError::Evaluation(ref interpreter_error) => {
+                    match interpreter_error {
+                        interpreter::Error::RuntimeTypeConflict(cause) => {
+                            let labels = vec![codespan_reporting::Label {
+                                span: entity,
+                                message: Some(cause.clone()),
+                                style: codespan_reporting::LabelStyle::Primary,
+                            }];
+                            result.push(codespan_reporting::Diagnostic {
+                                severity: codespan_reporting::Severity::Bug,
+                                code: None,
+                                message: "runtime type error during constexpr evaluation"
+                                    .to_owned(),
+                                labels,
+                            });
+                        }
+                    }
+                }
+            },
+            Error::Multiple { ref errors } => {
+                for error in errors {
+                    error.to_diagnostics(result);
+                }
+            }
+        }
+    }
+}
+
 // TODO: awaits https://github.com/rust-lang/rust/issues/47338
 fn transpose<A, E>(option: Option<Result<A, E>>) -> Result<Option<A>, E> {
     match option {
@@ -677,8 +910,6 @@ mod tests {
 
     #[test]
     fn entity_assignments() -> Result<(), failure::Error> {
-        use crate::parser::Parse;
-
         let _ = env_logger::try_init();
 
         let source = r#"
@@ -689,29 +920,16 @@ pickFirst = |a: Int, b: Int| Int {
 };
 main = || Int { pickFirst(1u32, 2u32) };
 "#;
+        let expected = Ok(());
+        let actual = check_module("entity_assignments", source);
 
-        let mut codemap = codespan::CodeMap::new();
-        let span = codemap
-            .add_filemap(
-                codespan::FileName::Virtual("entity_assignments".into()),
-                source.to_owned(),
-            )
-            .span();
-        let ast_module = ast::Module::parse(span, source)?;
-
-        let mut ir = Ir::new();
-        ir.load(&ast_module)?;
-        ir.check_types();
-
-        test_util::render_graph(concat!(module_path!(), "::entity_assignments"), &ir)?;
+        assert_eq!(expected, actual);
 
         Ok(())
     }
 
     #[test]
     fn recursive_module_variables() -> Result<(), failure::Error> {
-        use crate::parser::Parse;
-
         let _ = env_logger::try_init();
 
         let source = r#"
@@ -723,29 +941,16 @@ b = || Int {
   a()
 };
 "#;
+        let expected = Ok(());
+        let actual = check_module("recursive_module_variables", source);
 
-        let mut codemap = codespan::CodeMap::new();
-        let span = codemap
-            .add_filemap(
-                codespan::FileName::Virtual("recursive_module_variables".into()),
-                source.to_owned(),
-            )
-            .span();
-        let ast_module = ast::Module::parse(span, source)?;
-
-        let mut ir = Ir::new();
-        ir.load(&ast_module)?;
-        ir.check_types();
-
-        test_util::render_graph(concat!(module_path!(), "::recursive_module_variables"), &ir)?;
+        assert_eq!(expected, actual);
 
         Ok(())
     }
 
     #[test]
     fn lexically_scoped_closure_vars() -> Result<(), failure::Error> {
-        use crate::parser::Parse;
-
         let _ = env_logger::try_init();
 
         let source = r#"
@@ -758,32 +963,21 @@ a = || Int {
   c
 };
 "#;
+        let expected = Err(r#"error: undefined reference to "c"
+- <lexically_scoped_closure_vars>:8:3
+8 |   c
+  |   ^
+"#
+        .to_owned());
+        let actual = check_module("lexically_scoped_closure_vars", source);
 
-        let mut codemap = codespan::CodeMap::new();
-        let span = codemap
-            .add_filemap(
-                codespan::FileName::Virtual("lexically_scoped_closure_vars".into()),
-                source.to_owned(),
-            )
-            .span();
-        let ast_module = ast::Module::parse(span, source)?;
-
-        let mut ir = Ir::new();
-        let result = ir.load(&ast_module);
-        assert_eq!(
-            Err(Error::UndefinedReference {
-                reference: "c".to_owned()
-            }),
-            result
-        );
+        assert_eq!(expected, actual);
 
         Ok(())
     }
 
     #[test]
     fn ordered_local_vars() -> Result<(), failure::Error> {
-        use crate::parser::Parse;
-
         let _ = env_logger::try_init();
 
         let source = r#"
@@ -794,24 +988,65 @@ a = || Int {
   b
 };
 "#;
+        let expected = Err(r#"error: undefined reference to "c"
+- <ordered_local_vars>:4:7
+4 |   b = c;
+  |       ^
+"#
+        .to_owned());
+        let actual = check_module("ordered_local_vars", source);
+
+        assert_eq!(expected, actual);
+
+        Ok(())
+    }
+
+    #[test]
+    fn type_error() -> Result<(), failure::Error> {
+        let _ = env_logger::try_init();
+
+        let source = r#"
+Int = 0u32;
+a = || Int {
+  1f32 + 2f64
+};
+"#;
+        let expected = Err(r#"error: type error
+- <type_error>:4:3
+4 |   1f32 + 2f64
+  |   ^^^^^^^^^^^
+- <type_error>:4:10
+4 |   1f32 + 2f64
+  |          ^^^^ expected f32 but got f64
+- <type_error>:4:3
+4 |   1f32 + 2f64
+  |   ---- other operand has type f32
+"#
+        .to_owned());
+        let actual = check_module("type_error", source);
+
+        assert_eq!(expected, actual);
+
+        Ok(())
+    }
+
+    fn check_module(name: &'static str, source: &str) -> Result<(), String> {
+        use crate::parser::Parse;
 
         let mut codemap = codespan::CodeMap::new();
         let span = codemap
-            .add_filemap(
-                codespan::FileName::Virtual("ordered_local_vars".into()),
-                source.to_owned(),
-            )
+            .add_filemap(codespan::FileName::Virtual(name.into()), source.to_owned())
             .span();
-        let ast_module = ast::Module::parse(span, source)?;
+        let ast_module =
+            ast::Module::parse(span, source).map_err(|e| test_util::format_error(&codemap, e))?;
 
         let mut ir = Ir::new();
-        let result = ir.load(&ast_module);
-        assert_eq!(
-            Err(Error::UndefinedReference {
-                reference: "c".to_owned()
-            }),
-            result
-        );
+        ir.load(&ast_module)
+            .map_err(|e| test_util::format_error(&codemap, e))?;
+        ir.check_types()
+            .map_err(|e| test_util::format_error(&codemap, e))?;
+
+        test_util::render_graph(&format!(concat!(module_path!(), "::{}"), name), &ir).unwrap();
 
         Ok(())
     }

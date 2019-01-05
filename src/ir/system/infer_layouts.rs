@@ -242,8 +242,12 @@ impl System {
 
         match (lhs.as_ref(), rhs.as_ref()) {
             (Some(lhs), Some(rhs)) => {
-                assert_eq!(lhs.size, rhs.size);
-                assert_eq!(lhs.alignment, rhs.alignment);
+                if lhs.size != rhs.size {
+                    return None;
+                }
+                if lhs.alignment != rhs.alignment {
+                    return None;
+                }
             }
             _ => (),
         };

@@ -23,14 +23,24 @@ impl<'a> specs::System<'a> for System {
         specs::WriteStorage<'a, layout::Layout>,
         specs::WriteStorage<'a, symbol::Symbol>,
         specs::WriteStorage<'a, ty::Type>,
+        specs::WriteStorage<'a, ty::TypeError<specs::Entity>>,
     );
 
     fn run(
         &mut self,
-        (entities, replacements, mut elements, mut layouts, mut symbols, mut types): Self::SystemData,
+        (
+            entities,
+            replacements,
+            mut elements,
+            mut layouts,
+            mut symbols,
+            mut types,
+            mut type_errors,
+        ): Self::SystemData,
     ) {
         use specs::prelude::ParallelIterator;
         use specs::ParJoin;
+        use specs_visitor::VisitEntitiesMut;
 
         (&entities, &replacements)
             .par_join()
@@ -46,23 +56,23 @@ impl<'a> specs::System<'a> for System {
         let visitor = ReplacementEntityVisitor { replacements };
 
         (&mut elements).par_join().for_each(|element| {
-            use specs_visitor::VisitEntitiesMut;
             element.accept_mut(&visitor);
         });
 
         (&mut layouts).par_join().for_each(|layout| {
-            use specs_visitor::VisitEntitiesMut;
             layout.accept_mut(&visitor);
         });
 
         (&mut symbols).par_join().for_each(|symbol| {
-            use specs_visitor::VisitEntitiesMut;
             symbol.accept_mut(&visitor);
         });
 
         (&mut types).par_join().for_each(|ty| {
-            use specs_visitor::VisitEntitiesMut;
             ty.accept_mut(&visitor);
+        });
+
+        (&mut type_errors).par_join().for_each(|type_error| {
+            type_error.accept_mut(&visitor);
         });
     }
 }

@@ -26,7 +26,7 @@ pub struct Context {
 }
 
 /// An error that occurs while parsing Tin.
-#[derive(Debug, Fail, PartialEq)]
+#[derive(Clone, Debug, Fail, PartialEq)]
 pub enum Error {
     /// There was an invalid token in the code.
     #[fail(display = "invalid token")]
@@ -242,6 +242,7 @@ mod tests {
 
     use crate::ast;
     use crate::ast::MapContext;
+    use crate::test_util;
 
     #[test]
     fn e2e() {
@@ -1427,14 +1428,6 @@ help: valid tokens at this point: ["!", "#$0", "#$1", "#0", "#1", "#^-", "#^0", 
         assert_eq!(expected, actual);
     }
 
-    fn format_error(code_map: codespan::CodeMap, error: super::Error) -> String {
-        use crate::diagnostic::Diagnostic;
-
-        let mut diagnostics = Vec::new();
-        error.to_diagnostics(&mut diagnostics);
-        crate::test_util::format_diagnostics(&code_map, &diagnostics)
-    }
-
     fn parse_module(name: &'static str, source: &str) -> Result<ast::Module<()>, String> {
         let mut code_map = codespan::CodeMap::new();
         let span = code_map
@@ -1445,7 +1438,7 @@ help: valid tokens at this point: ["!", "#$0", "#$1", "#0", "#1", "#^-", "#^0", 
         let result = crate::parser::tin::ModuleParser::new().parse(span, &mut errors, source);
         super::handle_parse_result(span, result, errors)
             .map(|r| r.map_context(&mut |_| ()))
-            .map_err(|e| format_error(code_map, e))
+            .map_err(|e| test_util::format_error(&code_map, e))
     }
 
     fn parse_expression(name: &'static str, source: &str) -> Result<ast::Expression<()>, String> {
@@ -1458,6 +1451,6 @@ help: valid tokens at this point: ["!", "#$0", "#$1", "#0", "#1", "#^-", "#^0", 
         let result = crate::parser::tin::ExpressionParser::new().parse(span, &mut errors, source);
         super::handle_parse_result(span, result, errors)
             .map(|r| r.map_context(&mut |_| ()))
-            .map_err(|e| format_error(code_map, e))
+            .map_err(|e| test_util::format_error(&code_map, e))
     }
 }
