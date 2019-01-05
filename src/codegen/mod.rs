@@ -299,8 +299,7 @@ mod tests {
         let _ = env_logger::try_init();
 
         let source = r#"
-Int = 0u32;
-main = || Int { 42u32 };
+main = || u32 { 42u32 };
 "#;
 
         let mut module = compile_module("immediate", source)?;
@@ -317,8 +316,7 @@ main = || Int { 42u32 };
         let _ = env_logger::try_init();
 
         let source = r#"
-Int = 0u32;
-main = || Int { a = 43u32; a };
+main = || u32 { a = 43u32; a };
 "#;
 
         let mut module = compile_module("variable", source)?;
@@ -335,8 +333,7 @@ main = || Int { a = 43u32; a };
         let _ = env_logger::try_init();
 
         let source = r#"
-Int = 0u32;
-main = |a: Int| Int { a };
+main = |a: u32| u32 { a };
 "#;
 
         let mut module = compile_module("parameter1", source)?;
@@ -355,8 +352,7 @@ main = |a: Int| Int { a };
         let _ = env_logger::try_init();
 
         let source = r#"
-Int = 0u32;
-main = |a: Int, b: Int| Int { b };
+main = |a: u32, b: u32| u32 { b };
 "#;
 
         let mut module = compile_module("parameter2", source)?;
@@ -375,8 +371,7 @@ main = |a: Int, b: Int| Int { b };
         let _ = env_logger::try_init();
 
         let source = r#"
-Int = 0u32;
-main = |a: Int, b: Int, c: Int| Int { c };
+main = |a: u32, b: u32, c: u32| u32 { c };
 "#;
 
         let mut module = compile_module("parameter3", source)?;
@@ -395,8 +390,7 @@ main = |a: Int, b: Int, c: Int| Int { c };
         let _ = env_logger::try_init();
 
         let source = r#"
-Int = 0u32;
-main = |a: Int, b: Int, c: Int, d: Int| Int { d };
+main = |a: u32, b: u32, c: u32, d: u32| u32 { d };
 "#;
 
         let mut module = compile_module("parameter4", source)?;
@@ -415,8 +409,7 @@ main = |a: Int, b: Int, c: Int, d: Int| Int { d };
         let _ = env_logger::try_init();
 
         let source = r#"
-Int = 0u32;
-main = |a: Int, b: Int, c: Int, d: Int, e: Int| Int { e };
+main = |a: u32, b: u32, c: u32, d: u32, e: u32| u32 { e };
 "#;
 
         let mut module = compile_module("parameter5", source)?;
@@ -435,8 +428,7 @@ main = |a: Int, b: Int, c: Int, d: Int, e: Int| Int { e };
         let _ = env_logger::try_init();
 
         let source = r#"
-Int = 0u32;
-main = |a: Int, b: Int, c: Int, d: Int, e: Int, f: Int| Int { f };
+main = |a: u32, b: u32, c: u32, d: u32, e: u32, f: u32| u32 { f };
 "#;
 
         let mut module = compile_module("parameter6", source)?;
@@ -455,9 +447,8 @@ main = |a: Int, b: Int, c: Int, d: Int, e: Int, f: Int| Int { f };
         let _ = env_logger::try_init();
 
         let source = r#"
-Int = 0u32;
-other = |x: Int| Int { x };
-main = |y: Int| Int { a = other(y); other(other(a)) };
+other = |x: u32| u32 { x };
+main = |y: u32| u32 { a = other(y); other(other(a)) };
 "#;
 
         let mut module = compile_module("apply", source)?;
@@ -476,8 +467,7 @@ main = |y: Int| Int { a = other(y); other(other(a)) };
         let _ = env_logger::try_init();
 
         let source = r#"
-Int = 0u32;
-main = || Int { a = { x: 1u32, y: 2u32, z: 3u32}; a.y };
+main = || u32 { a = { x: 1u32, y: 2u32, z: 3u32}; a.y };
 "#;
 
         let mut module = compile_module("record", source)?;
@@ -494,8 +484,7 @@ main = || Int { a = { x: 1u32, y: 2u32, z: 3u32}; a.y };
         let _ = env_logger::try_init();
 
         let source = r#"
-Int = 0u32;
-main = || Int { a = 1u32; b = 2u32; (a * 24u32 + b * 3u32) / 10u32 };
+main = || u32 { a = 1u32; b = 2u32; (a * 24u32 + b * 3u32) / 10u32 };
 "#;
 
         let mut module = compile_module("operators_u32", source)?;
@@ -512,8 +501,7 @@ main = || Int { a = 1u32; b = 2u32; (a * 24u32 + b * 3u32) / 10u32 };
         let _ = env_logger::try_init();
 
         let source = r#"
-F32 = 0f32;
-main = || F32 { a = 1f32; b = 2f32; (a * 24f32 + b * 3f32) / 10f32 };
+main = || f32 { a = 1f32; b = 2f32; (a * 24f32 + b * 3f32) / 10f32 };
 "#;
 
         let mut module = compile_module("operators_f32", source)?;
@@ -530,8 +518,7 @@ main = || F32 { a = 1f32; b = 2f32; (a * 24f32 + b * 3f32) / 10f32 };
         let _ = env_logger::try_init();
 
         let source = r#"
-F64 = 0f64;
-main = || F64 { a = 1f64; b = 2f64; (a * 24f64 + b * 3f64) / 10f64 };
+main = || f64 { a = 1f64; b = 2f64; (a * 24f64 + b * 3f64) / 10f64 };
 "#;
 
         let mut module = compile_module("operators_f64", source)?;
@@ -548,8 +535,7 @@ main = || F64 { a = 1f64; b = 2f64; (a * 24f64 + b * 3f64) / 10f64 };
         let _ = env_logger::try_init();
 
         let source = r#"
-Int = 0u32;
-main = || Int { a = 1u32; b = 2u32; a + b };
+main = || u32 { a = 1u32; b = 2u32; a + b };
 "#;
 
         let mut module = compile_module("add_u32", source)?;
@@ -566,8 +552,7 @@ main = || Int { a = 1u32; b = 2u32; a + b };
         let _ = env_logger::try_init();
 
         let source = r#"
-Int = 0i32;
-main = || Int { a = 1i32; b = 2i32; a + b };
+main = || i32 { a = 1i32; b = 2i32; a + b };
 "#;
 
         let mut module = compile_module("add_i32", source)?;
@@ -584,8 +569,7 @@ main = || Int { a = 1i32; b = 2i32; a + b };
         let _ = env_logger::try_init();
 
         let source = r#"
-F32 = 0f32;
-main = || F32 { a = 1f32; b = 2f32; a + b };
+main = || f32 { a = 1f32; b = 2f32; a + b };
 "#;
 
         let mut module = compile_module("add_f32", source)?;
@@ -602,8 +586,7 @@ main = || F32 { a = 1f32; b = 2f32; a + b };
         let _ = env_logger::try_init();
 
         let source = r#"
-Int = 0u32;
-main = || Int { a = 2u32; b = 1u32; a - b };
+main = || u32 { a = 2u32; b = 1u32; a - b };
 "#;
 
         let mut module = compile_module("sub_u32", source)?;
@@ -620,8 +603,7 @@ main = || Int { a = 2u32; b = 1u32; a - b };
         let _ = env_logger::try_init();
 
         let source = r#"
-Int = 0i32;
-main = || Int { a = 1i32; b = 2i32; a - b };
+main = || i32 { a = 1i32; b = 2i32; a - b };
 "#;
 
         let mut module = compile_module("sub_i32", source)?;
@@ -638,8 +620,7 @@ main = || Int { a = 1i32; b = 2i32; a - b };
         let _ = env_logger::try_init();
 
         let source = r#"
-F32 = 0f32;
-main = || F32 { a = 2f32; b = 1f32; a - b };
+main = || f32 { a = 2f32; b = 1f32; a - b };
 "#;
 
         let mut module = compile_module("sub_f32", source)?;

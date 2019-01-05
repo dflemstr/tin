@@ -43,6 +43,3 @@ codegen-units = 1
 
 [workspace]
 members = ["specs-visitor", "specs-visitor-derive"]
-
-[patch.crates-io]
-codemap-diagnostic = { git = "https://github.com/dflemstr/codemap-diagnostic.git", branch = "scoped-emitter" }

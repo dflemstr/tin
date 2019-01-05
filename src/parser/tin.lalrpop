@@ -13,11 +13,12 @@ extern {
 }
 
 match {
+    r"(?:-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?)?(?:u8|u16|u32|u64|i8|i16|i32|i64|f32|f64)" => NumberValue,
+} else {
     r"/\*(\*[^/]|[^*])*\*/" => Comment,
     r"\p{XID_Start}\p{XID_Continue}*" => IdentifierName,
-    r"-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?(?:u8|u16|u32|u64|i8|i16|i32|i64|f32|f64)" => NumberValue,
-    r#""(?:[^"\\]|\\(?:["\\/bfnrt]|u\{[a-fA-F0-9]{1,6}\}))*""# => StringValue,
     r":\p{XID_Start}\p{XID_Continue}*" => SymbolLabel,
+    r#""(?:[^"\\]|\\(?:["\\/bfnrt]|u\{[a-fA-F0-9]{1,6}\}))*""# => StringValue,
     _
 }
 
@@ -256,25 +257,35 @@ NumberLiteral: ast::NumberLiteral<parser::Context> = {
         ast::NumberLiteral {
             context: parser::Context::new(ast::Kind::NumberLiteral, span, lo, hi),
             value: if v.ends_with("u8") {
-                ast::NumberValue::U8(u8::from_str(&v[..v.len() - 2]).unwrap())
+                let v = &v[..v.len() - 2];
+                ast::NumberValue::U8(if v.is_empty() { 0u8 } else { u8::from_str(v).unwrap() })
             } else if v.ends_with("u16") {
-                ast::NumberValue::U16(u16::from_str(&v[..v.len() - 3]).unwrap())
+                let v = &v[..v.len() - 3];
+                ast::NumberValue::U16(if v.is_empty() { 0u16 } else { u16::from_str(v).unwrap() })
             } else if v.ends_with("u32") {
-                ast::NumberValue::U32(u32::from_str(&v[..v.len() - 3]).unwrap())
+                let v = &v[..v.len() - 3];
+                ast::NumberValue::U32(if v.is_empty() { 0u32 } else { u32::from_str(v).unwrap() })
             } else if v.ends_with("u64") {
-                ast::NumberValue::U64(u64::from_str(&v[..v.len() - 3]).unwrap())
+                let v = &v[..v.len() - 3];
+                ast::NumberValue::U64(if v.is_empty() { 0u64 } else { u64::from_str(v).unwrap() })
             } else if v.ends_with("i8") {
-                ast::NumberValue::I8(i8::from_str(&v[..v.len() - 2]).unwrap())
+                let v = &v[..v.len() - 2];
+                ast::NumberValue::I8(if v.is_empty() { 0i8 } else { i8::from_str(v).unwrap() })
             } else if v.ends_with("i16") {
-                ast::NumberValue::I16(i16::from_str(&v[..v.len() - 3]).unwrap())
+                let v = &v[..v.len() - 3];
+                ast::NumberValue::I16(if v.is_empty() { 0i16 } else { i16::from_str(v).unwrap() })
             } else if v.ends_with("i32") {
-                ast::NumberValue::I32(i32::from_str(&v[..v.len() - 3]).unwrap())
+                let v = &v[..v.len() - 3];
+                ast::NumberValue::I32(if v.is_empty() { 0i32 } else { i32::from_str(v).unwrap() })
             } else if v.ends_with("i64") {
-                ast::NumberValue::I64(i64::from_str(&v[..v.len() - 3]).unwrap())
+                let v = &v[..v.len() - 3];
+                ast::NumberValue::I64(if v.is_empty() { 0i64 } else { i64::from_str(v).unwrap() })
             } else if v.ends_with("f32") {
-                ast::NumberValue::F32(f32::from_str(&v[..v.len() - 3]).unwrap())
+                let v = &v[..v.len() - 3];
+                ast::NumberValue::F32(if v.is_empty() { 0f32 } else { f32::from_str(v).unwrap() })
             } else if v.ends_with("f64") {
-                ast::NumberValue::F64(f64::from_str(&v[..v.len() - 3]).unwrap())
+                let v = &v[..v.len() - 3];
+                ast::NumberValue::F64(if v.is_empty() { 0f64 } else { f64::from_str(v).unwrap() })
             } else {
                 unreachable!()
             }

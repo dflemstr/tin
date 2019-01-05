@@ -335,6 +335,18 @@ help: valid tokens at this point: [Comment, IdentifierName]
     }
 
     #[test]
+    fn number_as_type() {
+        let _ = env_logger::try_init();
+
+        let expected = Ok(ast::Expression::NumberLiteral(ast::NumberLiteral {
+            context: (),
+            value: ast::NumberValue::F64(0.0),
+        }));
+        let actual = parse_expression("test", r#"f64"#);
+        assert_eq!(expected, actual);
+    }
+
+    #[test]
     fn number_negative() {
         let _ = env_logger::try_init();
 
@@ -1322,7 +1334,7 @@ help: valid tokens at this point: ["!", "#$0", "#$1", "#0", "#1", "#^-", "#^0", 
                     },
                     signature: Some(ast::Expression::Identifier(ast::Identifier {
                         context: (),
-                        value: "Int".to_owned(),
+                        value: "u32".to_owned(),
                     })),
                 },
                 ast::Parameter {
@@ -1333,7 +1345,7 @@ help: valid tokens at this point: ["!", "#$0", "#$1", "#0", "#1", "#^-", "#^0", 
                     },
                     signature: Some(ast::Expression::Identifier(ast::Identifier {
                         context: (),
-                        value: "Int".to_owned(),
+                        value: "u32".to_owned(),
                     })),
                 },
             ],
@@ -1351,7 +1363,7 @@ help: valid tokens at this point: ["!", "#$0", "#$1", "#0", "#1", "#^-", "#^0", 
                 })],
             })),
         }));
-        let actual = parse_expression("test", r#"|a: Int, b: Int| { a(b) }"#);
+        let actual = parse_expression("test", r#"|a: u32, b: u32| { a(b) }"#);
         assert_eq!(expected, actual);
     }
 

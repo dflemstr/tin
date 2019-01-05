@@ -913,12 +913,11 @@ mod tests {
         let _ = env_logger::try_init();
 
         let source = r#"
-Int = 0u32;
-pickFirst = |a: Int, b: Int| Int {
-  capture = |x: Int| Int { a };
+pickFirst = |a: u32, b: u32| u32 {
+  capture = |x: u32| u32 { a };
   capture(b)
 };
-main = || Int { pickFirst(1u32, 2u32) };
+main = || u32 { pickFirst(1u32, 2u32) };
 "#;
         let expected = Ok(());
         let actual = check_module("entity_assignments", source);
@@ -933,11 +932,10 @@ main = || Int { pickFirst(1u32, 2u32) };
         let _ = env_logger::try_init();
 
         let source = r#"
-Int = 0u32;
-a = || Int {
+a = || u32 {
   b()
 };
-b = || Int {
+b = || u32 {
   a()
 };
 "#;
@@ -954,9 +952,8 @@ b = || Int {
         let _ = env_logger::try_init();
 
         let source = r#"
-Int = 0u32;
-a = || Int {
-  b = || Int {
+a = || u32 {
+  b = || u32 {
     c = 3u32;
     c
   };
@@ -964,8 +961,8 @@ a = || Int {
 };
 "#;
         let expected = Err(r#"error: undefined reference to "c"
-- <lexically_scoped_closure_vars>:8:3
-8 |   c
+- <lexically_scoped_closure_vars>:7:3
+7 |   c
   |   ^
 "#
         .to_owned());
@@ -981,16 +978,15 @@ a = || Int {
         let _ = env_logger::try_init();
 
         let source = r#"
-Int = 0u32;
-a = || Int {
+a = || u32 {
   b = c;
   c = 3u32;
   b
 };
 "#;
         let expected = Err(r#"error: undefined reference to "c"
-- <ordered_local_vars>:4:7
-4 |   b = c;
+- <ordered_local_vars>:3:7
+3 |   b = c;
   |       ^
 "#
         .to_owned());
@@ -1006,20 +1002,19 @@ a = || Int {
         let _ = env_logger::try_init();
 
         let source = r#"
-Int = 0u32;
-a = || Int {
+a = || u32 {
   1f32 + 2f64
 };
 "#;
         let expected = Err(r#"error: type error
-- <type_error>:4:3
-4 |   1f32 + 2f64
+- <type_error>:3:3
+3 |   1f32 + 2f64
   |   ^^^^^^^^^^^
-- <type_error>:4:10
-4 |   1f32 + 2f64
+- <type_error>:3:10
+3 |   1f32 + 2f64
   |          ^^^^ expected f32 but got f64
-- <type_error>:4:3
-4 |   1f32 + 2f64
+- <type_error>:3:3
+3 |   1f32 + 2f64
   |   ---- other operand has type f32
 "#
         .to_owned());
