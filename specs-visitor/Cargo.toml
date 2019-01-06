@@ -8,5 +8,5 @@ repository = "https://github.com/dflemstr/tin"
 edition = "2018"
 
 [dependencies]
-specs = "0.14.2"
+specs = "0.14.3"
 rayon = "1.0.3"

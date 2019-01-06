@@ -23,7 +23,7 @@ failure = "0.1.5"
 lalrpop-util = "0.16.2"
 log = "0.4.6"
 regex = "1.1.0"
-specs = "0.14.2"
+specs = "0.14.3"
 specs-derive = "0.4.0"
 specs-visitor-derive = { version = "0.2.0", path = "specs-visitor-derive" }
 specs-visitor = { version = "0.2.0", path = "specs-visitor" }
