@@ -8,5 +8,10 @@ repository = "https://github.com/dflemstr/tin"
 edition = "2018"
 
 [dependencies]
-specs = "0.14.3"
-rayon = "1.0.3"
+specs = { version = "0.14.3", default_features = false }
+rayon = { version = "1.0.3", optional = true }
+
+[features]
+default = ["parallel"]
+parallel = ["rayon", "specs/parallel"]
+test-render-graphs = []

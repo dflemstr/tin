@@ -53,8 +53,10 @@ impl<'a> Codegen<'a> {
 
     /// Compiles the captured IR into a module.
     pub fn compile(&self) -> module::Module {
+        #[cfg(feature = "parallel")]
         use rayon::iter::ParallelIterator;
         use specs::Join;
+        #[cfg(feature = "parallel")]
         use specs::ParJoin;
 
         let Codegen {
@@ -74,8 +76,13 @@ impl<'a> Codegen<'a> {
             cranelift_module::Module::new(builder);
         let ptr_type = module.target_config().pointer_type();
 
-        let data_ctxs = (entities, layouts, constexprs)
-            .par_join()
+        #[cfg(feature = "parallel")]
+        let data_tuples = (entities, layouts, constexprs)
+            .par_join();
+        #[cfg(not(feature = "parallel"))]
+        let data_tuples = (entities, layouts, constexprs).join();
+
+        let data_ctxs = data_tuples
             .map(|(entity, layout, constexpr)| {
                 let mut ctx = cranelift_module::DataContext::new();
                 let mut data = Vec::new();

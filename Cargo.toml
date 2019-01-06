@@ -23,7 +23,7 @@ failure = "0.1.5"
 lalrpop-util = "0.16.2"
 log = "0.4.6"
 regex = "1.1.0"
-specs = "0.14.3"
+specs = {version = "0.14.3", default_features = false }
 specs-derive = "0.4.0"
 specs-visitor-derive = { version = "0.2.0", path = "specs-visitor-derive" }
 specs-visitor = { version = "0.2.0", path = "specs-visitor" }
@@ -31,7 +31,7 @@ pretty_env_logger = "0.3.0"
 structopt = "0.2.14"
 lazy_static = "1.2.0"
 byteorder = "1.2.7"
-rayon = "1.0.3"
+rayon = { version = "1.0.3", optional = true }
 itertools = "0.8.0"
 codespan = "0.2.0"
 codespan-reporting = "0.2.0"
@@ -39,6 +39,8 @@ enum-primitive-derive = "0.1.2"
 num-traits = "0.2.6"
 
 [features]
+default = ["parallel"]
+parallel = ["rayon", "specs/parallel", "specs-visitor/parallel"]
 test-render-graphs = []
 
 [profile.release]
