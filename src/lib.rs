@@ -181,7 +181,7 @@ impl Tin {
     /// let mut module = tin.compile()?;
     /// let main = module.function::<tin_lang::module::Function0<i32>>("main").unwrap();
     ///
-    /// let result = main.call();
+    /// let result = main.call()?;
     /// assert_eq!(42, result);
     /// # Ok(())
     /// # }
