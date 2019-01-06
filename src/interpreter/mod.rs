@@ -177,20 +177,24 @@ fn eval_bi_op(
         ), frac: Ok(
             sync::Arc::new((l * r).into())
         )),
-        element::BiOperator::Div => match_number_value!("/", (&**lhs, &**rhs), |l, r| int: if *r == 0 {
-            Err(Error::EvaluationError(module::Error::new(module::ErrorKind::IntegerDivisonByZero)))
-        } else {
-            Ok(sync::Arc::new((l.wrapping_div(*r)).into()))
-        }, frac: Ok(
-            sync::Arc::new((l / r).into())
-        )),
-        element::BiOperator::Rem => match_number_value!("%", (&**lhs, &**rhs), |l, r| int: if *r == 0 {
-            Err(Error::EvaluationError(module::Error::new(module::ErrorKind::IntegerDivisonByZero)))
-        } else {
-            Ok(sync::Arc::new((l.wrapping_rem(*r)).into()))
-        }, frac: Ok(
-            sync::Arc::new((l % r).into())
-        )),
+        element::BiOperator::Div => {
+            match_number_value!("/", (&**lhs, &**rhs), |l, r| int: if *r == 0 {
+                Err(Error::EvaluationError(module::Error::new(module::ErrorKind::IntegerDivisonByZero)))
+            } else {
+                Ok(sync::Arc::new((l.wrapping_div(*r)).into()))
+            }, frac: Ok(
+                sync::Arc::new((l / r).into())
+            ))
+        }
+        element::BiOperator::Rem => {
+            match_number_value!("%", (&**lhs, &**rhs), |l, r| int: if *r == 0 {
+                Err(Error::EvaluationError(module::Error::new(module::ErrorKind::IntegerDivisonByZero)))
+            } else {
+                Ok(sync::Arc::new((l.wrapping_rem(*r)).into()))
+            }, frac: Ok(
+                sync::Arc::new((l % r).into())
+            ))
+        }
         element::BiOperator::And => bool_op("&", lhs, rhs, |l, r| l & r),
         element::BiOperator::BAnd => match_integral_value!("~&", (&**lhs, &**rhs), |l, r| Ok(
             sync::Arc::new((l & r).into())
@@ -361,7 +365,10 @@ fn bool_op<F>(
     lhs: &sync::Arc<value::Value>,
     rhs: &sync::Arc<value::Value>,
     op: F,
-) -> Result<sync::Arc<value::Value>, Error> where F: FnOnce(bool, bool) -> bool {
+) -> Result<sync::Arc<value::Value>, Error>
+where
+    F: FnOnce(bool, bool) -> bool,
+{
     let lhs = to_bool(lhs)?;
     let rhs = to_bool(rhs)?;
 
