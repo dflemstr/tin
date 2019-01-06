@@ -40,6 +40,7 @@ num-traits = "0.2.6"
 
 [features]
 default = ["parallel"]
+nightly = ["specs/nightly"]
 parallel = ["rayon", "specs/parallel", "specs-visitor/parallel"]
 test-render-graphs = []
 

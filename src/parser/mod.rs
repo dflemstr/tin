@@ -11,6 +11,7 @@ mod util;
 lalrpop_mod!(
     #[allow(clippy::all)]
     #[allow(clippy::pedantic)]
+    #[allow(deprecated)]
     #[allow(missing_debug_implementations)]
     #[allow(trivial_numeric_casts)]
     #[allow(unused)]
