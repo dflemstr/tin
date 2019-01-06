@@ -296,7 +296,7 @@ impl diagnostic::Diagnostic for Error {
                     style: codespan_reporting::LabelStyle::Primary,
                 }],
             }),
-            Error::IllegalEscapeSequence { token, escape, ..} => {
+            Error::IllegalEscapeSequence { token, escape, .. } => {
                 result.push(codespan_reporting::Diagnostic {
                     severity: codespan_reporting::Severity::Error,
                     message,
@@ -314,8 +314,8 @@ impl diagnostic::Diagnostic for Error {
                         },
                     ],
                 })
-            },
-            Error::UnterminatedUnicodeEscapeSequence { token, escape, ..} => {
+            }
+            Error::UnterminatedUnicodeEscapeSequence { token, escape, .. } => {
                 result.push(codespan_reporting::Diagnostic {
                     severity: codespan_reporting::Severity::Error,
                     message,
@@ -333,7 +333,7 @@ impl diagnostic::Diagnostic for Error {
                         },
                     ],
                 })
-            },
+            }
             Error::IllegalUnicode { token, escape, .. } => {
                 result.push(codespan_reporting::Diagnostic {
                     severity: codespan_reporting::Severity::Error,

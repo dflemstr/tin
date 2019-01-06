@@ -267,7 +267,7 @@ pub fn parse_escaped_string<T>(
                         });
                         state = State::Normal;
                         is_invalid = true;
-                    },
+                    }
                 },
                 State::Unicode => match c {
                     '{' => {
@@ -320,12 +320,12 @@ pub fn parse_escaped_string<T>(
                         });
                         state = State::Normal;
                         is_invalid = true;
-                    },
+                    }
                 },
             }
         }
         match state {
-            State::Normal => {},
+            State::Normal => {}
             State::Escape => {
                 // Omit +1 here to include the previous \ character
                 let escape_start = codespan::ByteOffset(input.len() as codespan::RawOffset);
