@@ -77,8 +77,7 @@ impl<'a> Codegen<'a> {
         let ptr_type = module.target_config().pointer_type();
 
         #[cfg(feature = "parallel")]
-        let data_tuples = (entities, layouts, constexprs)
-            .par_join();
+        let data_tuples = (entities, layouts, constexprs).par_join();
         #[cfg(not(feature = "parallel"))]
         let data_tuples = (entities, layouts, constexprs).join();
 
