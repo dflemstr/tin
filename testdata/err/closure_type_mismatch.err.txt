@@ -1,0 +1,10 @@
+error: type error
+- testdata/err/closure_type_mismatch.tn:1:8
+1 | main = || i32 { 0f32 };
+  |        ^^^^^^^^^^^^^^^
+- testdata/err/closure_type_mismatch.tn:1:17
+1 | main = || i32 { 0f32 };
+  |                 ^^^^ expected i32 but got f32
+- testdata/err/closure_type_mismatch.tn:1:11
+1 | main = || i32 { 0f32 };
+  |           --- declared return type is i32

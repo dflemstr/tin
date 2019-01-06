@@ -1,0 +1,4 @@
+error: illegal int literal: number too large to fit in target type
+- testdata/err/integer_literal_overflow.tn:1:17
+1 | main = || i32 { 4444444444444444444i32 };
+  |                 ^^^^^^^^^^^^^^^^^^^^^^ in this int literal

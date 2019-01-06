@@ -341,6 +341,7 @@ impl<'a> ModuleBuilder<'a> {
             ast::NumberValue::I64(n) => component::element::Number::I64(n),
             ast::NumberValue::F32(n) => component::element::Number::F32(n),
             ast::NumberValue::F64(n) => component::element::Number::F64(n),
+            ast::NumberValue::Invalid => panic!("'invalid' AST nodes should not escape the parser"),
         }
     }
 
@@ -353,7 +354,12 @@ impl<'a> ModuleBuilder<'a> {
             .write_storage()
             .insert(
                 entity,
-                component::element::Element::String(string.value.clone()),
+                component::element::Element::String(match string.value {
+                    ast::StringValue::String(ref s) => s.clone(),
+                    ast::StringValue::Invalid => {
+                        panic!("'invalid' AST nodes should not escape the parser")
+                    }
+                }),
             )
             .unwrap();
 

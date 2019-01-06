@@ -180,8 +180,8 @@ where
                 Inference::Type(BOOL_TYPE.clone())
             } else {
                 Inference::Error(ty::TypeError {
-                    expected: ty::ExpectedType::Specific(Box::new(BOOL_TYPE.clone())),
-                    actual: Box::new(ty.clone()),
+                    expected: ty::ExpectedType::Specific(BOOL_TYPE.clone()),
+                    actual: ty.clone(),
                     main_entity: operand,
                     aux_entities: vec![],
                 })
@@ -322,12 +322,10 @@ where
                         }),
                     );
                     Some(Inference::Error(ty::TypeError {
-                        expected: ty::ExpectedType::Specific(Box::new(ty::Type::Record(
-                            ty::Record {
-                                fields: expected_fields,
-                            },
-                        ))),
-                        actual: Box::new(t.clone()),
+                        expected: ty::ExpectedType::Specific(ty::Type::Record(ty::Record {
+                            fields: expected_fields,
+                        })),
+                        actual: t.clone(),
                         main_entity: record,
                         aux_entities: vec![],
                     }))
@@ -342,10 +340,10 @@ where
                     }),
                 );
                 Some(Inference::Error(ty::TypeError {
-                    expected: ty::ExpectedType::Specific(Box::new(ty::Type::Record(ty::Record {
+                    expected: ty::ExpectedType::Specific(ty::Type::Record(ty::Record {
                         fields: expected_fields,
-                    }))),
-                    actual: Box::new(something.clone()),
+                    })),
+                    actual: something.clone(),
                     main_entity: record,
                     aux_entities: vec![],
                 }))
@@ -382,15 +380,15 @@ where
                     } else {
                         // TODO: create a diff of expected and actual parameters
                         Some(Inference::Error(ty::TypeError {
-                            expected: ty::ExpectedType::Specific(Box::new(ty::Type::Function(
+                            expected: ty::ExpectedType::Specific(ty::Type::Function(
                                 ty::Function {
                                     parameters,
                                     result: Box::new(ty::Type::Symbol(ty::Symbol {
                                         label: "something".to_owned(),
                                     })),
                                 },
-                            ))),
-                            actual: Box::new(f.clone()),
+                            )),
+                            actual: f.clone(),
                             main_entity: function,
                             aux_entities: vec![],
                         }))
@@ -400,15 +398,15 @@ where
                 }
             }
             something => Some(Inference::Error(ty::TypeError {
-                expected: ty::ExpectedType::Specific(Box::new(ty::Type::Function(ty::Function {
+                expected: ty::ExpectedType::Specific(ty::Type::Function(ty::Function {
                     parameters: vec![ty::Type::Symbol(ty::Symbol {
                         label: "something".to_owned(),
                     })],
                     result: Box::new(ty::Type::Symbol(ty::Symbol {
                         label: "something".to_owned(),
                     })),
-                }))),
-                actual: Box::new(something.clone()),
+                })),
+                actual: something.clone(),
                 main_entity: function,
                 aux_entities: vec![],
             })),
@@ -456,23 +454,37 @@ where
         .map(|p| types.get(*p).cloned())
         .collect::<Option<Vec<_>>>()
     {
-        if let Some(signature) = signature {
-            if let Some(result) = types.get(signature).cloned() {
-                let result = Box::new(result);
+        if let Some(result_ty) = types.get(result) {
+            if let Some(signature) = signature {
+                if let Some(signature_ty) = types.get(signature) {
+                    if signature_ty == result_ty {
+                        let result = Box::new(signature_ty.clone());
+                        Some(Inference::Type(ty::Type::Function(ty::Function {
+                            parameters,
+                            result,
+                        })))
+                    } else {
+                        Some(Inference::Error(ty::TypeError {
+                            expected: ty::ExpectedType::Specific(signature_ty.clone()),
+                            actual: result_ty.clone(),
+                            main_entity: result,
+                            aux_entities: vec![ty::AuxEntity {
+                                entity: signature,
+                                label: format!("declared return type is {}", signature_ty),
+                            }],
+                        }))
+                    }
+                } else {
+                    trace!("inference failure: no signature for closure");
+                    None
+                }
+            } else {
+                let result = Box::new(result_ty.clone());
                 Some(Inference::Type(ty::Type::Function(ty::Function {
                     parameters,
                     result,
                 })))
-            } else {
-                trace!("inference failure: no signature for closure");
-                None
             }
-        } else if let Some(result) = types.get(result).cloned() {
-            let result = Box::new(result);
-            Some(Inference::Type(ty::Type::Function(ty::Function {
-                parameters,
-                result,
-            })))
         } else {
             trace!("inference failure: missing signature type for closure, and no inferrable result type");
             None
@@ -509,8 +521,8 @@ fn if_eq_then(
         Inference::Type(result.clone())
     } else {
         Inference::Error(ty::TypeError {
-            expected: ty::ExpectedType::Specific(Box::new(lhs.clone())),
-            actual: Box::new(rhs.clone()),
+            expected: ty::ExpectedType::Specific(lhs.clone()),
+            actual: rhs.clone(),
             main_entity: rhs_entity,
             aux_entities: vec![ty::AuxEntity {
                 entity: lhs_entity,
@@ -531,8 +543,8 @@ fn bool_op(
             Inference::Type(BOOL_TYPE.clone())
         } else {
             Inference::Error(ty::TypeError {
-                expected: ty::ExpectedType::Specific(Box::new(BOOL_TYPE.clone())),
-                actual: Box::new(rhs.clone()),
+                expected: ty::ExpectedType::Specific(BOOL_TYPE.clone()),
+                actual: rhs.clone(),
                 main_entity: rhs_entity,
                 aux_entities: vec![ty::AuxEntity {
                     entity: lhs_entity,
@@ -542,8 +554,8 @@ fn bool_op(
         }
     } else {
         Inference::Error(ty::TypeError {
-            expected: ty::ExpectedType::Specific(Box::new(BOOL_TYPE.clone())),
-            actual: Box::new(lhs.clone()),
+            expected: ty::ExpectedType::Specific(BOOL_TYPE.clone()),
+            actual: lhs.clone(),
             main_entity: lhs_entity,
             aux_entities: vec![ty::AuxEntity {
                 entity: rhs_entity,
@@ -565,7 +577,7 @@ fn or_op(
         } else {
             Inference::Error(ty::TypeError {
                 expected: ty::ExpectedType::ScalarClass(ty::ScalarClass::Symbol),
-                actual: Box::new(rhs.clone()),
+                actual: rhs.clone(),
                 main_entity: rhs_entity,
                 aux_entities: vec![ty::AuxEntity {
                     entity: lhs_entity,
@@ -578,8 +590,8 @@ fn or_op(
             Inference::Type(BOOL_TYPE.clone())
         } else {
             Inference::Error(ty::TypeError {
-                expected: ty::ExpectedType::Specific(Box::new(BOOL_TYPE.clone())),
-                actual: Box::new(rhs.clone()),
+                expected: ty::ExpectedType::Specific(BOOL_TYPE.clone()),
+                actual: rhs.clone(),
                 main_entity: rhs_entity,
                 aux_entities: vec![ty::AuxEntity {
                     entity: lhs_entity,
@@ -590,10 +602,10 @@ fn or_op(
     } else {
         Inference::Error(ty::TypeError {
             expected: ty::ExpectedType::AnyOf(vec![
-                ty::ExpectedType::Specific(Box::new(BOOL_TYPE.clone())),
+                ty::ExpectedType::Specific(BOOL_TYPE.clone()),
                 ty::ExpectedType::Union,
             ]),
-            actual: Box::new(lhs.clone()),
+            actual: lhs.clone(),
             main_entity: lhs_entity,
             aux_entities: vec![ty::AuxEntity {
                 entity: rhs_entity,
@@ -614,7 +626,7 @@ fn if_integral_then(
             expected: ty::ExpectedType::ScalarClass(ty::ScalarClass::Integral(
                 ty::IntegralScalarClass::Any,
             )),
-            actual: Box::new(ty.clone()),
+            actual: ty.clone(),
             main_entity: entity,
             aux_entities: vec![],
         }),
@@ -635,8 +647,8 @@ fn if_integral_and_eq_then(
                 Inference::Type(result.clone())
             } else {
                 Inference::Error(ty::TypeError {
-                    expected: ty::ExpectedType::Specific(Box::new(expected.clone())),
-                    actual: Box::new(rhs.clone()),
+                    expected: ty::ExpectedType::Specific(expected.clone()),
+                    actual: rhs.clone(),
                     main_entity: rhs_entity,
                     aux_entities: vec![ty::AuxEntity {
                         entity: lhs_entity,
@@ -649,7 +661,7 @@ fn if_integral_and_eq_then(
             expected: ty::ExpectedType::ScalarClass(ty::ScalarClass::Integral(
                 ty::IntegralScalarClass::Any,
             )),
-            actual: Box::new(lhs.clone()),
+            actual: lhs.clone(),
             main_entity: lhs_entity,
             aux_entities: vec![ty::AuxEntity {
                 entity: rhs_entity,
@@ -668,7 +680,7 @@ fn if_fractional_then(
         ty::ScalarClass::Fractional => Inference::Type(result.clone()),
         _ => Inference::Error(ty::TypeError {
             expected: ty::ExpectedType::ScalarClass(ty::ScalarClass::Fractional),
-            actual: Box::new(ty.clone()),
+            actual: ty.clone(),
             main_entity: entity,
             aux_entities: vec![],
         }),

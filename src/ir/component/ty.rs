@@ -79,7 +79,7 @@ where
     E: fmt::Debug + Send + Sync + 'static,
 {
     pub expected: ExpectedType,
-    pub actual: Box<Type>,
+    pub actual: Type,
     pub main_entity: E,
     pub aux_entities: Vec<AuxEntity<E>>,
 }
@@ -92,7 +92,7 @@ pub struct AuxEntity<E> {
 
 #[derive(Clone, Debug, Eq, PartialEq, VisitEntities, VisitEntitiesMut)]
 pub enum ExpectedType {
-    Specific(Box<Type>),
+    Specific(Type),
     ScalarClass(ScalarClass),
     AnyOf(Vec<ExpectedType>),
     Union,

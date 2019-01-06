@@ -543,7 +543,9 @@ impl<'a, 'f> FunctionTranslator<'a, 'f> {
         let results = self.builder.inst_results(call);
         let result = results[0];
         let error = results[1];
-        self.builder.ins().brnz(error, self.error_unwind_ebb, &[error]);
+        self.builder
+            .ins()
+            .brnz(error, self.error_unwind_ebb, &[error]);
         result
     }
 

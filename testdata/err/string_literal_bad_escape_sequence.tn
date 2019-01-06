@@ -1,0 +1,1 @@
+main = || { "foo \x bar \y baz" };

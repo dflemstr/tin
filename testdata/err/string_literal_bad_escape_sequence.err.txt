@@ -1,0 +1,14 @@
+error: illegal escape sequence: \x
+- testdata/err/string_literal_bad_escape_sequence.tn:1:18
+1 | main = || { "foo \x bar \y baz" };
+  |                  ^ bad escape sequence
+- testdata/err/string_literal_bad_escape_sequence.tn:1:13
+1 | main = || { "foo \x bar \y baz" };
+  |             ------------------- in this string literal
+error: illegal escape sequence: \y
+- testdata/err/string_literal_bad_escape_sequence.tn:1:25
+1 | main = || { "foo \x bar \y baz" };
+  |                         ^ bad escape sequence
+- testdata/err/string_literal_bad_escape_sequence.tn:1:13
+1 | main = || { "foo \x bar \y baz" };
+  |             ------------------- in this string literal

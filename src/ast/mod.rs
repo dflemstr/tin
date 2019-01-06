@@ -125,6 +125,8 @@ pub enum NumberValue {
     F32(f32),
     /// Floating point 64-bit value.
     F64(f64),
+    /// The number value is invalid (e.g. out of bounds).
+    Invalid,
 }
 
 /// A string literal.
@@ -133,7 +135,16 @@ pub struct StringLiteral<C> {
     /// This node's AST context.
     pub context: C,
     /// The value of the literal.
-    pub value: String,
+    pub value: StringValue,
+}
+
+/// All syntactic string literal value variants.
+#[derive(Clone, Debug, PartialEq)]
+pub enum StringValue {
+    /// A plain string.
+    String(String),
+    /// The string value is invalid (e.g. has an illegal character).
+    Invalid,
 }
 
 /// A symbol.

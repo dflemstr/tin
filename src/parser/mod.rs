@@ -1,4 +1,6 @@
 //! A parser for Tin code.
+use std::num;
+
 use lalrpop_util;
 
 use crate::ast;
@@ -47,6 +49,51 @@ pub enum Error {
     Extra {
         /// The seen token's span.
         token: codespan::ByteSpan,
+    },
+    /// An escape sequence is illegal.
+    #[fail(display = "illegal escape sequence: \\{}", bad_escape_char)]
+    IllegalEscapeSequence {
+        /// The seen token's span.
+        token: codespan::ByteSpan,
+        /// The span of the escape sequence.
+        escape: codespan::ByteSpan,
+        /// The bad escape char.
+        bad_escape_char: char,
+    },
+    #[fail(display = "unterminated unicode escape sequence")]
+    UnterminatedUnicodeEscapeSequence {
+        /// The seen token's span.
+        token: codespan::ByteSpan,
+        /// The span of the unicode escape.
+        escape: codespan::ByteSpan,
+    },
+    /// A string contained an illegal unicode escape.
+    #[fail(display = "illegal unicode code point: {:#x}", bad_codepoint)]
+    IllegalUnicode {
+        /// The seen token's span.
+        token: codespan::ByteSpan,
+        /// The span of the unicode escape.
+        escape: codespan::ByteSpan,
+        /// The bad code point.
+        bad_codepoint: u32,
+    },
+    /// An integer literal was illegal.
+    #[fail(display = "illegal int literal: {}", cause)]
+    IllegalIntLiteral {
+        /// The seen token's span.
+        token: codespan::ByteSpan,
+        /// The underlying parse error.
+        #[cause]
+        cause: num::ParseIntError,
+    },
+    /// A float literal was illegal.
+    #[fail(display = "illegal float literal: {}", cause)]
+    IllegalFloatLiteral {
+        /// The seen token's span.
+        token: codespan::ByteSpan,
+        /// The underlying parse error.
+        #[cause]
+        cause: num::ParseFloatError,
     },
     /// There were multiple parse errors.
     #[fail(display = "multiple parse errors")]
@@ -249,6 +296,85 @@ impl diagnostic::Diagnostic for Error {
                     style: codespan_reporting::LabelStyle::Primary,
                 }],
             }),
+            Error::IllegalEscapeSequence { token, escape, ..} => {
+                result.push(codespan_reporting::Diagnostic {
+                    severity: codespan_reporting::Severity::Error,
+                    message,
+                    code: None,
+                    labels: vec![
+                        codespan_reporting::Label {
+                            span: *escape,
+                            message: Some("bad escape sequence".to_owned()),
+                            style: codespan_reporting::LabelStyle::Primary,
+                        },
+                        codespan_reporting::Label {
+                            span: *token,
+                            message: Some("in this string literal".to_owned()),
+                            style: codespan_reporting::LabelStyle::Secondary,
+                        },
+                    ],
+                })
+            },
+            Error::UnterminatedUnicodeEscapeSequence { token, escape, ..} => {
+                result.push(codespan_reporting::Diagnostic {
+                    severity: codespan_reporting::Severity::Error,
+                    message,
+                    code: None,
+                    labels: vec![
+                        codespan_reporting::Label {
+                            span: *escape,
+                            message: Some("unterminated unicode escape sequence".to_owned()),
+                            style: codespan_reporting::LabelStyle::Primary,
+                        },
+                        codespan_reporting::Label {
+                            span: *token,
+                            message: Some("in this string literal".to_owned()),
+                            style: codespan_reporting::LabelStyle::Secondary,
+                        },
+                    ],
+                })
+            },
+            Error::IllegalUnicode { token, escape, .. } => {
+                result.push(codespan_reporting::Diagnostic {
+                    severity: codespan_reporting::Severity::Error,
+                    message,
+                    code: None,
+                    labels: vec![
+                        codespan_reporting::Label {
+                            span: *escape,
+                            message: Some("bad code point".to_owned()),
+                            style: codespan_reporting::LabelStyle::Primary,
+                        },
+                        codespan_reporting::Label {
+                            span: *token,
+                            message: Some("in this string literal".to_owned()),
+                            style: codespan_reporting::LabelStyle::Secondary,
+                        },
+                    ],
+                })
+            }
+            Error::IllegalIntLiteral { token, .. } => result.push(codespan_reporting::Diagnostic {
+                severity: codespan_reporting::Severity::Error,
+                message,
+                code: None,
+                labels: vec![codespan_reporting::Label {
+                    span: *token,
+                    message: Some("in this int literal".to_owned()),
+                    style: codespan_reporting::LabelStyle::Primary,
+                }],
+            }),
+            Error::IllegalFloatLiteral { token, .. } => {
+                result.push(codespan_reporting::Diagnostic {
+                    severity: codespan_reporting::Severity::Error,
+                    message,
+                    code: None,
+                    labels: vec![codespan_reporting::Label {
+                        span: *token,
+                        message: Some("in this float literal".to_owned()),
+                        style: codespan_reporting::LabelStyle::Primary,
+                    }],
+                })
+            }
             Error::Multiple { errors } => {
                 for error in errors {
                     error.to_diagnostics(result);
@@ -542,7 +668,7 @@ help: valid tokens at this point: [Comment, IdentifierName]
 
         let expected = Ok(ast::Expression::StringLiteral(ast::StringLiteral {
             context: (),
-            value: "abc".to_owned(),
+            value: ast::StringValue::String("abc".to_owned()),
         }));
         let actual = parse_expression("test", r#""abc""#);
         assert_eq!(expected, actual);
@@ -554,7 +680,7 @@ help: valid tokens at this point: [Comment, IdentifierName]
 
         let expected = Ok(ast::Expression::StringLiteral(ast::StringLiteral {
             context: (),
-            value: "なんでも".to_owned(),
+            value: ast::StringValue::String("なんでも".to_owned()),
         }));
         let actual = parse_expression("test", r#""なんでも""#);
         assert_eq!(expected, actual);
@@ -566,7 +692,7 @@ help: valid tokens at this point: [Comment, IdentifierName]
 
         let expected = Ok(ast::Expression::StringLiteral(ast::StringLiteral {
             context: (),
-            value: "\"\\/\u{0008}\u{000C}\n\r\t\u{1234}".to_owned(),
+            value: ast::StringValue::String("\"\\/\u{0008}\u{000C}\n\r\t\u{1234}".to_owned()),
         }));
         let actual = parse_expression("test", r#""\"\\/\b\f\n\r\t\u{1234}""#);
         assert_eq!(expected, actual);
@@ -679,7 +805,7 @@ help: valid tokens at this point: ["!", "#$0", "#$1", "#0", "#1", "#^-", "#^0", 
                     },
                     ast::Expression::StringLiteral(ast::StringLiteral {
                         context: (),
-                        value: "c".to_owned(),
+                        value: ast::StringValue::String("c".to_owned()),
                     }),
                 ),
             ]
@@ -714,7 +840,7 @@ help: valid tokens at this point: ["!", "#$0", "#$1", "#0", "#1", "#^-", "#^0", 
                     },
                     ast::Expression::StringLiteral(ast::StringLiteral {
                         context: (),
-                        value: "c".to_owned(),
+                        value: ast::StringValue::String("c".to_owned()),
                     }),
                 ),
             ]
