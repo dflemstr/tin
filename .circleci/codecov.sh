@@ -1,6 +1,6 @@
 #!/bin/bash
 
-REPORT=$(find target/debug -maxdepth 1 -name 'tin_lang-*' -a ! -name '*.d')
+REPORT=$(find target/debug -maxdepth 1 \( -name 'tin_lang-*' -o -name 'integration_tests-' \) -a ! -name '*.d')
 
 for file in $REPORT; do
     mkdir -p "target/cov/$(basename $file)"
