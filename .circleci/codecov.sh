@@ -1,6 +1,6 @@
 #!/bin/bash
 
-REPORT=$(find target/debug -maxdepth 1 \( -name 'tin_lang-*' -o -name 'integration_tests-' \) -a ! -name '*.d')
+REPORT=$(find target/debug -maxdepth 1 -regextype sed -regex '.*/.*-[a-f0-9]\{16\}')
 
 for file in $REPORT; do
     mkdir -p "target/cov/$(basename $file)"
