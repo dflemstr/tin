@@ -16,7 +16,7 @@ jobs:
           command: cargo generate-lockfile
       - restore_cache:
           keys:
-            - v2-cargo-cache-{{ arch }}-{{ checksum "Cargo.lock" }}
+            - v3-cargo-cache-{{ arch }}-{{ checksum "Cargo.lock" }}
       - run:
           name: Build all targets
           command: cargo build --all-targets
@@ -25,9 +25,11 @@ jobs:
           command: cargo test --all
       - save_cache:
           paths:
-            - ~/.cargo
-            - ./target
-          key: v2-cargo-cache-{{ arch }}-{{ checksum "Cargo.lock" }}
+            - ~/.cargo/registry
+            - ./target/debug/.fingerprint
+            - ./target/debug/build
+            - ./target/debug/deps
+          key: v3-cargo-cache-{{ arch }}-{{ checksum "Cargo.lock" }}-{{ epoch }}
       - run:
           name: Install coverage prerequisites
           command: .circleci/install-coverage.sh
