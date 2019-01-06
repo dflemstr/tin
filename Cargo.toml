@@ -10,6 +10,8 @@ edition = "2018"
 [build-dependencies]
 lalrpop = "0.16.2"
 failure = "0.1.5"
+regex = "1.1.0"
+walkdir = "2.2.7"
 
 [dependencies]
 cranelift = "0.26.0"
@@ -33,6 +35,8 @@ rayon = "1.0.3"
 itertools = "0.8.0"
 codespan = "0.2.0"
 codespan-reporting = "0.2.0"
+enum-primitive-derive = "0.1.2"
+num-traits = "0.2.6"
 
 [features]
 test-render-graphs = []

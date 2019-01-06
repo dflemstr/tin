@@ -1,6 +1,7 @@
 #[macro_use]
 extern crate pretty_assertions;
 
+use std::fmt;
 use std::fs;
 use std::path;
 
@@ -9,6 +10,8 @@ const RECORD: bool = false;
 
 fn test_ok(path: &str) -> Result<(), failure::Error> {
     use std::io::Read;
+
+    let _ = env_logger::try_init();
 
     let path = path::Path::new(path);
 
@@ -35,7 +38,7 @@ fn test_ok(path: &str) -> Result<(), failure::Error> {
         .function::<tin_lang::module::Function0<i32>>("main")
         .unwrap();
 
-    assert_eq!(0, main());
+    assert_eq!(Ok(0), main.call());
 
     Ok(())
 }
@@ -43,6 +46,8 @@ fn test_ok(path: &str) -> Result<(), failure::Error> {
 fn test_err(path: &str, err: &str) -> Result<(), failure::Error> {
     use std::io::Read;
     use std::io::Write;
+
+    let _ = env_logger::try_init();
 
     let path = path::Path::new(path);
     let err = path::Path::new(err);
@@ -58,9 +63,16 @@ fn test_err(path: &str, err: &str) -> Result<(), failure::Error> {
         .map_err(|e| report_diagnostics(tin.codemap(), e, &mut err_actual))
         .is_ok()
     {
-        let _ = tin
+        if let Ok(mut module) = tin
             .compile()
-            .map_err(|e| report_diagnostics(tin.codemap(), e, &mut err_actual));
+            .map_err(|e| report_diagnostics(tin.codemap(), e, &mut err_actual))
+        {
+            let _ = module
+                .function::<tin_lang::module::Function0<i32>>("main")
+                .unwrap()
+                .call()
+                .map_err(|e| report_error(e, &mut err_actual));
+        }
     }
 
     let err_actual = String::from_utf8(err_actual).unwrap();
@@ -74,6 +86,14 @@ fn test_err(path: &str, err: &str) -> Result<(), failure::Error> {
     }
 
     Ok(())
+}
+
+fn report_error<E>(error: E, out: &mut Vec<u8>)
+where
+    E: fmt::Display,
+{
+    out.extend_from_slice(error.to_string().as_bytes());
+    out.push(b'\n');
 }
 
 fn report_diagnostics(codemap: &codespan::CodeMap, error: tin_lang::Error, mut out: &mut Vec<u8>) {

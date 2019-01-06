@@ -43,6 +43,8 @@
 #![cfg_attr(feature = "cargo-clippy", deny(clippy::all, clippy::pedantic))]
 
 #[macro_use]
+extern crate enum_primitive_derive;
+#[macro_use]
 extern crate failure;
 #[macro_use]
 extern crate lalrpop_util;
@@ -179,7 +181,7 @@ impl Tin {
     /// let mut module = tin.compile()?;
     /// let main = module.function::<tin_lang::module::Function0<i32>>("main").unwrap();
     ///
-    /// let result = main();
+    /// let result = main.call();
     /// assert_eq!(42, result);
     /// # Ok(())
     /// # }

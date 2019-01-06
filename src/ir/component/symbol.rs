@@ -6,6 +6,7 @@ use specs::VecStorage;
 #[derive(Component, Clone, Debug, VisitEntities, VisitEntitiesMut)]
 #[storage(VecStorage)]
 pub struct Symbol {
+    public: bool,
     parts: Vec<Part>,
 }
 
@@ -18,16 +19,35 @@ pub enum Part {
 
 impl Symbol {
     pub fn new(parts: Vec<Part>) -> Self {
-        Symbol { parts }
+        let public = false;
+        Symbol { public, parts }
+    }
+
+    pub fn into_public(self) -> Self {
+        let public = true;
+        let parts = self.parts;
+        Symbol { public, parts }
     }
 
     pub fn is_empty(&self) -> bool {
         self.parts.is_empty()
     }
+
+    pub fn is_public(&self) -> bool {
+        self.public
+    }
+
+    pub fn is_top_level(&self) -> bool {
+        self.parts.len() == 1
+    }
 }
 
 impl fmt::Display for Symbol {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        if self.public {
+            f.write_str("public:")?;
+        }
+
         let mut needs_sep = false;
 
         for part in &self.parts {

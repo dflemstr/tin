@@ -248,6 +248,15 @@ impl<'a> ModuleBuilder<'a> {
                             }),
                         )
                         .unwrap();
+
+                    self.world
+                        .write_storage()
+                        .insert(
+                            capture,
+                            component::location::Location(identifier.context.span),
+                        )
+                        .unwrap();
+
                     self.current_captures.push(capture);
 
                     capture

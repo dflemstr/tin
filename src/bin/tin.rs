@@ -70,7 +70,7 @@ fn run() -> Result<i32, failure::Error> {
         .function::<tin_lang::module::Function0<i32>>("main")
         .ok_or(failure::err_msg("missing a main function"))?;
 
-    let result = entrypoint();
+    let result = entrypoint.call()?;
 
     Ok(result)
 }

@@ -3,6 +3,7 @@ use std::num;
 
 use crate::codegen::abi_type;
 use crate::codegen::abi_type::AbiType::*;
+use crate::module;
 
 #[derive(Debug)]
 pub struct Builtin {
@@ -41,6 +42,7 @@ macro_rules! builtin {
 builtins! {
     (ALLOC, alloc, &[Ptr, Ptr], &[Ptr]),
     (DEALLOC, dealloc, &[Ptr, Ptr, Ptr], &[]),
+    (ERROR, error, &[Ptr], &[Ptr]),
 }
 
 unsafe extern "C" fn alloc(size: usize, align: num::NonZeroUsize) -> *mut u8 {
@@ -54,4 +56,12 @@ unsafe extern "C" fn dealloc(ptr: *mut u8, size: usize, align: num::NonZeroUsize
     let layout = alloc::Layout::from_size_align_unchecked(size, align.get());
     debug!("dealloc ptr={:?} size={:?} align={:?}", ptr, size, align);
     alloc::dealloc(ptr, layout);
+}
+
+unsafe extern "C" fn error(kind: usize) -> *mut module::Error {
+    use num_traits::cast::FromPrimitive;
+
+    let kind = module::ErrorKind::from_usize(kind).unwrap_or(module::ErrorKind::Unknown);
+    debug!("error kind={:?}", kind);
+    Box::into_raw(Box::new(module::Error::new(kind)))
 }

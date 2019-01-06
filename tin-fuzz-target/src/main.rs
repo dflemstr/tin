@@ -7,7 +7,7 @@ fn run(data: &[u8]) {
         if tin.load("fuzz", s).is_ok() {
             if let Ok(mut module) = tin.compile() {
                 if let Some(main) = module.function::<tin_lang::module::Function0<i32>>("main") {
-                    main();
+                    let _ = main.call();
                 }
             }
         }

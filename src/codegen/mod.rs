@@ -89,7 +89,7 @@ impl<'a> Codegen<'a> {
         let function_ctxs = (elements, symbols, types)
             .join()
             .filter_map(|(el, sy, ty)| as_closure(el, ty).map(|(el, ty)| (el, sy, ty)))
-            .map(|(closure, sy, ty)| {
+            .flat_map(|(closure, sy, ty)| {
                 let mut ctx: codegen::Context = module.make_context();
                 let mut builder_context = FunctionBuilderContext::new();
 
@@ -99,12 +99,19 @@ impl<'a> Codegen<'a> {
                     ));
                 }
                 let ret_type = abi_type::AbiType::from_ir_type(&ty.result).into_specific(ptr_type);
+                // Result
                 ctx.func.signature.returns.push(AbiParam::new(ret_type));
+                // Error
+                ctx.func.signature.returns.push(AbiParam::new(ptr_type));
 
                 {
                     let mut builder = FunctionBuilder::new(&mut ctx.func, &mut builder_context);
                     let entry_ebb = builder.create_ebb();
                     builder.append_ebb_params_for_function_params(entry_ebb);
+
+                    let error_throw_ebb = builder.create_ebb();
+                    let error_unwind_ebb = builder.create_ebb();
+
                     builder.switch_to_block(entry_ebb);
                     builder.seal_block(entry_ebb);
 
@@ -128,7 +135,9 @@ impl<'a> Codegen<'a> {
                             symbols,
                             types,
                             ptr_type,
-                            variables,
+                            error_throw_ebb,
+                            error_unwind_ebb,
+                            &variables,
                         );
 
                         for stmt in &closure.statements {
@@ -141,13 +150,144 @@ impl<'a> Codegen<'a> {
                         )
                     };
 
-                    builder.ins().return_(&[result]);
+                    let null_error = builder.ins().iconst(ptr_type, 0);
+                    builder.ins().return_(&[result, null_error]);
+
+                    let error_kind = builder.append_ebb_param(error_throw_ebb, ptr_type);
+                    builder.switch_to_block(error_throw_ebb);
+                    builder.seal_block(error_throw_ebb);
+
+                    let error = {
+                        let mut translation_ctx = translation::FunctionTranslator::new(
+                            &mut module,
+                            &mut builder,
+                            constexprs,
+                            elements,
+                            layouts,
+                            symbols,
+                            types,
+                            ptr_type,
+                            error_throw_ebb,
+                            error_unwind_ebb,
+                            &variables,
+                        );
+                        translation_ctx.builtin_error(error_kind)
+                    };
+                    builder.ins().jump(error_unwind_ebb, &[error]);
+
+                    let error = builder.append_ebb_param(error_unwind_ebb, ptr_type);
+                    builder.switch_to_block(error_unwind_ebb);
+                    builder.seal_block(error_unwind_ebb);
+
+                    let null_result = if ret_type.is_int() {
+                        builder.ins().iconst(ret_type, 0)
+                    } else if ret_type == types::F32 {
+                        builder.ins().f32const(Ieee32::with_float(0.0))
+                    } else if ret_type == types::F64 {
+                        builder.ins().f64const(Ieee64::with_float(0.0))
+                    } else {
+                        unimplemented!()
+                    };
+                    builder.ins().return_(&[null_result, error]);
+
                     builder.finalize();
 
                     debug!("generated function: {}", builder.display(None));
                 }
 
-                (sy, ctx)
+                let mut result = Vec::new();
+
+                if sy.is_top_level() {
+                    let mut public_ctx: codegen::Context = module.make_context();
+                    let mut public_builder_context = FunctionBuilderContext::new();
+
+                    for i in 0..ty.parameters.len() {
+                        public_ctx
+                            .func
+                            .signature
+                            .params
+                            .push(ctx.func.signature.params[i]);
+                    }
+                    // Error pointer
+                    public_ctx
+                        .func
+                        .signature
+                        .params
+                        .push(AbiParam::new(ptr_type));
+
+                    // Result
+                    public_ctx
+                        .func
+                        .signature
+                        .returns
+                        .push(AbiParam::new(ret_type));
+
+                    {
+                        let mut builder =
+                            FunctionBuilder::new(&mut public_ctx.func, &mut public_builder_context);
+                        let entry_ebb = builder.create_ebb();
+                        builder.append_ebb_params_for_function_params(entry_ebb);
+
+                        let error_ebb = builder.create_ebb();
+
+                        builder.switch_to_block(entry_ebb);
+                        builder.seal_block(entry_ebb);
+
+                        let fn_name = sy.to_string();
+                        let callee = module
+                            .declare_function(
+                                &fn_name,
+                                cranelift_module::Linkage::Local,
+                                &ctx.func.signature,
+                            )
+                            .unwrap();
+                        let local_callee = module.declare_func_in_func(callee, &mut builder.func);
+
+                        let (error_out_ptr, parameter_values) =
+                            builder.ebb_params(entry_ebb).split_last().unwrap();
+                        let error_out_ptr = *error_out_ptr;
+                        let parameter_values = parameter_values.to_vec();
+
+                        let call = builder.ins().call(local_callee, &parameter_values);
+
+                        let results = builder.inst_results(call);
+                        let result = results[0];
+                        let error = results[1];
+
+                        builder
+                            .ins()
+                            .brnz(error, error_ebb, &[error, error_out_ptr]);
+                        builder.ins().return_(&[result]);
+
+                        let error = builder.append_ebb_param(error_ebb, ptr_type);
+                        let error_out_ptr = builder.append_ebb_param(error_ebb, ptr_type);
+                        builder.switch_to_block(error_ebb);
+                        builder.seal_block(error_ebb);
+
+                        let null_result = if ret_type.is_int() {
+                            builder.ins().iconst(ret_type, 0)
+                        } else if ret_type == types::F32 {
+                            builder.ins().f32const(Ieee32::with_float(0.0))
+                        } else if ret_type == types::F64 {
+                            builder.ins().f64const(Ieee64::with_float(0.0))
+                        } else {
+                            unimplemented!()
+                        };
+
+                        let mut mem_flags = MemFlags::new();
+                        mem_flags.set_notrap();
+                        mem_flags.set_aligned();
+                        builder.ins().store(mem_flags, error, error_out_ptr, 0i32);
+                        builder.ins().return_(&[null_result]);
+
+                        builder.finalize();
+                    }
+
+                    result.push((sy.clone().into_public(), public_ctx));
+                }
+                result.push((sy.clone(), ctx));
+
+                result
             })
             .collect::<Vec<_>>();
 
@@ -168,12 +308,18 @@ impl<'a> Codegen<'a> {
             let fn_id = module
                 .declare_function(
                     &fn_name,
-                    cranelift_module::Linkage::Export,
+                    if sy.is_public() {
+                        cranelift_module::Linkage::Export
+                    } else {
+                        cranelift_module::Linkage::Local
+                    },
                     &ctx.func.signature,
                 )
                 .unwrap();
             declared_functions.push((fn_id, ctx));
-            function_ids.insert(fn_name, fn_id);
+            if sy.is_public() {
+                function_ids.insert(fn_name["public:".len()..].to_owned(), fn_id);
+            }
         }
 
         for (id, data_ctx) in declared_data {
@@ -306,8 +452,8 @@ main = || u32 { 42u32 };
 
         let main = module.function::<module::Function0<u32>>("main").unwrap();
 
-        let result = main();
-        assert_eq!(42, result);
+        let result = main.call();
+        assert_eq!(Ok(42), result);
         Ok(())
     }
 
@@ -323,8 +469,8 @@ main = || u32 { a = 43u32; a };
 
         let main = module.function::<module::Function0<u32>>("main").unwrap();
 
-        let result = main();
-        assert_eq!(43, result);
+        let result = main.call();
+        assert_eq!(Ok(43), result);
         Ok(())
     }
 
@@ -342,8 +488,8 @@ main = |a: u32| u32 { a };
             .function::<module::Function1<u32, u32>>("main")
             .unwrap();
 
-        let result = main(43);
-        assert_eq!(43, result);
+        let result = main.call(43);
+        assert_eq!(Ok(43), result);
         Ok(())
     }
 
@@ -361,8 +507,8 @@ main = |a: u32, b: u32| u32 { b };
             .function::<module::Function2<u32, u32, u32>>("main")
             .unwrap();
 
-        let result = main(1, 43);
-        assert_eq!(43, result);
+        let result = main.call(1, 43);
+        assert_eq!(Ok(43), result);
         Ok(())
     }
 
@@ -380,8 +526,8 @@ main = |a: u32, b: u32, c: u32| u32 { c };
             .function::<module::Function3<u32, u32, u32, u32>>("main")
             .unwrap();
 
-        let result = main(1, 2, 43);
-        assert_eq!(43, result);
+        let result = main.call(1, 2, 43);
+        assert_eq!(Ok(43), result);
         Ok(())
     }
 
@@ -399,8 +545,8 @@ main = |a: u32, b: u32, c: u32, d: u32| u32 { d };
             .function::<module::Function4<u32, u32, u32, u32, u32>>("main")
             .unwrap();
 
-        let result = main(1, 2, 3, 43);
-        assert_eq!(43, result);
+        let result = main.call(1, 2, 3, 43);
+        assert_eq!(Ok(43), result);
         Ok(())
     }
 
@@ -418,8 +564,8 @@ main = |a: u32, b: u32, c: u32, d: u32, e: u32| u32 { e };
             .function::<module::Function5<u32, u32, u32, u32, u32, u32>>("main")
             .unwrap();
 
-        let result = main(1, 2, 3, 4, 43);
-        assert_eq!(43, result);
+        let result = main.call(1, 2, 3, 4, 43);
+        assert_eq!(Ok(43), result);
         Ok(())
     }
 
@@ -437,8 +583,8 @@ main = |a: u32, b: u32, c: u32, d: u32, e: u32, f: u32| u32 { f };
             .function::<module::Function6<u32, u32, u32, u32, u32, u32, u32>>("main")
             .unwrap();
 
-        let result = main(1, 2, 3, 4, 5, 43);
-        assert_eq!(43, result);
+        let result = main.call(1, 2, 3, 4, 5, 43);
+        assert_eq!(Ok(43), result);
         Ok(())
     }
 
@@ -457,8 +603,8 @@ main = |y: u32| u32 { a = other(y); other(other(a)) };
             .function::<module::Function1<u32, u32>>("main")
             .unwrap();
 
-        let result = main(43);
-        assert_eq!(43, result);
+        let result = main.call(43);
+        assert_eq!(Ok(43), result);
         Ok(())
     }
 
@@ -474,8 +620,8 @@ main = || u32 { a = { x: 1u32, y: 2u32, z: 3u32}; a.y };
 
         let main = module.function::<module::Function0<u32>>("main").unwrap();
 
-        let result = main();
-        assert_eq!(2, result);
+        let result = main.call();
+        assert_eq!(Ok(2), result);
         Ok(())
     }
 
@@ -491,8 +637,8 @@ main = || u32 { a = 1u32; b = 2u32; (a * 24u32 + b * 3u32) / 10u32 };
 
         let main = module.function::<module::Function0<u32>>("main").unwrap();
 
-        let result = main();
-        assert_eq!(3, result);
+        let result = main.call();
+        assert_eq!(Ok(3), result);
         Ok(())
     }
 
@@ -508,8 +654,8 @@ main = || f32 { a = 1f32; b = 2f32; (a * 24f32 + b * 3f32) / 10f32 };
 
         let main = module.function::<module::Function0<f32>>("main").unwrap();
 
-        let result = main();
-        assert_eq!(3.0, result);
+        let result = main.call();
+        assert_eq!(Ok(3.0), result);
         Ok(())
     }
 
@@ -525,8 +671,8 @@ main = || f64 { a = 1f64; b = 2f64; (a * 24f64 + b * 3f64) / 10f64 };
 
         let main = module.function::<module::Function0<f64>>("main").unwrap();
 
-        let result = main();
-        assert_eq!(3.0, result);
+        let result = main.call();
+        assert_eq!(Ok(3.0), result);
         Ok(())
     }
 
@@ -542,8 +688,8 @@ main = || u32 { a = 1u32; b = 2u32; a + b };
 
         let main = module.function::<module::Function0<u32>>("main").unwrap();
 
-        let result = main();
-        assert_eq!(3, result);
+        let result = main.call();
+        assert_eq!(Ok(3), result);
         Ok(())
     }
 
@@ -559,8 +705,8 @@ main = || i32 { a = 1i32; b = 2i32; a + b };
 
         let main = module.function::<module::Function0<i32>>("main").unwrap();
 
-        let result = main();
-        assert_eq!(3, result);
+        let result = main.call();
+        assert_eq!(Ok(3), result);
         Ok(())
     }
 
@@ -576,8 +722,8 @@ main = || f32 { a = 1f32; b = 2f32; a + b };
 
         let main = module.function::<module::Function0<f32>>("main").unwrap();
 
-        let result = main();
-        assert_eq!(3.0, result);
+        let result = main.call();
+        assert_eq!(Ok(3.0), result);
         Ok(())
     }
 
@@ -593,8 +739,8 @@ main = || u32 { a = 2u32; b = 1u32; a - b };
 
         let main = module.function::<module::Function0<u32>>("main").unwrap();
 
-        let result = main();
-        assert_eq!(1, result);
+        let result = main.call();
+        assert_eq!(Ok(1), result);
         Ok(())
     }
 
@@ -610,8 +756,8 @@ main = || i32 { a = 1i32; b = 2i32; a - b };
 
         let main = module.function::<module::Function0<i32>>("main").unwrap();
 
-        let result = main();
-        assert_eq!(-1, result);
+        let result = main.call();
+        assert_eq!(Ok(-1), result);
         Ok(())
     }
 
@@ -627,8 +773,8 @@ main = || f32 { a = 2f32; b = 1f32; a - b };
 
         let main = module.function::<module::Function0<f32>>("main").unwrap();
 
-        let result = main();
-        assert_eq!(1.0, result);
+        let result = main.call();
+        assert_eq!(Ok(1.0), result);
         Ok(())
     }
 

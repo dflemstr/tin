@@ -14,6 +14,7 @@ use crate::ir::component::element;
 use crate::ir::component::layout;
 use crate::ir::component::symbol;
 use crate::ir::component::ty;
+use crate::module;
 use crate::value;
 
 pub struct DataTranslator<'a> {
@@ -33,7 +34,9 @@ where
     symbols: &'a specs::ReadStorage<'a, symbol::Symbol>,
     types: &'a specs::ReadStorage<'a, ty::Type>,
     ptr_type: Type,
-    variables: collections::HashMap<specs::Entity, Variable>,
+    error_throw_ebb: Ebb,
+    error_unwind_ebb: Ebb,
+    variables: &'a collections::HashMap<specs::Entity, Variable>,
 }
 
 impl<'a> DataTranslator<'a> {
@@ -166,7 +169,9 @@ impl<'a, 'f> FunctionTranslator<'a, 'f> {
         symbols: &'a specs::ReadStorage<'a, symbol::Symbol>,
         types: &'a specs::ReadStorage<'a, ty::Type>,
         ptr_type: Type,
-        variables: collections::HashMap<specs::Entity, Variable>,
+        error_throw_ebb: Ebb,
+        error_unwind_ebb: Ebb,
+        variables: &'a collections::HashMap<specs::Entity, Variable>,
     ) -> Self {
         FunctionTranslator {
             module,
@@ -177,6 +182,8 @@ impl<'a, 'f> FunctionTranslator<'a, 'f> {
             symbols,
             types,
             ptr_type,
+            error_throw_ebb,
+            error_unwind_ebb,
             variables,
         }
     }
@@ -407,9 +414,11 @@ impl<'a, 'f> FunctionTranslator<'a, 'f> {
             },
             element::BiOperator::Div => match self.types.get(lhs).unwrap().scalar_class() {
                 ty::ScalarClass::Integral(ty::IntegralScalarClass::Unsigned) => {
+                    self.error_if_zero(rhs_value, module::ErrorKind::IntegerDivisonByZero);
                     self.builder.ins().udiv(lhs_value, rhs_value)
                 }
                 ty::ScalarClass::Integral(ty::IntegralScalarClass::Signed) => {
+                    self.error_if_zero(rhs_value, module::ErrorKind::IntegerDivisonByZero);
                     self.builder.ins().sdiv(lhs_value, rhs_value)
                 }
                 ty::ScalarClass::Fractional => self.builder.ins().fdiv(lhs_value, rhs_value),
@@ -417,9 +426,11 @@ impl<'a, 'f> FunctionTranslator<'a, 'f> {
             },
             element::BiOperator::Rem => match self.types.get(lhs).unwrap().scalar_class() {
                 ty::ScalarClass::Integral(ty::IntegralScalarClass::Unsigned) => {
+                    self.error_if_zero(rhs_value, module::ErrorKind::IntegerDivisonByZero);
                     self.builder.ins().urem(lhs_value, rhs_value)
                 }
                 ty::ScalarClass::Integral(ty::IntegralScalarClass::Signed) => {
+                    self.error_if_zero(rhs_value, module::ErrorKind::IntegerDivisonByZero);
                     self.builder.ins().srem(lhs_value, rhs_value)
                 }
                 _ => unreachable!(),
@@ -504,10 +515,13 @@ impl<'a, 'f> FunctionTranslator<'a, 'f> {
                     .into_specific(self.ptr_type),
             ));
         }
+        // Result
         sig.returns.push(AbiParam::new(
             abi_type::AbiType::from_ir_type(self.types.get(entity).unwrap())
                 .into_specific(self.ptr_type),
         ));
+        // Error
+        sig.returns.push(AbiParam::new(self.ptr_type));
 
         let name = self.get_symbol(apply.function).unwrap().to_string();
         let callee = self
@@ -526,7 +540,11 @@ impl<'a, 'f> FunctionTranslator<'a, 'f> {
 
         let call = self.builder.ins().call(local_callee, &parameter_values);
 
-        self.builder.inst_results(call)[0]
+        let results = self.builder.inst_results(call);
+        let result = results[0];
+        let error = results[1];
+        self.builder.ins().brnz(error, self.error_unwind_ebb, &[error]);
+        result
     }
 
     pub fn eval_capture(&mut self, entity: specs::Entity, _capture: &element::Capture) -> Value {
@@ -539,6 +557,17 @@ impl<'a, 'f> FunctionTranslator<'a, 'f> {
 
     pub fn eval_module(&mut self, _entity: specs::Entity, _module: &element::Module) -> Value {
         unimplemented!()
+    }
+
+    pub fn error_if_zero(&mut self, value: Value, kind: module::ErrorKind) {
+        use num_traits::cast::ToPrimitive;
+
+        let kind = self
+            .builder
+            .ins()
+            .iconst(self.ptr_type, kind.to_usize().unwrap() as i64);
+
+        self.builder.ins().brz(value, self.error_throw_ebb, &[kind]);
     }
 
     fn get_symbol(&self, entity: specs::Entity) -> Option<&symbol::Symbol> {
@@ -556,10 +585,18 @@ impl<'a, 'f> FunctionTranslator<'a, 'f> {
         }
     }
 
-    fn builtin_alloc(&mut self, size: Value, align: Value) -> Value {
+    pub fn builtin_alloc(&mut self, size: Value, align: Value) -> Value {
         let local_callee = self.declare_builtin(&builtin::ALLOC);
 
         let call = self.builder.ins().call(local_callee, &[size, align]);
+
+        self.builder.inst_results(call)[0]
+    }
+
+    pub fn builtin_error(&mut self, kind: Value) -> Value {
+        let local_callee = self.declare_builtin(&builtin::ERROR);
+
+        let call = self.builder.ins().call(local_callee, &[kind]);
 
         self.builder.inst_results(call)[0]
     }
@@ -582,7 +619,7 @@ impl<'a, 'f> FunctionTranslator<'a, 'f> {
         let callee = self
             .module
             .declare_function(
-                builtin::ALLOC.symbol,
+                builtin.symbol,
                 cranelift_module::Linkage::Import,
                 &signature,
             )

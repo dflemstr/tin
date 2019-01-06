@@ -164,16 +164,24 @@ fn eval_bi_op(
         )),
         element::BiOperator::Cmp => Ok(sync::Arc::new(cmp_value(lhs, rhs)?.into())),
         element::BiOperator::Add => add(lhs, rhs),
-        element::BiOperator::Sub => match_number_value!("-", (&**lhs, &**rhs), |l, r| Ok(
+        element::BiOperator::Sub => match_number_value!("-", (&**lhs, &**rhs), |l, r| int: Ok(
+            sync::Arc::new((l.wrapping_sub(*r)).into())
+        ), frac: Ok(
             sync::Arc::new((l - r).into())
         )),
-        element::BiOperator::Mul => match_number_value!("*", (&**lhs, &**rhs), |l, r| Ok(
+        element::BiOperator::Mul => match_number_value!("*", (&**lhs, &**rhs), |l, r| int: Ok(
+            sync::Arc::new((l.wrapping_mul(*r)).into())
+        ), frac: Ok(
             sync::Arc::new((l * r).into())
         )),
-        element::BiOperator::Div => match_number_value!("/", (&**lhs, &**rhs), |l, r| Ok(
+        element::BiOperator::Div => match_number_value!("/", (&**lhs, &**rhs), |l, r| int: Ok(
+            sync::Arc::new((l.wrapping_div(*r)).into())
+        ), frac: Ok(
             sync::Arc::new((l / r).into())
         )),
-        element::BiOperator::Rem => match_number_value!("/", (&**lhs, &**rhs), |l, r| Ok(
+        element::BiOperator::Rem => match_number_value!("%", (&**lhs, &**rhs), |l, r| int: Ok(
+            sync::Arc::new((l.wrapping_rem(*r)).into())
+        ), frac: Ok(
             sync::Arc::new((l % r).into())
         )),
         element::BiOperator::And => unimplemented!(),
@@ -332,7 +340,7 @@ fn add(
             }
         }
         (value::Value::Number(lhs), value::Value::Number(rhs)) => {
-            match_number!("+", (lhs, rhs), |l, r| Ok(sync::Arc::new((l + r).into())))
+            match_number!("+", (lhs, rhs), |l, r| int: Ok(sync::Arc::new((l.wrapping_add(*r)).into())), frac: Ok(sync::Arc::new((l + r).into())))
         }
         other => Err(Error::RuntimeTypeConflict(format!(
             "operation + not supported on values {:?}",

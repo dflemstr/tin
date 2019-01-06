@@ -5,7 +5,7 @@ macro_rules! match_branches {
             [$($branches,)*],
             $name,
             ($($values),*),
-            |$param| $body, $default,
+            |$param| $body,
             (ref $param => $default,)
         )
     };
@@ -15,51 +15,44 @@ macro_rules! match_branches {
             [$($branches,)*],
             $name,
             ($($values),*),
-            |$($params),*| $body, $default,
-            (($(ref $params),*) => Err(Error::RuntimeTypeConflict(format!(
-                concat!(
-                    "operation ",
-                    $name,
-                    " not supported on values {:?}"
-                ),
-                ($($params),*)
-            ))),)
+            |$($params),*| $body,
+            (($(ref $params),*) => $default,)
         )
     };
-    (inner: [], $name:expr, ($value:expr), |$($params:ident),*| $body:expr, $default:expr, ($($result:tt)*)) => {
+    (inner: [], $name:expr, ($value:expr), |$($params:ident),*| $body:expr, ($($result:tt)*)) => {
         match $value {
             $($result)*
         }
     };
-    (inner: [], $name:expr, ($($values:expr),*), |$($params:ident),*| $body:expr, $default:expr, ($($result:tt)*)) => {
+    (inner: [], $name:expr, ($($values:expr),*), |$($params:ident),*| $body:expr, ($($result:tt)*)) => {
         match ($($values,)*) {
             $($result)*
         }
     };
-    (inner: [$branch:path, $($branches:path,)*], $name:expr, ($($values:expr),*), |$param:ident| $body:expr, $default:expr, ($($result:tt)*)) => {
+    (inner: [$branch:path, $($branches:path,)*], $name:expr, ($($values:expr),*), |$param:ident| $body:expr, ($($result:tt)*)) => {
         match_branches!(
             inner:
             [$($branches,)*],
             $name,
             ($($values),*),
-            |$param| $body, $default,
+            |$param| $body,
             ($branch(ref $param) => $body, $($result)*)
         )
     };
-    (inner: [$branch:path, $($branches:path,)*], $name:expr, ($($values:expr),*), |$($params:ident),*| $body:expr, $default:expr, ($($result:tt)*)) => {
+    (inner: [$branch:path, $($branches:path,)*], $name:expr, ($($values:expr),*), |$($params:ident),*| $body:expr, ($($result:tt)*)) => {
         match_branches!(
             inner:
             [$($branches,)*],
             $name,
             ($($values),*),
-            |$($params),*| $body, $default,
+            |$($params),*| $body,
             (($($branch(ref $params)),*) => $body, $($result)*)
         )
     };
 }
 
 macro_rules! match_number {
-    ($name:expr, ($($value:expr),*), |$($params:ident),*| $body:expr) => {
+    ($name:expr, ($($value:expr),*), |$($params:ident),*| int: $body_int:expr, frac: $body_frac:expr) => {
         match_branches!(
             [
                 value::Number::U8,
@@ -70,13 +63,20 @@ macro_rules! match_number {
                 value::Number::I16,
                 value::Number::I32,
                 value::Number::I64,
-                value::Number::F32,
-                value::Number::F64,
             ],
             $name,
             ($($value),*),
-            |$($params),*| $body,
-            Err(Error::RuntimeTypeConflict(format!("expected numbers of the same type but got {:?}", ($($params),*))))
+            |$($params),*| $body_int,
+            match_branches!(
+                [
+                    value::Number::F32,
+                    value::Number::F64,
+                ],
+                $name,
+                ($($params),*),
+                |$($params),*| $body_frac,
+                Err(Error::RuntimeTypeConflict(format!("expected numbers of the same type but got {:?}", ($($params),*))))
+            )
         )
     };
 }
@@ -118,7 +118,7 @@ macro_rules! match_fractional {
 }
 
 macro_rules! match_number_value {
-    ($name:expr, ($($value:expr),*), |$($params:ident),*| $body:expr) => {
+    ($name:expr, ($($value:expr),*), |$($params:ident),*| int: $body_int:expr, frac: $body_frac:expr) => {
         match_branches!(
             [
                 value::Value::Number,
@@ -128,7 +128,7 @@ macro_rules! match_number_value {
             |$($params),*| match_number!(
                 $name,
                 ($($params),*),
-                |$($params),*| $body
+                |$($params),*| int: $body_int, frac: $body_frac
             ),
             Err(Error::RuntimeTypeConflict(format!("expected number values of the same type but got {:?}", ($($params),*))))
         )
