@@ -33,7 +33,7 @@ Everything is either an expression or a variable definition.  There are for exam
 which can be assigned to variables:
 
 ```tin
-getAge = |person: Person|: Int { person.age };
+getAge = |person: Person| Int { person.age };
 ```
 
 `tin` supports structural polymorphic type inference:
@@ -52,30 +52,33 @@ main = || {
 
 ```tin
 /* An unsigned 8-bit integer */
-U8 = 0u8;
+ExampleU8 = 0u8;
 /* An unsigned 16-bit integer */
-U16 = 0u16;
+ExampleU16 = 0u16;
 /* An unsigned 32-bit integer */
-U32 = 0u32;
+ExampleU32 = 0u32;
 /* An unsigned 64-bit integer */
-U64 = 0u64;
+ExampleU64 = 0u64;
 
 /* A signed 8-bit integer */
-I8 = 0i8;
+ExampleI8 = 0i8;
 /* A signed 16-bit integer */
-I16 = 0i16;
+ExampleI16 = 0i16;
 /* A signed 32-bit integer */
-I32 = 0i32;
+ExampleI32 = 0i32;
 /* A signed 64-bit integer */
-I64 = 0i64;
+ExampleI64 = 0i64;
 
 /* A 32 bit floating point number */
-F32 = 0.0f32;
+ExampleF32 = 0.0f32;
 /* A 64 bit floating point number */
-F64 = 0.0f64;
+ExampleF64 = 0.0f64;
 
 /* An UTF-8 string */
-String = "";
+ExampleString = "";
+
+/* A symbol value */
+ExampleSymbol = :foo;
 
 /* A tuple */
 ExampleTuple = (String, I8, I8);
@@ -83,5 +86,5 @@ ExampleTuple = (String, I8, I8);
 ExampleRecord = { name: String, x: I8, y: I8 };
 
 /* A lambda */
-ExampleLambda = |tuple: ExampleTuple, record: ExampleRecord, int: I8|: I8 { int };
+ExampleLambda = |tuple: ExampleTuple, record: ExampleRecord, int: I8| I8 { int };
 ```
