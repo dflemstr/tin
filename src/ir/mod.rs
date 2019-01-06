@@ -893,6 +893,18 @@ impl diagnostic::Diagnostic for Error {
                                 labels,
                             });
                         }
+                        interpreter::Error::EvaluationError(cause) => {
+                            result.push(codespan_reporting::Diagnostic {
+                                severity: codespan_reporting::Severity::Error,
+                                code: None,
+                                message: "error during constexpr evaluation".to_owned(),
+                                labels: vec![codespan_reporting::Label {
+                                    span: entity,
+                                    message: Some(cause.to_string()),
+                                    style: codespan_reporting::LabelStyle::Primary,
+                                }],
+                            });
+                        }
                     }
                 }
             },

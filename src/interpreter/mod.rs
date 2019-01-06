@@ -5,6 +5,7 @@ use std::sync;
 use specs;
 
 use crate::ir::component::element;
+use crate::module;
 use crate::value;
 
 #[macro_use]
@@ -14,6 +15,8 @@ mod macros;
 pub enum Error {
     #[fail(display = "type conflict: {}", _0)]
     RuntimeTypeConflict(String),
+    #[fail(display = "evaluation error: {}", _0)]
+    EvaluationError(#[cause] module::Error),
 }
 
 pub fn eval<'a, F>(
@@ -174,37 +177,41 @@ fn eval_bi_op(
         ), frac: Ok(
             sync::Arc::new((l * r).into())
         )),
-        element::BiOperator::Div => match_number_value!("/", (&**lhs, &**rhs), |l, r| int: Ok(
-            sync::Arc::new((l.wrapping_div(*r)).into())
-        ), frac: Ok(
+        element::BiOperator::Div => match_number_value!("/", (&**lhs, &**rhs), |l, r| int: if *r == 0 {
+            Err(Error::EvaluationError(module::Error::new(module::ErrorKind::IntegerDivisonByZero)))
+        } else {
+            Ok(sync::Arc::new((l.wrapping_div(*r)).into()))
+        }, frac: Ok(
             sync::Arc::new((l / r).into())
         )),
-        element::BiOperator::Rem => match_number_value!("%", (&**lhs, &**rhs), |l, r| int: Ok(
-            sync::Arc::new((l.wrapping_rem(*r)).into())
-        ), frac: Ok(
+        element::BiOperator::Rem => match_number_value!("%", (&**lhs, &**rhs), |l, r| int: if *r == 0 {
+            Err(Error::EvaluationError(module::Error::new(module::ErrorKind::IntegerDivisonByZero)))
+        } else {
+            Ok(sync::Arc::new((l.wrapping_rem(*r)).into()))
+        }, frac: Ok(
             sync::Arc::new((l % r).into())
         )),
-        element::BiOperator::And => unimplemented!(),
+        element::BiOperator::And => bool_op("&", lhs, rhs, |l, r| l & r),
         element::BiOperator::BAnd => match_integral_value!("~&", (&**lhs, &**rhs), |l, r| Ok(
             sync::Arc::new((l & r).into())
         )),
-        element::BiOperator::Or => unimplemented!(),
+        element::BiOperator::Or => bool_op("|", lhs, rhs, |l, r| l | r),
         element::BiOperator::BOr => match_integral_value!("~|", (&**lhs, &**rhs), |l, r| Ok(
             sync::Arc::new((l | r).into())
         )),
-        element::BiOperator::Xor => unimplemented!(),
+        element::BiOperator::Xor => bool_op("|", lhs, rhs, |l, r| l ^ r),
         element::BiOperator::BXor => match_integral_value!("~^", (&**lhs, &**rhs), |l, r| Ok(
             sync::Arc::new((l ^ r).into())
         )),
-        element::BiOperator::AndNot => unimplemented!(),
+        element::BiOperator::AndNot => bool_op("&!", lhs, rhs, |l, r| l & !r),
         element::BiOperator::BAndNot => match_integral_value!("~&!", (&**lhs, &**rhs), |l, r| Ok(
             sync::Arc::new((l & !r).into())
         )),
-        element::BiOperator::OrNot => unimplemented!(),
+        element::BiOperator::OrNot => bool_op("|!", lhs, rhs, |l, r| l | !r),
         element::BiOperator::BOrNot => match_integral_value!("~|!", (&**lhs, &**rhs), |l, r| Ok(
             sync::Arc::new((l | !r).into())
         )),
-        element::BiOperator::XorNot => unimplemented!(),
+        element::BiOperator::XorNot => bool_op("^!", lhs, rhs, |l, r| l ^ !r),
         element::BiOperator::BXorNot => match_integral_value!("~^!", (&**lhs, &**rhs), |l, r| Ok(
             sync::Arc::new((l ^ !r).into())
         )),
@@ -347,6 +354,18 @@ fn add(
             other
         ))),
     }
+}
+
+fn bool_op<F>(
+    _name: &str,
+    lhs: &sync::Arc<value::Value>,
+    rhs: &sync::Arc<value::Value>,
+    op: F,
+) -> Result<sync::Arc<value::Value>, Error> where F: FnOnce(bool, bool) -> bool {
+    let lhs = to_bool(lhs)?;
+    let rhs = to_bool(rhs)?;
+
+    Ok(sync::Arc::new(op(lhs, rhs).into()))
 }
 
 // TODO: awaits https://github.com/rust-lang/rust/issues/47338

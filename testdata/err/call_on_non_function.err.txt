@@ -1,0 +1,7 @@
+error: type error
+- testdata/err/call_on_non_function.tn:1:17
+1 | main = || i32 { 1i32(2i32) };
+  |                 ^^^^^^^^^^
+- testdata/err/call_on_non_function.tn:1:17
+1 | main = || i32 { 1i32(2i32) };
+  |                 ^^^^ expected |:something|:something but got i32

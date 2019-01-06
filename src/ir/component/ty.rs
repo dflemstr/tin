@@ -209,24 +209,24 @@ impl fmt::Display for Union {
 
 impl fmt::Display for Record {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "\\{{")?;
+        write!(f, "{{")?;
         let mut needs_sep = false;
         for (id, ty) in &self.fields {
             if needs_sep {
                 write!(f, ",")?;
             }
-            write!(f, "{}:", id)?;
+            write!(f, "{}: ", id)?;
             ty.fmt(f)?;
             needs_sep = true;
         }
-        write!(f, "\\}}")?;
+        write!(f, "}}")?;
         Ok(())
     }
 }
 
 impl fmt::Display for Function {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "\\|")?;
+        write!(f, "|")?;
         let mut needs_sep = false;
         for ty in &self.parameters {
             if needs_sep {
@@ -235,7 +235,7 @@ impl fmt::Display for Function {
             ty.fmt(f)?;
             needs_sep = true;
         }
-        write!(f, "\\|")?;
+        write!(f, "|")?;
         self.result.fmt(f)?;
         Ok(())
     }
