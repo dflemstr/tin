@@ -18,7 +18,7 @@ fn test_ok(path: &str) -> Result<(), failure::Error> {
     let mut source = String::new();
     fs::File::open(path)?.read_to_string(&mut source)?;
 
-    let mut tin = tin_lang::Tin::new();
+    let mut tin = tin::Tin::new();
     let mut err = Vec::new();
 
     let _ = tin
@@ -35,7 +35,7 @@ fn test_ok(path: &str) -> Result<(), failure::Error> {
 
     let main = module
         .unwrap()
-        .function::<tin_lang::module::Function0<i32>>("main")
+        .function::<tin::module::Function0<i32>>("main")
         .unwrap();
 
     assert_eq!(Ok(0), main.call());
@@ -55,7 +55,7 @@ fn test_err(path: &str, err: &str) -> Result<(), failure::Error> {
     let mut source = String::new();
     fs::File::open(path)?.read_to_string(&mut source)?;
 
-    let mut tin = tin_lang::Tin::new();
+    let mut tin = tin::Tin::new();
     let mut err_actual = Vec::new();
 
     if tin
@@ -68,7 +68,7 @@ fn test_err(path: &str, err: &str) -> Result<(), failure::Error> {
             .map_err(|e| report_diagnostics(tin.codemap(), e, &mut err_actual))
         {
             let _ = module
-                .function::<tin_lang::module::Function0<i32>>("main")
+                .function::<tin::module::Function0<i32>>("main")
                 .unwrap()
                 .call()
                 .map_err(|e| report_error(e, &mut err_actual));
@@ -96,8 +96,8 @@ where
     out.push(b'\n');
 }
 
-fn report_diagnostics(codemap: &codespan::CodeMap, error: tin_lang::Error, mut out: &mut Vec<u8>) {
-    use tin_lang::diagnostic::Diagnostic;
+fn report_diagnostics(codemap: &codespan::CodeMap, error: tin::Error, mut out: &mut Vec<u8>) {
+    use tin::diagnostic::Diagnostic;
 
     let mut diagnostics = Vec::new();
     error.to_diagnostics(&mut diagnostics);

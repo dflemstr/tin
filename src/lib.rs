@@ -6,7 +6,7 @@
 //!
 //! ```
 //! # extern crate failure;
-//! # extern crate tin_lang;
+//! # extern crate tin;
 //! # fn main() -> Result<(), failure::Error> {
 //! let source = r#"
 //! pickFirst = |a: i32, b: i32| i32 {
@@ -16,12 +16,12 @@
 //! main = || i32 { pickFirst(42i32, 62i32) };
 //! "#;
 //!
-//! let mut tin = tin_lang::Tin::new();
+//! let mut tin = tin::Tin::new();
 //! tin.load("main.tn", source)?;
 //!
 //! /*
 //! let mut module = tin.compile()?;
-//! let main = module.function::<tin_lang::module::Function0<i32>>("main").unwrap();
+//! let main = module.function::<tin::module::Function0<i32>>("main").unwrap();
 //!
 //! let result = main();
 //! assert_eq!(42, result);
@@ -120,9 +120,9 @@ impl Tin {
     ///
     /// ```
     /// # extern crate failure;
-    /// # extern crate tin_lang;
+    /// # extern crate tin;
     /// # fn main() -> Result<(), failure::Error> {
-    /// let mut tin = tin_lang::Tin::new();
+    /// let mut tin = tin::Tin::new();
     /// tin.load("main.tn", "main = || i32 { 42i32 };")?;
     /// # Ok(())
     /// # }
@@ -132,9 +132,9 @@ impl Tin {
     ///
     /// ```
     /// # extern crate failure;
-    /// # extern crate tin_lang;
+    /// # extern crate tin;
     /// # fn main() -> Result<(), failure::Error> {
-    /// let mut tin = tin_lang::Tin::new();
+    /// let mut tin = tin::Tin::new();
     /// let result = tin.load("main.tn", "main = || i32 { a };");
     /// assert!(result.is_err());
     /// # Ok(())
@@ -173,13 +173,13 @@ impl Tin {
     ///
     /// ```
     /// # extern crate failure;
-    /// # extern crate tin_lang;
+    /// # extern crate tin;
     /// # fn main() -> Result<(), failure::Error> {
-    /// let mut tin = tin_lang::Tin::new();
+    /// let mut tin = tin::Tin::new();
     /// tin.load("main.tn", "main = || i32 { 42i32 };")?;
     ///
     /// let mut module = tin.compile()?;
-    /// let main = module.function::<tin_lang::module::Function0<i32>>("main").unwrap();
+    /// let main = module.function::<tin::module::Function0<i32>>("main").unwrap();
     ///
     /// let result = main.call()?;
     /// assert_eq!(42, result);

@@ -6,4 +6,4 @@ edition = "2018"
 
 [dependencies]
 afl = "0.4.3"
-tin-lang = { path = "..", default_features = false }
+tin = { path = "..", default_features = false }

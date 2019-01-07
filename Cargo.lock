@@ -1397,15 +1397,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "tin-fuzz-target"
-version = "0.1.0"
-dependencies = [
- "afl 0.4.3 (registry+https://github.com/rust-lang/crates.io-index)",
- "tin-lang 0.2.2",
-]
-
-[[package]]
-name = "tin-lang"
+name = "tin"
 version = "0.2.2"
 dependencies = [
  "byteorder 1.2.7 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -1434,6 +1426,14 @@ dependencies = [
  "specs-visitor-derive 0.2.0",
  "structopt 0.2.14 (registry+https://github.com/rust-lang/crates.io-index)",
  "walkdir 2.2.7 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
+name = "tin-fuzz-target"
+version = "0.1.0"
+dependencies = [
+ "afl 0.4.3 (registry+https://github.com/rust-lang/crates.io-index)",
+ "tin 0.2.2",
 ]
 
 [[package]]

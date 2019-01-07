@@ -1,5 +1,5 @@
 [package]
-name = "tin-lang"
+name = "tin"
 description = "tin: a statically structurally typed embeddable programming language"
 license = "MIT"
 version = "0.2.2"

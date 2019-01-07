@@ -4,7 +4,7 @@ extern crate log;
 extern crate pretty_env_logger;
 #[macro_use]
 extern crate structopt;
-extern crate tin_lang;
+extern crate tin;
 
 use std::fs;
 use std::io;
@@ -58,7 +58,7 @@ fn run() -> Result<i32, failure::Error> {
         stdin.read_to_string(&mut source)?;
     }
 
-    let mut tin = tin_lang::Tin::new();
+    let mut tin = tin::Tin::new();
     tin.load(file_name, &source)
         .map_err(|e| report_diagnostics(tin.codemap(), e))?;
 
@@ -67,7 +67,7 @@ fn run() -> Result<i32, failure::Error> {
         .map_err(|e| report_diagnostics(tin.codemap(), e))?;
 
     let entrypoint = module
-        .function::<tin_lang::module::Function0<i32>>("main")
+        .function::<tin::module::Function0<i32>>("main")
         .ok_or(failure::err_msg("missing a main function"))?;
 
     let result = entrypoint.call()?;
@@ -75,9 +75,9 @@ fn run() -> Result<i32, failure::Error> {
     Ok(result)
 }
 
-fn report_diagnostics(codemap: &codespan::CodeMap, error: tin_lang::Error) -> tin_lang::Error {
+fn report_diagnostics(codemap: &codespan::CodeMap, error: tin::Error) -> tin::Error {
     use codespan_reporting::termcolor;
-    use tin_lang::diagnostic::Diagnostic;
+    use tin::diagnostic::Diagnostic;
 
     let mut diagnostics = Vec::new();
     error.to_diagnostics(&mut diagnostics);
