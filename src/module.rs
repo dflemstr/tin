@@ -14,10 +14,32 @@ pub struct Module {
 }
 
 /// An error that may happen at runtime.
-#[derive(Clone, Copy, Debug, Fail, PartialEq)]
-#[fail(display = "runtime error: {}", kind)]
+#[derive(Clone, Debug, Fail, PartialEq)]
+#[fail(display = "runtime error: {}{}", kind, backtrace)]
 pub struct Error {
     kind: ErrorKind,
+    backtrace: Trace,
+}
+
+/// A trace, for example a backtrace for an error.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Trace {
+    frames: Vec<Frame>,
+}
+
+/// A call stack frame within a [`Trace`].
+#[derive(Clone, Debug, PartialEq)]
+pub struct Frame {
+    name: String,
+    location: Option<Point>,
+}
+
+/// A specific code point, with a file, line and column.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Point {
+    filename: String,
+    line: u32,
+    column: u32,
 }
 
 /// The various kinds of allowed errors.
@@ -175,13 +197,52 @@ impl fmt::Debug for Module {
 
 impl Error {
     /// Creates a new error of the specified kind.
-    pub fn new(kind: ErrorKind) -> Self {
-        Error { kind }
+    pub(crate) fn new(kind: ErrorKind) -> Self {
+        let frames = Vec::new();
+        let backtrace = Trace { frames };
+        Error { kind, backtrace }
+    }
+
+    /// Pushes a new backtrace frame to the "bottom" of the stack.
+    pub(crate) fn push_frame(&mut self, name: &str, location: Option<Point>) {
+        let name = name.to_owned();
+        self.backtrace.frames.push(Frame { name, location });
     }
 
     /// The kind of error.
     pub fn kind(&self) -> ErrorKind {
         self.kind
+    }
+
+    /// The backtrace of the error.
+    pub fn backtrace(&self) -> &Trace {
+        &self.backtrace
+    }
+}
+
+impl Trace {
+    /// Returns all of the frames in the trace, most recently called function
+    /// first.
+    pub fn frames(&self) -> &[Frame] {
+        &self.frames
+    }
+}
+
+impl Frame {
+    /// Returns the corresponding function name for this frame.
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+}
+
+impl Point {
+    /// Creates a new point.
+    pub fn new(filename: String, line: u32, column: u32) -> Self {
+        Point {
+            filename,
+            line,
+            column,
+        }
     }
 }
 
@@ -196,5 +257,42 @@ impl fmt::Display for ErrorKind {
             ErrorKind::BadConversionToInteger => f.write_str("bad conversion to integer"),
             ErrorKind::UserGenerated => f.write_str("user generated"),
         }
+    }
+}
+
+impl fmt::Display for Trace {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        if !self.frames.is_empty() {
+            writeln!(f)?;
+            writeln!(f, "trace:")?;
+
+            let mut needs_sep = false;
+            for frame in &self.frames {
+                if needs_sep {
+                    writeln!(f)?;
+                }
+                write!(f, "  {}", frame)?;
+                needs_sep = true;
+            }
+        }
+        Ok(())
+    }
+}
+
+impl fmt::Display for Frame {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", self.name)?;
+
+        if let Some(ref location) = self.location {
+            write!(f, "({})", location)?;
+        }
+
+        Ok(())
+    }
+}
+
+impl fmt::Display for Point {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}:{}:{}", self.filename, self.line + 1, self.column + 1)
     }
 }

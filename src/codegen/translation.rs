@@ -9,9 +9,11 @@ use cranelift_simplejit;
 
 use crate::codegen::abi_type;
 use crate::codegen::builtin;
+use crate::codegen::util;
 use crate::ir::component::constexpr;
 use crate::ir::component::element;
 use crate::ir::component::layout;
+use crate::ir::component::location;
 use crate::ir::component::symbol;
 use crate::ir::component::ty;
 use crate::module;
@@ -31,12 +33,15 @@ where
     constexprs: &'a specs::ReadStorage<'a, constexpr::Constexpr>,
     elements: &'a specs::ReadStorage<'a, element::Element>,
     layouts: &'a specs::ReadStorage<'a, layout::Layout>,
+    locations: &'a specs::ReadStorage<'a, location::Location>,
     symbols: &'a specs::ReadStorage<'a, symbol::Symbol>,
     types: &'a specs::ReadStorage<'a, ty::Type>,
     ptr_type: Type,
     error_throw_ebb: Ebb,
     error_unwind_ebb: Ebb,
     variables: &'a collections::HashMap<specs::Entity, Variable>,
+    defined_strings: &'a mut collections::HashMap<String, cranelift_module::DataId>,
+    codemap: &'a codespan::CodeMap,
 }
 
 impl<'a> DataTranslator<'a> {
@@ -166,12 +171,15 @@ impl<'a, 'f> FunctionTranslator<'a, 'f> {
         constexprs: &'a specs::ReadStorage<'a, constexpr::Constexpr>,
         elements: &'a specs::ReadStorage<'a, element::Element>,
         layouts: &'a specs::ReadStorage<'a, layout::Layout>,
+        locations: &'a specs::ReadStorage<'a, location::Location>,
         symbols: &'a specs::ReadStorage<'a, symbol::Symbol>,
         types: &'a specs::ReadStorage<'a, ty::Type>,
         ptr_type: Type,
         error_throw_ebb: Ebb,
         error_unwind_ebb: Ebb,
         variables: &'a collections::HashMap<specs::Entity, Variable>,
+        defined_strings: &'a mut collections::HashMap<String, cranelift_module::DataId>,
+        codemap: &'a codespan::CodeMap,
     ) -> Self {
         FunctionTranslator {
             module,
@@ -179,12 +187,15 @@ impl<'a, 'f> FunctionTranslator<'a, 'f> {
             constexprs,
             elements,
             layouts,
+            locations,
             symbols,
             types,
             ptr_type,
             error_throw_ebb,
             error_unwind_ebb,
             variables,
+            defined_strings,
+            codemap,
         }
     }
 
@@ -380,7 +391,7 @@ impl<'a, 'f> FunctionTranslator<'a, 'f> {
         }
     }
 
-    pub fn eval_bi_op(&mut self, _entity: specs::Entity, bi_op: &element::BiOp) -> Value {
+    pub fn eval_bi_op(&mut self, entity: specs::Entity, bi_op: &element::BiOp) -> Value {
         let element::BiOp { lhs, operator, rhs } = bi_op;
         let lhs = *lhs;
         let rhs = *rhs;
@@ -414,11 +425,11 @@ impl<'a, 'f> FunctionTranslator<'a, 'f> {
             },
             element::BiOperator::Div => match self.types.get(lhs).unwrap().scalar_class() {
                 ty::ScalarClass::Integral(ty::IntegralScalarClass::Unsigned) => {
-                    self.error_if_zero(rhs_value, module::ErrorKind::IntegerDivisonByZero);
+                    self.error_if_zero(entity, rhs_value, module::ErrorKind::IntegerDivisonByZero);
                     self.builder.ins().udiv(lhs_value, rhs_value)
                 }
                 ty::ScalarClass::Integral(ty::IntegralScalarClass::Signed) => {
-                    self.error_if_zero(rhs_value, module::ErrorKind::IntegerDivisonByZero);
+                    self.error_if_zero(entity, rhs_value, module::ErrorKind::IntegerDivisonByZero);
                     self.builder.ins().sdiv(lhs_value, rhs_value)
                 }
                 ty::ScalarClass::Fractional => self.builder.ins().fdiv(lhs_value, rhs_value),
@@ -426,11 +437,11 @@ impl<'a, 'f> FunctionTranslator<'a, 'f> {
             },
             element::BiOperator::Rem => match self.types.get(lhs).unwrap().scalar_class() {
                 ty::ScalarClass::Integral(ty::IntegralScalarClass::Unsigned) => {
-                    self.error_if_zero(rhs_value, module::ErrorKind::IntegerDivisonByZero);
+                    self.error_if_zero(entity, rhs_value, module::ErrorKind::IntegerDivisonByZero);
                     self.builder.ins().urem(lhs_value, rhs_value)
                 }
                 ty::ScalarClass::Integral(ty::IntegralScalarClass::Signed) => {
-                    self.error_if_zero(rhs_value, module::ErrorKind::IntegerDivisonByZero);
+                    self.error_if_zero(entity, rhs_value, module::ErrorKind::IntegerDivisonByZero);
                     self.builder.ins().srem(lhs_value, rhs_value)
                 }
                 _ => unreachable!(),
@@ -543,9 +554,15 @@ impl<'a, 'f> FunctionTranslator<'a, 'f> {
         let results = self.builder.inst_results(call);
         let result = results[0];
         let error = results[1];
-        self.builder
-            .ins()
-            .brnz(error, self.error_unwind_ebb, &[error]);
+
+        let location = self.locations.get(entity).unwrap().0;
+        let (filename, filename_len, line, col) = self.immediate_location(location);
+
+        self.builder.ins().brnz(
+            error,
+            self.error_unwind_ebb,
+            &[error, filename, filename_len, line, col],
+        );
         result
     }
 
@@ -561,15 +578,54 @@ impl<'a, 'f> FunctionTranslator<'a, 'f> {
         unimplemented!()
     }
 
-    pub fn error_if_zero(&mut self, value: Value, kind: module::ErrorKind) {
+    pub fn error_if_zero(&mut self, entity: specs::Entity, value: Value, kind: module::ErrorKind) {
         use num_traits::cast::ToPrimitive;
 
         let kind = self
             .builder
             .ins()
-            .iconst(self.ptr_type, kind.to_usize().unwrap() as i64);
+            .iconst(types::I32, kind.to_u32().unwrap() as i64);
 
-        self.builder.ins().brz(value, self.error_throw_ebb, &[kind]);
+        let location = self.locations.get(entity).unwrap().0;
+
+        let (filename, filename_len, line, col) = self.immediate_location(location);
+
+        self.builder.ins().brz(
+            value,
+            self.error_throw_ebb,
+            &[kind, filename, filename_len, line, col],
+        );
+    }
+
+    pub fn immediate_location(
+        &mut self,
+        location: codespan::ByteSpan,
+    ) -> (Value, Value, Value, Value) {
+        let filemap = self.codemap.find_file(location.start()).unwrap();
+        let (line, col) = filemap.location(location.start()).unwrap();
+        let filename = filemap.name().to_string();
+        let filename_len = filename.len();
+        let filename_data_id = util::define_string(
+            self.module,
+            self.defined_strings,
+            &format!("filename:{}", filename),
+            filename,
+        );
+        let filename_global_value = self
+            .module
+            .declare_data_in_func(filename_data_id, self.builder.func);
+        let filename = self
+            .builder
+            .ins()
+            .global_value(self.ptr_type, filename_global_value);
+        let filename_len = self
+            .builder
+            .ins()
+            .iconst(self.ptr_type, filename_len as i64);
+        let line = self.builder.ins().iconst(types::I32, line.0 as i64);
+        let col = self.builder.ins().iconst(types::I32, col.0 as i64);
+
+        (filename, filename_len, line, col)
     }
 
     fn get_symbol(&self, entity: specs::Entity) -> Option<&symbol::Symbol> {
@@ -601,6 +657,24 @@ impl<'a, 'f> FunctionTranslator<'a, 'f> {
         let call = self.builder.ins().call(local_callee, &[kind]);
 
         self.builder.inst_results(call)[0]
+    }
+
+    pub fn builtin_unwind_frame(
+        &mut self,
+        error: Value,
+        name: Value,
+        name_len: Value,
+        filename: Value,
+        filename_len: Value,
+        line: Value,
+        col: Value,
+    ) {
+        let local_callee = self.declare_builtin(&builtin::UNWIND_FRAME);
+
+        self.builder.ins().call(
+            local_callee,
+            &[error, name, name_len, filename, filename_len, line, col],
+        );
     }
 
     fn declare_builtin(&mut self, builtin: &builtin::Builtin) -> cranelift::codegen::ir::FuncRef {

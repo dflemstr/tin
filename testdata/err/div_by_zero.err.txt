@@ -1,1 +1,4 @@
 runtime error: integer division by zero
+trace:
+  div(testdata/err/div_by_zero.tn:1:26)
+  main(testdata/err/div_by_zero.tn:3:17)

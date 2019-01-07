@@ -188,7 +188,7 @@ impl Tin {
     /// ```
     pub fn compile(&mut self) -> Result<module::Module> {
         self.ir.check_types()?;
-        let module = codegen::Codegen::new(&self.ir).compile();
+        let module = codegen::Codegen::new(&self.ir, &self.codemap).compile();
         Ok(module)
     }
 

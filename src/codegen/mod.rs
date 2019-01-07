@@ -11,6 +11,7 @@ use crate::ir;
 use crate::ir::component::constexpr;
 use crate::ir::component::element;
 use crate::ir::component::layout;
+use crate::ir::component::location;
 use crate::ir::component::symbol;
 use crate::ir::component::ty;
 use crate::module;
@@ -20,6 +21,7 @@ use cranelift::prelude::*;
 mod abi_type;
 mod builtin;
 mod translation;
+mod util;
 
 /// A codegen system, that can be used for JIT compilation.
 pub struct Codegen<'a> {
@@ -27,17 +29,20 @@ pub struct Codegen<'a> {
     constexprs: specs::ReadStorage<'a, constexpr::Constexpr>,
     elements: specs::ReadStorage<'a, element::Element>,
     layouts: specs::ReadStorage<'a, layout::Layout>,
+    locations: specs::ReadStorage<'a, location::Location>,
     symbols: specs::ReadStorage<'a, symbol::Symbol>,
     types: specs::ReadStorage<'a, ty::Type>,
+    codemap: &'a codespan::CodeMap,
 }
 
 impl<'a> Codegen<'a> {
     /// Creates a new codegen instance around the specified IR.
-    pub fn new(ir: &'a ir::Ir) -> Self {
+    pub fn new(ir: &'a ir::Ir, codemap: &'a codespan::CodeMap) -> Self {
         let entities = ir.world.entities();
         let constexprs = ir.world.read_storage();
         let elements = ir.world.read_storage();
         let layouts = ir.world.read_storage();
+        let locations = ir.world.read_storage();
         let symbols = ir.world.read_storage();
         let types = ir.world.read_storage();
 
@@ -46,8 +51,10 @@ impl<'a> Codegen<'a> {
             constexprs,
             elements,
             layouts,
+            locations,
             symbols,
             types,
+            codemap,
         }
     }
 
@@ -64,8 +71,10 @@ impl<'a> Codegen<'a> {
             ref constexprs,
             ref elements,
             ref layouts,
+            ref locations,
             ref symbols,
             ref types,
+            ref codemap,
         } = *self;
 
         let mut builder = cranelift_simplejit::SimpleJITBuilder::new();
@@ -92,6 +101,8 @@ impl<'a> Codegen<'a> {
             })
             .collect::<Vec<_>>();
 
+        let mut defined_strings = collections::HashMap::new();
+
         let function_ctxs = (elements, symbols, types)
             .join()
             .filter_map(|(el, sy, ty)| as_closure(el, ty).map(|(el, ty)| (el, sy, ty)))
@@ -112,6 +123,17 @@ impl<'a> Codegen<'a> {
 
                 {
                     let mut builder = FunctionBuilder::new(&mut ctx.func, &mut builder_context);
+
+                    let name = sy.to_string();
+                    let name_len = name.len();
+                    let name_data_id = util::define_string(
+                        &mut module,
+                        &mut defined_strings,
+                        &format!("funcname:{}", sy),
+                        name,
+                    );
+                    let name_global_value = module.declare_data_in_func(name_data_id, builder.func);
+
                     let entry_ebb = builder.create_ebb();
                     builder.append_ebb_params_for_function_params(entry_ebb);
 
@@ -138,12 +160,15 @@ impl<'a> Codegen<'a> {
                             constexprs,
                             elements,
                             layouts,
+                            locations,
                             symbols,
                             types,
                             ptr_type,
                             error_throw_ebb,
                             error_unwind_ebb,
                             &variables,
+                            &mut defined_strings,
+                            codemap,
                         );
 
                         for stmt in &closure.statements {
@@ -159,7 +184,11 @@ impl<'a> Codegen<'a> {
                     let null_error = builder.ins().iconst(ptr_type, 0);
                     builder.ins().return_(&[result, null_error]);
 
-                    let error_kind = builder.append_ebb_param(error_throw_ebb, ptr_type);
+                    let error_kind = builder.append_ebb_param(error_throw_ebb, types::I32);
+                    let error_filename = builder.append_ebb_param(error_throw_ebb, ptr_type);
+                    let error_filename_len = builder.append_ebb_param(error_throw_ebb, ptr_type);
+                    let error_line = builder.append_ebb_param(error_throw_ebb, types::I32);
+                    let error_col = builder.append_ebb_param(error_throw_ebb, types::I32);
                     builder.switch_to_block(error_throw_ebb);
                     builder.seal_block(error_throw_ebb);
 
@@ -170,20 +199,67 @@ impl<'a> Codegen<'a> {
                             constexprs,
                             elements,
                             layouts,
+                            locations,
                             symbols,
                             types,
                             ptr_type,
                             error_throw_ebb,
                             error_unwind_ebb,
                             &variables,
+                            &mut defined_strings,
+                            codemap,
                         );
                         translation_ctx.builtin_error(error_kind)
                     };
-                    builder.ins().jump(error_unwind_ebb, &[error]);
+                    builder.ins().jump(
+                        error_unwind_ebb,
+                        &[
+                            error,
+                            error_filename,
+                            error_filename_len,
+                            error_line,
+                            error_col,
+                        ],
+                    );
 
                     let error = builder.append_ebb_param(error_unwind_ebb, ptr_type);
+                    let error_filename = builder.append_ebb_param(error_unwind_ebb, ptr_type);
+                    let error_filename_len = builder.append_ebb_param(error_unwind_ebb, ptr_type);
+                    let error_line = builder.append_ebb_param(error_unwind_ebb, types::I32);
+                    let error_col = builder.append_ebb_param(error_unwind_ebb, types::I32);
                     builder.switch_to_block(error_unwind_ebb);
                     builder.seal_block(error_unwind_ebb);
+
+                    let name = builder.ins().global_value(ptr_type, name_global_value);
+                    let name_len = builder.ins().iconst(ptr_type, name_len as i64);
+
+                    {
+                        let mut translation_ctx = translation::FunctionTranslator::new(
+                            &mut module,
+                            &mut builder,
+                            constexprs,
+                            elements,
+                            layouts,
+                            locations,
+                            symbols,
+                            types,
+                            ptr_type,
+                            error_throw_ebb,
+                            error_unwind_ebb,
+                            &variables,
+                            &mut defined_strings,
+                            codemap,
+                        );
+                        translation_ctx.builtin_unwind_frame(
+                            error,
+                            name,
+                            name_len,
+                            error_filename,
+                            error_filename_len,
+                            error_line,
+                            error_col,
+                        );
+                    };
 
                     let null_result = if ret_type.is_int() {
                         builder.ins().iconst(ret_type, 0)
@@ -796,7 +872,7 @@ main = || f32 { a = 2f32; b = 1f32; a - b };
         ir.load(&ast_module)?;
         ir.check_types()?;
         test_util::render_graph(&format!(concat!(module_path!(), "::{}"), name), &ir)?;
-        let compiler = Codegen::new(&ir);
+        let compiler = Codegen::new(&ir, &codemap);
         let module = compiler.compile();
 
         Ok(module)
