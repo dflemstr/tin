@@ -1433,7 +1433,7 @@ name = "tin-fuzz-target"
 version = "0.1.0"
 dependencies = [
  "afl 0.4.3 (registry+https://github.com/rust-lang/crates.io-index)",
- "tin 0.2.2",
+ "tin 0.3.0",
 ]
 
 [[package]]
