@@ -12,7 +12,7 @@ remember the mnemonic.
 Currently, the language is a work in progress.  The MVP will be a Rust library and executable called `tin` that include
 a JIT compiler and rudimentary type inference.
 
-[**Documentation**](https://docs.rs/tin)
+[**Crate**](https://crates.io/crates/tin) | [**Documentation**](https://docs.rs/tin)
 
 ## Example
 
