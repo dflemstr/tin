@@ -168,13 +168,11 @@ impl<'a> dot::GraphWalk<'a, Node, Edge<'a>> for Graph<'a> {
                         }
                     }
                     element::Element::Parameter(element::Parameter { signature, .. }) => {
-                        if let Some(signature) = signature {
-                            edges.push(Edge {
-                                source: Node(entity),
-                                target: Node(*signature),
-                                label: Label::ParameterSignature,
-                            });
-                        }
+                        edges.push(Edge {
+                            source: Node(entity),
+                            target: Node(*signature),
+                            label: Label::ParameterSignature,
+                        });
                     }
                     element::Element::Capture(element::Capture { ref name, captured }) => edges
                         .push(Edge {
@@ -210,13 +208,11 @@ impl<'a> dot::GraphWalk<'a, Node, Edge<'a>> for Graph<'a> {
                                 label: Label::ClosureStatement(idx),
                             });
                         }
-                        if let Some(signature) = signature {
-                            edges.push(Edge {
-                                source: Node(entity),
-                                target: Node(*signature),
-                                label: Label::ClosureSignature,
-                            });
-                        }
+                        edges.push(Edge {
+                            source: Node(entity),
+                            target: Node(*signature),
+                            label: Label::ClosureSignature,
+                        });
                         edges.push(Edge {
                             source: Node(entity),
                             target: Node(*result),

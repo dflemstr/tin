@@ -299,11 +299,11 @@ pub struct Lambda<C> {
     /// The parameters of the lambda.
     pub parameters: Vec<Parameter<C>>,
     /// The signature of the result of the lambda.
-    pub signature: Option<Box<Expression<C>>>,
+    pub signature: Box<Expression<C>>,
     /// The statements that constitute the lambda body.
     pub statements: Vec<Statement<C>>,
     /// The result ("return value") of the lambda.
-    pub result: Box<Expression<C>>,
+    pub result: Option<Box<Expression<C>>>,
 }
 
 /// A valid statement.
@@ -357,5 +357,5 @@ pub struct Parameter<C> {
     /// The name of the parameter.
     pub name: Identifier<C>,
     /// The signature of the parameter, if any.
-    pub signature: Option<Expression<C>>,
+    pub signature: Expression<C>,
 }

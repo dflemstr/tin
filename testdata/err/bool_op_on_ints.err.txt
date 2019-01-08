@@ -1,10 +1,10 @@
 error: type error
-- testdata/err/bool_op_on_ints.tn:1:17
-1 | main = || i32 { 1i32 & 0i32 };
-  |                 ^^^^^^^^^^^
-- testdata/err/bool_op_on_ints.tn:1:17
-1 | main = || i32 { 1i32 & 0i32 };
-  |                 ^^^^ expected :f|:t but got i32
-- testdata/err/bool_op_on_ints.tn:1:24
-1 | main = || i32 { 1i32 & 0i32 };
-  |                        ---- other operand has type i32
+- testdata/err/bool_op_on_ints.tn:1:20
+1 | main = || -> i32 { 1i32 & 0i32 };
+  |                    ^^^^^^^^^^^
+- testdata/err/bool_op_on_ints.tn:1:20
+1 | main = || -> i32 { 1i32 & 0i32 };
+  |                    ^^^^ expected :f|:t but got i32
+- testdata/err/bool_op_on_ints.tn:1:27
+1 | main = || -> i32 { 1i32 & 0i32 };
+  |                           ---- other operand has type i32

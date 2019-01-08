@@ -1,1 +1,1 @@
-main = || { "foo \u{fffff x" };
+main = || -> { "foo \u{fffff x" };

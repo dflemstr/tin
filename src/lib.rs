@@ -9,11 +9,11 @@
 //! # extern crate tin;
 //! # fn main() -> Result<(), failure::Error> {
 //! let source = r#"
-//! pickFirst = |a: i32, b: i32| i32 {
-//!   capture = |x: i32| i32 { a + x };
+//! pickFirst = |a: i32, b: i32| -> i32 {
+//!   capture = |x: i32| -> i32 { a + x };
 //!   capture(b)
 //! };
-//! main = || i32 { pickFirst(42i32, 62i32) };
+//! main = || -> i32 { pickFirst(42i32, 62i32) };
 //! "#;
 //!
 //! let mut tin = tin::Tin::new();
@@ -123,7 +123,7 @@ impl Tin {
     /// # extern crate tin;
     /// # fn main() -> Result<(), failure::Error> {
     /// let mut tin = tin::Tin::new();
-    /// tin.load("main.tn", "main = || i32 { 42i32 };")?;
+    /// tin.load("main.tn", "main = || -> i32 { 42i32 };")?;
     /// # Ok(())
     /// # }
     /// ```
@@ -135,7 +135,7 @@ impl Tin {
     /// # extern crate tin;
     /// # fn main() -> Result<(), failure::Error> {
     /// let mut tin = tin::Tin::new();
-    /// let result = tin.load("main.tn", "main = || i32 { a };");
+    /// let result = tin.load("main.tn", "main = || -> i32 { a };");
     /// assert!(result.is_err());
     /// # Ok(())
     /// # }
@@ -176,7 +176,7 @@ impl Tin {
     /// # extern crate tin;
     /// # fn main() -> Result<(), failure::Error> {
     /// let mut tin = tin::Tin::new();
-    /// tin.load("main.tn", "main = || i32 { 42i32 };")?;
+    /// tin.load("main.tn", "main = || -> i32 { 42i32 };")?;
     ///
     /// let mut module = tin.compile()?;
     /// let main = module.function::<tin::module::Function0<i32>>("main").unwrap();

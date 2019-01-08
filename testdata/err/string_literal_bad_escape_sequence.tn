@@ -1,1 +1,1 @@
-main = || { "foo \x bar \y baz" };
+main = || -> { "foo \x bar \y baz" };

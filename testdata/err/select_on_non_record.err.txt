@@ -1,7 +1,7 @@
 error: type error
-- testdata/err/select_on_non_record.tn:1:17
-1 | main = || i32 { 1i32.field };
-  |                 ^^^^^^^^^^
-- testdata/err/select_on_non_record.tn:1:17
-1 | main = || i32 { 1i32.field };
-  |                 ^^^^ expected {field: :something} but got i32
+- testdata/err/select_on_non_record.tn:1:20
+1 | main = || -> i32 { 1i32.field };
+  |                    ^^^^^^^^^^
+- testdata/err/select_on_non_record.tn:1:20
+1 | main = || -> i32 { 1i32.field };
+  |                    ^^^^ expected {field: :something} but got i32

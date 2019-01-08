@@ -1,7 +1,5 @@
-error: unterminated unicode escape sequence
-- testdata/err/string_literal_unterminated_unicode.tn:1:18
-1 | main = || { "foo \u{fffff x" };
-  |                  ^^^^^^^^ unterminated unicode escape sequence
-- testdata/err/string_literal_unterminated_unicode.tn:1:13
-1 | main = || { "foo \u{fffff x" };
-  |             ---------------- in this string literal
+error: unexpected token
+- testdata/err/string_literal_unterminated_unicode.tn:1:16
+1 | main = || -> { "foo \u{fffff x" };
+  |                ^^^^^^^^^^^^^^^^
+help: valid tokens at this point: ["}", IdentifierName]

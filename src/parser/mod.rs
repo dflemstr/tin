@@ -404,12 +404,12 @@ mod tests {
 Person = { name: String, age: U32 };
 
 /* Makes any person old */
-makeOld = |person: Person| {
+makeOld = |person: Person| -> Person {
   { name: person.name, age: 70u32 + person.age }
 };
 
 /* Application main entry point */
-main = || {
+main = || -> i32 {
   /* Print a debug representation of the old person */
   print(makeOld({ name: "David", age: 27u32 }))
 };
@@ -437,13 +437,13 @@ main = || {
         let _ = env_logger::try_init();
 
         let expected = Err(r#"error: unexpected token
-- <test>:1:21
-1 | main = || { 0u32 }; <-<
-  |                     ^^^
+- <test>:1:28
+1 | main = || -> u32 { 0u32 }; <-<
+  |                            ^^^
 help: valid tokens at this point: [Comment, IdentifierName]
 "#
         .to_owned());
-        let actual = parse_module("test", r#"main = || { 0u32 }; <-<"#);
+        let actual = parse_module("test", r#"main = || -> u32 { 0u32 }; <-<"#);
         assert_eq!(expected, actual);
     }
 
@@ -1291,7 +1291,10 @@ help: valid tokens at this point: ["!", "#$0", "#$1", "#0", "#1", "#^-", "#^0", 
                         context: (),
                         value: "a".to_owned(),
                     },
-                    signature: None,
+                    signature: ast::Expression::Identifier(ast::Identifier {
+                        context: (),
+                        value: "t1".to_owned(),
+                    }),
                 },
                 ast::Parameter {
                     context: (),
@@ -1299,12 +1302,18 @@ help: valid tokens at this point: ["!", "#$0", "#$1", "#0", "#1", "#^-", "#^0", 
                         context: (),
                         value: "b".to_owned(),
                     },
-                    signature: None,
+                    signature: ast::Expression::Identifier(ast::Identifier {
+                        context: (),
+                        value: "t2".to_owned(),
+                    }),
                 },
             ],
-            signature: None,
+            signature: Box::new(ast::Expression::Identifier(ast::Identifier {
+                context: (),
+                value: "t3".to_owned(),
+            })),
             statements: vec![],
-            result: Box::new(ast::Expression::Apply(ast::Apply {
+            result: Some(Box::new(ast::Expression::Apply(ast::Apply {
                 context: (),
                 function: Box::new(ast::Expression::Identifier(ast::Identifier {
                     context: (),
@@ -1314,9 +1323,9 @@ help: valid tokens at this point: ["!", "#$0", "#$1", "#0", "#1", "#^-", "#^0", 
                     context: (),
                     value: "b".to_owned(),
                 })],
-            })),
+            }))),
         }));
-        let actual = parse_expression("test", r#"|a, b| { a(b) }"#);
+        let actual = parse_expression("test", r#"|a: t1, b: t2| -> t3 { a(b) }"#);
         assert_eq!(expected, actual);
     }
 
@@ -1333,7 +1342,10 @@ help: valid tokens at this point: ["!", "#$0", "#$1", "#0", "#1", "#^-", "#^0", 
                         context: (),
                         value: "a".to_owned(),
                     },
-                    signature: None,
+                    signature: ast::Expression::Identifier(ast::Identifier {
+                        context: (),
+                        value: "t1".to_owned(),
+                    }),
                 },
                 ast::Parameter {
                     context: (),
@@ -1341,10 +1353,16 @@ help: valid tokens at this point: ["!", "#$0", "#$1", "#0", "#1", "#^-", "#^0", 
                         context: (),
                         value: "b".to_owned(),
                     },
-                    signature: None,
+                    signature: ast::Expression::Identifier(ast::Identifier {
+                        context: (),
+                        value: "t2".to_owned(),
+                    }),
                 },
             ],
-            signature: None,
+            signature: Box::new(ast::Expression::Identifier(ast::Identifier {
+                context: (),
+                value: "t3".to_owned(),
+            })),
             statements: vec![ast::Statement::Variable(ast::Variable {
                 context: (),
                 name: ast::Identifier {
@@ -1359,11 +1377,17 @@ help: valid tokens at this point: ["!", "#$0", "#$1", "#0", "#1", "#^-", "#^0", 
                             context: (),
                             value: "b".to_owned(),
                         },
-                        signature: None,
+                        signature: ast::Expression::Identifier(ast::Identifier {
+                            context: (),
+                            value: "t4".to_owned(),
+                        }),
                     }],
-                    signature: None,
+                    signature: Box::new(ast::Expression::Identifier(ast::Identifier {
+                        context: (),
+                        value: "t5".to_owned(),
+                    })),
                     statements: vec![],
-                    result: Box::new(ast::Expression::Apply(ast::Apply {
+                    result: Some(Box::new(ast::Expression::Apply(ast::Apply {
                         context: (),
                         function: Box::new(ast::Expression::Identifier(ast::Identifier {
                             context: (),
@@ -1373,10 +1397,10 @@ help: valid tokens at this point: ["!", "#$0", "#$1", "#0", "#1", "#^-", "#^0", 
                             context: (),
                             value: "b".to_owned(),
                         })],
-                    })),
+                    }))),
                 }),
             })],
-            result: Box::new(ast::Expression::Apply(ast::Apply {
+            result: Some(Box::new(ast::Expression::Apply(ast::Apply {
                 context: (),
                 function: Box::new(ast::Expression::Identifier(ast::Identifier {
                     context: (),
@@ -1386,9 +1410,12 @@ help: valid tokens at this point: ["!", "#$0", "#$1", "#0", "#1", "#^-", "#^0", 
                     context: (),
                     value: "b".to_owned(),
                 })],
-            })),
+            }))),
         }));
-        let actual = parse_expression("test", r#"|a, b| { c = |b| { a(b) }; c(b) }"#);
+        let actual = parse_expression(
+            "test",
+            r#"|a: t1, b: t2| -> t3 { c = |b: t4| -> t5 { a(b) }; c(b) }"#,
+        );
         assert_eq!(expected, actual);
     }
 
@@ -1405,7 +1432,10 @@ help: valid tokens at this point: ["!", "#$0", "#$1", "#0", "#1", "#^-", "#^0", 
                         context: (),
                         value: "a".to_owned(),
                     },
-                    signature: None,
+                    signature: ast::Expression::Identifier(ast::Identifier {
+                        context: (),
+                        value: "t1".to_owned(),
+                    }),
                 },
                 ast::Parameter {
                     context: (),
@@ -1413,10 +1443,16 @@ help: valid tokens at this point: ["!", "#$0", "#$1", "#0", "#1", "#^-", "#^0", 
                         context: (),
                         value: "b".to_owned(),
                     },
-                    signature: None,
+                    signature: ast::Expression::Identifier(ast::Identifier {
+                        context: (),
+                        value: "t2".to_owned(),
+                    }),
                 },
             ],
-            signature: None,
+            signature: Box::new(ast::Expression::Identifier(ast::Identifier {
+                context: (),
+                value: "t3".to_owned(),
+            })),
             statements: vec![ast::Statement::Variable(ast::Variable {
                 context: (),
                 name: ast::Identifier {
@@ -1431,25 +1467,30 @@ help: valid tokens at this point: ["!", "#$0", "#$1", "#0", "#1", "#^-", "#^0", 
                             context: (),
                             value: "b".to_owned(),
                         },
-                        signature: None,
+                        signature: ast::Expression::Identifier(ast::Identifier {
+                            context: (),
+                            value: "t4".to_owned(),
+                        }),
                     }],
-                    signature: None,
+                    signature: Box::new(ast::Expression::Identifier(ast::Identifier {
+                        context: (),
+                        value: "t5".to_owned(),
+                    })),
                     statements: vec![],
-                    result: Box::new(ast::Expression::Apply(ast::Apply {
+                    result: Some(Box::new(ast::Expression::Apply(ast::Apply {
                         context: (),
                         function: Box::new(ast::Expression::Identifier(ast::Identifier {
                             context: (),
-
                             value: "a".to_owned(),
                         })),
                         parameters: vec![ast::Expression::Identifier(ast::Identifier {
                             context: (),
                             value: "b".to_owned(),
                         })],
-                    })),
+                    }))),
                 }),
             })],
-            result: Box::new(ast::Expression::Apply(ast::Apply {
+            result: Some(Box::new(ast::Expression::Apply(ast::Apply {
                 context: (),
                 function: Box::new(ast::Expression::Identifier(ast::Identifier {
                     context: (),
@@ -1459,11 +1500,11 @@ help: valid tokens at this point: ["!", "#$0", "#$1", "#0", "#1", "#^-", "#^0", 
                     context: (),
                     value: "b".to_owned(),
                 })],
-            })),
+            }))),
         }));
         let actual = parse_expression(
             "test",
-            r#"|a, b| { /* define c */ c = |b| { a(b) }; /* call c */ c(b) }"#,
+            r#"|a: t1, b: t2| -> t3 { /* define c */ c = |b: t4| -> t5 { a(b) }; /* call c */ c(b) }"#,
         );
         assert_eq!(expected, actual);
     }
@@ -1481,10 +1522,10 @@ help: valid tokens at this point: ["!", "#$0", "#$1", "#0", "#1", "#^-", "#^0", 
                         context: (),
                         value: "a".to_owned(),
                     },
-                    signature: Some(ast::Expression::NumberLiteral(ast::NumberLiteral {
+                    signature: ast::Expression::NumberLiteral(ast::NumberLiteral {
                         context: (),
                         value: ast::NumberValue::U32(0),
-                    })),
+                    }),
                 },
                 ast::Parameter {
                     context: (),
@@ -1492,15 +1533,18 @@ help: valid tokens at this point: ["!", "#$0", "#$1", "#0", "#1", "#^-", "#^0", 
                         context: (),
                         value: "b".to_owned(),
                     },
-                    signature: Some(ast::Expression::NumberLiteral(ast::NumberLiteral {
+                    signature: ast::Expression::NumberLiteral(ast::NumberLiteral {
                         context: (),
                         value: ast::NumberValue::U32(0),
-                    })),
+                    }),
                 },
             ],
-            signature: None,
+            signature: Box::new(ast::Expression::Identifier(ast::Identifier {
+                context: (),
+                value: "t1".to_owned(),
+            })),
             statements: vec![],
-            result: Box::new(ast::Expression::Apply(ast::Apply {
+            result: Some(Box::new(ast::Expression::Apply(ast::Apply {
                 context: (),
                 function: Box::new(ast::Expression::Identifier(ast::Identifier {
                     context: (),
@@ -1510,9 +1554,9 @@ help: valid tokens at this point: ["!", "#$0", "#$1", "#0", "#1", "#^-", "#^0", 
                     context: (),
                     value: "b".to_owned(),
                 })],
-            })),
+            }))),
         }));
-        let actual = parse_expression("test", r#"|a: u32, b: u32| { a(b) }"#);
+        let actual = parse_expression("test", r#"|a: u32, b: u32| -> t1 { a(b) }"#);
         assert_eq!(expected, actual);
     }
 
@@ -1529,7 +1573,10 @@ help: valid tokens at this point: ["!", "#$0", "#$1", "#0", "#1", "#^-", "#^0", 
                         context: (),
                         value: "a".to_owned(),
                     },
-                    signature: None,
+                    signature: ast::Expression::Identifier(ast::Identifier {
+                        context: (),
+                        value: "t1".to_owned(),
+                    }),
                 },
                 ast::Parameter {
                     context: (),
@@ -1537,10 +1584,16 @@ help: valid tokens at this point: ["!", "#$0", "#$1", "#0", "#1", "#^-", "#^0", 
                         context: (),
                         value: "b".to_owned(),
                     },
-                    signature: None,
+                    signature: ast::Expression::Identifier(ast::Identifier {
+                        context: (),
+                        value: "t2".to_owned(),
+                    }),
                 },
             ],
-            signature: None,
+            signature: Box::new(ast::Expression::Identifier(ast::Identifier {
+                context: (),
+                value: "t3".to_owned(),
+            })),
             statements: vec![ast::Statement::Expression(ast::Expression::Apply(
                 ast::Apply {
                     context: (),
@@ -1554,7 +1607,7 @@ help: valid tokens at this point: ["!", "#$0", "#$1", "#0", "#1", "#^-", "#^0", 
                     })],
                 },
             ))],
-            result: Box::new(ast::Expression::Apply(ast::Apply {
+            result: Some(Box::new(ast::Expression::Apply(ast::Apply {
                 context: (),
                 function: Box::new(ast::Expression::Identifier(ast::Identifier {
                     context: (),
@@ -1564,9 +1617,9 @@ help: valid tokens at this point: ["!", "#$0", "#$1", "#0", "#1", "#^-", "#^0", 
                     context: (),
                     value: "b".to_owned(),
                 })],
-            })),
+            }))),
         }));
-        let actual = parse_expression("test", r#"|a, b| { a(b); a(b) }"#);
+        let actual = parse_expression("test", r#"|a: t1, b: t2| -> t3 { a(b); a(b) }"#);
         assert_eq!(expected, actual);
     }
 

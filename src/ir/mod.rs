@@ -567,14 +567,16 @@ impl<'a> ModuleBuilder<'a> {
             })
             .collect::<Result<Vec<_>, Error>>()?;
 
-        let signature = transpose(lambda.signature.as_ref().map(|s| {
-            let e = self.world.create_entity().build();
-            self.add_expression(e, s)?;
-            Ok(e)
-        }))?;
+        let signature = self.world.create_entity().build();
+        self.add_expression(signature, &*lambda.signature)?;
 
-        let result = self.world.create_entity().build();
-        self.add_expression(result, &*lambda.result)?;
+        let result = if let Some(ref result) = lambda.result {
+            let e = self.world.create_entity().build();
+            self.add_expression(e, &*result)?;
+            e
+        } else {
+            signature
+        };
 
         self.world
             .write_storage()
@@ -721,11 +723,8 @@ impl<'a> ModuleBuilder<'a> {
         use specs::world::Builder;
 
         let name = parameter.name.value.clone();
-        let signature = transpose(parameter.signature.as_ref().map(|s| {
-            let e = self.world.create_entity().build();
-            self.add_expression(e, s)?;
-            Ok(e)
-        }))?;
+        let signature = self.world.create_entity().build();
+        self.add_expression(signature, &parameter.signature)?;
 
         self.world
             .write_storage()
@@ -917,15 +916,6 @@ impl diagnostic::Diagnostic for Error {
     }
 }
 
-// TODO: awaits https://github.com/rust-lang/rust/issues/47338
-fn transpose<A, E>(option: Option<Result<A, E>>) -> Result<Option<A>, E> {
-    match option {
-        Some(Ok(x)) => Ok(Some(x)),
-        Some(Err(e)) => Err(e),
-        None => Ok(None),
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use env_logger;
@@ -940,11 +930,11 @@ mod tests {
         let _ = env_logger::try_init();
 
         let source = r#"
-pickFirst = |a: u32, b: u32| u32 {
-  capture = |x: u32| u32 { a };
+pickFirst = |a: u32, b: u32| -> u32 {
+  capture = |x: u32| -> u32 { a };
   capture(b)
 };
-main = || u32 { pickFirst(1u32, 2u32) };
+main = || -> u32 { pickFirst(1u32, 2u32) };
 "#;
         let expected = Ok(());
         let actual = check_module("entity_assignments", source);
@@ -959,10 +949,10 @@ main = || u32 { pickFirst(1u32, 2u32) };
         let _ = env_logger::try_init();
 
         let source = r#"
-a = || u32 {
+a = || -> u32 {
   b()
 };
-b = || u32 {
+b = || -> u32 {
   a()
 };
 "#;
@@ -979,8 +969,8 @@ b = || u32 {
         let _ = env_logger::try_init();
 
         let source = r#"
-a = || u32 {
-  b = || u32 {
+a = || -> u32 {
+  b = || -> u32 {
     c = 3u32;
     c
   };
@@ -1005,7 +995,7 @@ a = || u32 {
         let _ = env_logger::try_init();
 
         let source = r#"
-a = || u32 {
+a = || -> u32 {
   b = c;
   c = 3u32;
   b
@@ -1029,7 +1019,7 @@ a = || u32 {
         let _ = env_logger::try_init();
 
         let source = r#"
-a = || u32 {
+a = || -> u32 {
   1f32 + 2f64
 };
 "#;

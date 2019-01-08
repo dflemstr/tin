@@ -188,7 +188,7 @@ pub struct Apply {
 #[derive(Debug, VisitEntities, VisitEntitiesMut)]
 pub struct Parameter {
     pub name: String,
-    pub signature: Option<specs::Entity>,
+    pub signature: specs::Entity,
 }
 
 #[derive(Debug, VisitEntities, VisitEntitiesMut)]
@@ -202,7 +202,7 @@ pub struct Closure {
     pub captures: Vec<specs::Entity>,
     pub parameters: Vec<specs::Entity>,
     pub statements: Vec<specs::Entity>,
-    pub signature: Option<specs::Entity>,
+    pub signature: specs::Entity,
     pub result: specs::Entity,
 }
 
