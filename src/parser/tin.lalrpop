@@ -136,6 +136,7 @@ ExpressionUnOp: ast::Expression<parser::Context> = {
 ExpressionProjection: ast::Expression<parser::Context> = {
     Select => ast::Expression::Select(<>),
     Apply => ast::Expression::Apply(<>),
+    Lambda => ast::Expression::Lambda(<>),
     ExpressionAtom => <>,
 }
 
@@ -146,7 +147,6 @@ ExpressionAtom: ast::Expression<parser::Context> = {
     Symbol => ast::Expression::Symbol(<>),
     Tuple => ast::Expression::Tuple(<>),
     Record => ast::Expression::Record(<>),
-    Lambda => ast::Expression::Lambda(<>),
     "(" <Expression> ")" => <>,
     ! => { errors.push(<>.error); ast::Expression::Unknown },
 }
@@ -273,8 +273,12 @@ Symbol: ast::Symbol<parser::Context> = {
 }
 
 Lambda: ast::Lambda<parser::Context> = {
-    <lo:@L> "|" <params:Comma0<(Comment? <Parameter>)>> "|" <sig:Expression?> "{" <stmts:SemiRequired0<(Comment? <Statement>)>> <res:(Comment? <Expression>)> "}" <hi:@R> =>
-        ast::Lambda { context: parser::Context::new(ast::Kind::Lambda, span, lo, hi), parameters: params, signature: sig.map(Box::new), statements: stmts, result: Box::new(res) },
+    <lo:@L> "|" <params:Comma0<(Comment? <Parameter>)>> "|" "->" <sig:ExpressionAtom> <body:LambdaBody?> <hi:@R> =>
+        ast::Lambda { context: parser::Context::new(ast::Kind::Lambda, span, lo, hi), parameters: params, signature: Box::new(sig), statements: body.map(|b| b.0).unwrap_or(vec![]), result: body.1.map(Box::new) },
+}
+
+LambdaBody: (Vec<ast::Statement<parser::Context>>, ast::Expression<parser::Context>) = {
+    "{" <stmts:SemiRequired0<(Comment? <Statement>)>> <res:(Comment? <Expression>)> "}" => (stmts, res),
 }
 
 Statement: ast::Statement<parser::Context> = {
@@ -293,6 +297,6 @@ Apply: ast::Apply<parser::Context> = {
 }
 
 Parameter: ast::Parameter<parser::Context> = {
-    <lo:@L> <name:Identifier> <signature:(":" <ExpressionAtom>)?> <hi:@R> =>
+    <lo:@L> <name:Identifier> ":" <signature:ExpressionAtom> <hi:@R> =>
         ast::Parameter { context: parser::Context::new(ast::Kind::Parameter, span, lo, hi), name, signature },
 }

@@ -377,23 +377,13 @@ impl System {
 
     fn infer_parameter_layout<D>(
         &self,
-        _signature: Option<specs::Entity>,
-        _layouts: &specs::Storage<layout::Layout, D>,
+        signature: specs::Entity,
+        layouts: &specs::Storage<layout::Layout, D>,
     ) -> Option<layout::Layout>
     where
         D: ops::Deref<Target = specs::storage::MaskedStorage<layout::Layout>>,
     {
-        // TODO
-        None
-        /*
-        if let Some(signature) = signature {
-            types.get(signature).cloned()
-        } else {
-            trace!("inference failure: no signature for parameter");
-            // TODO: implement surjective type inference
-            None
-        }
-        */
+        layouts.get(signature).cloned()
     }
 
     fn infer_capture_layout<D>(
@@ -410,7 +400,7 @@ impl System {
     fn infer_closure_layout<D>(
         &self,
         _parameters: &[specs::Entity],
-        _signature: Option<specs::Entity>,
+        _signature: specs::Entity,
         _result: specs::Entity,
         _layouts: &specs::Storage<layout::Layout, D>,
     ) -> Option<layout::Layout>

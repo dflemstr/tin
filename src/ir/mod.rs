@@ -567,14 +567,16 @@ impl<'a> ModuleBuilder<'a> {
             })
             .collect::<Result<Vec<_>, Error>>()?;
 
-        let signature = transpose(lambda.signature.as_ref().map(|s| {
-            let e = self.world.create_entity().build();
-            self.add_expression(e, s)?;
-            Ok(e)
-        }))?;
+        let signature = self.world.create_entity().build();
+        self.add_expression(signature, &*lambda.signature)?;
 
-        let result = self.world.create_entity().build();
-        self.add_expression(result, &*lambda.result)?;
+        let result = if let Some(result) = lambda.result {
+            let e = self.world.create_entity().build();
+            self.add_expression(e, &*result)?;
+            e
+        } else {
+            signature
+        };
 
         self.world
             .write_storage()
@@ -721,11 +723,8 @@ impl<'a> ModuleBuilder<'a> {
         use specs::world::Builder;
 
         let name = parameter.name.value.clone();
-        let signature = transpose(parameter.signature.as_ref().map(|s| {
-            let e = self.world.create_entity().build();
-            self.add_expression(e, s)?;
-            Ok(e)
-        }))?;
+        let signature = self.world.create_entity().build();
+        self.add_expression(signature, &parameter.signature)?;
 
         self.world
             .write_storage()

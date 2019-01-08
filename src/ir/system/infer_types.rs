@@ -415,19 +415,13 @@ where
 }
 
 fn infer_parameter_type<D>(
-    signature: Option<specs::Entity>,
+    signature: specs::Entity,
     types: &specs::Storage<ty::Type, D>,
 ) -> InferenceResult<ty::Type>
 where
     D: ops::Deref<Target = specs::storage::MaskedStorage<ty::Type>>,
 {
-    if let Some(signature) = signature {
-        types.get(signature).cloned().map(Inference::Type)
-    } else {
-        trace!("inference failure: no signature for parameter");
-        // TODO: implement surjective type inference
-        None
-    }
+    types.get(signature).cloned().map(Inference::Type)
 }
 
 fn infer_capture_type<D>(
@@ -442,7 +436,7 @@ where
 
 fn infer_closure_type<D>(
     parameters: &[specs::Entity],
-    signature: Option<specs::Entity>,
+    signature: specs::Entity,
     result: specs::Entity,
     types: &specs::Storage<ty::Type, D>,
 ) -> InferenceResult<ty::Type>
@@ -455,7 +449,6 @@ where
         .collect::<Option<Vec<_>>>()
     {
         if let Some(result_ty) = types.get(result) {
-            if let Some(signature) = signature {
                 if let Some(signature_ty) = types.get(signature) {
                     if signature_ty == result_ty {
                         let result = Box::new(signature_ty.clone());
@@ -478,13 +471,6 @@ where
                     trace!("inference failure: no signature for closure");
                     None
                 }
-            } else {
-                let result = Box::new(result_ty.clone());
-                Some(Inference::Type(ty::Type::Function(ty::Function {
-                    parameters,
-                    result,
-                })))
-            }
         } else {
             trace!("inference failure: missing signature type for closure, and no inferrable result type");
             None

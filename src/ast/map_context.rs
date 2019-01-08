@@ -246,13 +246,13 @@ where
             .into_iter()
             .map(|p| p.map_context(mapping))
             .collect();
-        let signature = self.signature.map(|s| Box::new(s.map_context(mapping)));
+        let signature = Box::new(self.signature.map_context(mapping));
         let statements = self
             .statements
             .into_iter()
             .map(|s| s.map_context(mapping))
             .collect();
-        let result = Box::new(self.result.map_context(mapping));
+        let result = self.result.map(|r| Box::new(r.map_context(mapping)));
 
         ast::Lambda {
             context,
@@ -366,7 +366,7 @@ where
     {
         let context = mapping(self.context);
         let name = self.name.map_context(mapping);
-        let signature = self.signature.map(|e| e.map_context(mapping));
+        let signature = self.signature.map_context(mapping);
         ast::Parameter {
             context,
             name,
