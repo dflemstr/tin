@@ -31,13 +31,13 @@ pub struct Trace {
 #[derive(Clone, Debug, PartialEq)]
 pub struct Frame {
     name: String,
-    location: Option<Point>,
+    location: Point,
 }
 
 /// A specific code point, with a file, line and column.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Point {
-    filename: String,
+    path: String,
     line: u32,
     column: u32,
 }
@@ -204,9 +204,8 @@ impl Error {
     }
 
     /// Pushes a new backtrace frame to the "bottom" of the stack.
-    pub(crate) fn push_frame(&mut self, name: &str, location: Option<Point>) {
-        let name = name.to_owned();
-        self.backtrace.frames.push(Frame { name, location });
+    pub(crate) fn push_frame(&mut self, frame: Frame) {
+        self.backtrace.frames.push(frame);
     }
 
     /// The kind of error.
@@ -229,20 +228,45 @@ impl Trace {
 }
 
 impl Frame {
+    /// Creates a new frame.
+    pub fn new(name: String, location: Point) -> Self {
+        Frame { name, location }
+    }
+
     /// Returns the corresponding function name for this frame.
     pub fn name(&self) -> &str {
         &self.name
+    }
+
+    /// Returns the location of the call that left this frame.
+    pub fn location(&self) -> &Point {
+        &self.location
     }
 }
 
 impl Point {
     /// Creates a new point.
-    pub fn new(filename: String, line: u32, column: u32) -> Self {
+    pub fn new(path: String, line: u32, column: u32) -> Self {
         Point {
-            filename,
+            path,
             line,
             column,
         }
+    }
+
+    /// The file path of the point.
+    pub fn path(&self) -> &str {
+        &self.path
+    }
+
+    /// The 0-based line number of the point.
+    pub fn line(&self) -> u32 {
+        self.line
+    }
+
+    /// The 0-based column number of the point.
+    pub fn column(&self) -> u32 {
+        self.column
     }
 }
 
@@ -281,18 +305,12 @@ impl fmt::Display for Trace {
 
 impl fmt::Display for Frame {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", self.name)?;
-
-        if let Some(ref location) = self.location {
-            write!(f, "({})", location)?;
-        }
-
-        Ok(())
+        write!(f, "{}({})", self.name, self.location)
     }
 }
 
 impl fmt::Display for Point {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}:{}:{}", self.filename, self.line + 1, self.column + 1)
+        write!(f, "{}:{}:{}", self.path, self.line + 1, self.column + 1)
     }
 }

@@ -77,20 +77,22 @@ unsafe extern "C" fn error(kind: u32) -> *mut module::Error {
 
 unsafe extern "C" fn unwind_frame(
     error: *mut module::Error,
-    name: *const u8,
+    name_data: *const u8,
     name_len: usize,
-    filename: *const u8,
-    filename_len: usize,
+    path_data: *const u8,
+    path_len: usize,
     line: u32,
     col: u32,
 ) {
     let error = error.as_mut().unwrap();
 
-    let name = str::from_utf8_unchecked(slice::from_raw_parts(name, name_len));
-    let filename = str::from_utf8_unchecked(slice::from_raw_parts(filename, filename_len));
-    let location = module::Point::new(filename.to_owned(), line, col);
+    let name = str::from_utf8_unchecked(slice::from_raw_parts(name_data, name_len));
+    let path = str::from_utf8_unchecked(slice::from_raw_parts(path_data, path_len));
+    let location = module::Point::new(path.to_owned(), line, col);
 
-    debug!("unwind_frame error={:?} location={:?}", error, location);
+    debug!("unwind_frame error={:?} name={:?} location={:?}", error, name, location);
 
-    error.push_frame(name, Some(location));
+    let frame = module::Frame::new(name.to_owned(), location);
+
+    error.push_frame(frame);
 }
