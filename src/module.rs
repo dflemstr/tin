@@ -247,11 +247,7 @@ impl Frame {
 impl Point {
     /// Creates a new point.
     pub fn new(path: String, line: u32, column: u32) -> Self {
-        Point {
-            path,
-            line,
-            column,
-        }
+        Point { path, line, column }
     }
 
     /// The file path of the point.

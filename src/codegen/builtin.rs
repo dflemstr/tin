@@ -90,7 +90,10 @@ unsafe extern "C" fn unwind_frame(
     let path = str::from_utf8_unchecked(slice::from_raw_parts(path_data, path_len));
     let location = module::Point::new(path.to_owned(), line, col);
 
-    debug!("unwind_frame error={:?} name={:?} location={:?}", error, name, location);
+    debug!(
+        "unwind_frame error={:?} name={:?} location={:?}",
+        error, name, location
+    );
 
     let frame = module::Frame::new(name.to_owned(), location);
 
