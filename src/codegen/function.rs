@@ -120,18 +120,18 @@ impl<'a, 'f> Translator<'a, 'f> {
         entity: &specs::Entity,
         constexpr: &constexpr::Constexpr,
     ) -> Value {
-        match *constexpr.value {
-            value::Value::Number(n) => match n {
-                value::Number::U8(v) => self.builder.ins().iconst(types::I8, v as i64),
-                value::Number::U16(v) => self.builder.ins().iconst(types::I16, v as i64),
-                value::Number::U32(v) => self.builder.ins().iconst(types::I32, v as i64),
-                value::Number::U64(v) => self.builder.ins().iconst(types::I64, v as i64),
-                value::Number::I8(v) => self.builder.ins().iconst(types::I8, v as i64),
-                value::Number::I16(v) => self.builder.ins().iconst(types::I16, v as i64),
-                value::Number::I32(v) => self.builder.ins().iconst(types::I32, v as i64),
-                value::Number::I64(v) => self.builder.ins().iconst(types::I64, v),
-                value::Number::F32(v) => self.builder.ins().f32const(Ieee32::with_float(v)),
-                value::Number::F64(v) => self.builder.ins().f64const(Ieee64::with_float(v)),
+        match *constexpr.value.case() {
+            value::ValueCase::Number(ref n) => match *n {
+                value::Number::U8(ref v) => self.builder.ins().iconst(types::I8, *v as i64),
+                value::Number::U16(ref v) => self.builder.ins().iconst(types::I16, *v as i64),
+                value::Number::U32(ref v) => self.builder.ins().iconst(types::I32, *v as i64),
+                value::Number::U64(ref v) => self.builder.ins().iconst(types::I64, *v as i64),
+                value::Number::I8(ref v) => self.builder.ins().iconst(types::I8, *v as i64),
+                value::Number::I16(ref v) => self.builder.ins().iconst(types::I16, *v as i64),
+                value::Number::I32(ref v) => self.builder.ins().iconst(types::I32, *v as i64),
+                value::Number::I64(ref v) => self.builder.ins().iconst(types::I64, *v),
+                value::Number::F32(ref v) => self.builder.ins().f32const(Ieee32::with_float(*v)),
+                value::Number::F64(ref v) => self.builder.ins().f64const(Ieee64::with_float(*v)),
             },
             _ => {
                 let ty = self.types.get(*entity).unwrap();

@@ -4,41 +4,44 @@ use std::sync;
 
 lazy_static! {
     pub static ref NIL: Value = {
-        Value::Symbol(Symbol {
-            label: sync::Arc::new("nil".to_owned()),
-        })
+        Value::new(ValueCase::Symbol(Symbol {
+            label: "nil".to_owned(),
+        }))
     };
     pub static ref FALSE: Value = {
-        Value::Symbol(Symbol {
-            label: sync::Arc::new("f".to_owned()),
-        })
+        Value::new(ValueCase::Symbol(Symbol {
+            label: "f".to_owned(),
+        }))
     };
     pub static ref TRUE: Value = {
-        Value::Symbol(Symbol {
-            label: sync::Arc::new("t".to_owned()),
-        })
+        Value::new(ValueCase::Symbol(Symbol {
+            label: "t".to_owned(),
+        }))
     };
     pub static ref LT: Value = {
-        Value::Symbol(Symbol {
-            label: sync::Arc::new("lt".to_owned()),
-        })
+        Value::new(ValueCase::Symbol(Symbol {
+            label: "lt".to_owned(),
+        }))
     };
     pub static ref EQ: Value = {
-        Value::Symbol(Symbol {
-            label: sync::Arc::new("eq".to_owned()),
-        })
+        Value::new(ValueCase::Symbol(Symbol {
+            label: "eq".to_owned(),
+        }))
     };
     pub static ref GT: Value = {
-        Value::Symbol(Symbol {
-            label: sync::Arc::new("gt".to_owned()),
-        })
+        Value::new(ValueCase::Symbol(Symbol {
+            label: "gt".to_owned(),
+        }))
     };
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub enum Value {
+pub struct Value(sync::Arc<ValueCase>);
+
+#[derive(Clone, Debug, PartialEq)]
+pub enum ValueCase {
     Number(Number),
-    String(sync::Arc<String>),
+    String(String),
     Symbol(Symbol),
     Tuple(Tuple),
     Record(Record),
@@ -60,17 +63,54 @@ pub enum Number {
 
 #[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub struct Symbol {
-    pub label: sync::Arc<String>,
+    pub label: String,
 }
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Tuple {
-    pub fields: Vec<sync::Arc<Value>>,
+    pub fields: Vec<Value>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Record {
-    pub fields: collections::HashMap<String, sync::Arc<Value>>,
+    pub fields: collections::HashMap<String, Value>,
+}
+
+impl Value {
+    pub fn new(storage: ValueCase) -> Self {
+        Value(sync::Arc::new(storage))
+    }
+
+    pub fn number(number: Number) -> Self {
+        Value::new(ValueCase::Number(number))
+    }
+
+    pub fn string<S>(string: S) -> Self
+    where
+        S: ToString,
+    {
+        Value(sync::Arc::new(ValueCase::String(string.to_string())))
+    }
+
+    pub fn symbol<S>(label: S) -> Self
+    where
+        S: ToString,
+    {
+        let label = label.to_string();
+        Value::new(ValueCase::Symbol(Symbol { label }))
+    }
+
+    pub fn tuple(tuple: Tuple) -> Self {
+        Value::new(ValueCase::Tuple(tuple))
+    }
+
+    pub fn record(record: Record) -> Self {
+        Value::new(ValueCase::Record(record))
+    }
+
+    pub fn case(&self) -> &ValueCase {
+        &self.0
+    }
 }
 
 impl From<bool> for Value {
@@ -85,61 +125,61 @@ impl From<bool> for Value {
 
 impl From<u8> for Value {
     fn from(v: u8) -> Self {
-        Value::Number(Number::U8(v))
+        Value::new(ValueCase::Number(Number::U8(v)))
     }
 }
 
 impl From<u16> for Value {
     fn from(v: u16) -> Self {
-        Value::Number(Number::U16(v))
+        Value::new(ValueCase::Number(Number::U16(v)))
     }
 }
 
 impl From<u32> for Value {
     fn from(v: u32) -> Self {
-        Value::Number(Number::U32(v))
+        Value::new(ValueCase::Number(Number::U32(v)))
     }
 }
 
 impl From<u64> for Value {
     fn from(v: u64) -> Self {
-        Value::Number(Number::U64(v))
+        Value::new(ValueCase::Number(Number::U64(v)))
     }
 }
 
 impl From<i8> for Value {
     fn from(v: i8) -> Self {
-        Value::Number(Number::I8(v))
+        Value::new(ValueCase::Number(Number::I8(v)))
     }
 }
 
 impl From<i16> for Value {
     fn from(v: i16) -> Self {
-        Value::Number(Number::I16(v))
+        Value::new(ValueCase::Number(Number::I16(v)))
     }
 }
 
 impl From<i32> for Value {
     fn from(v: i32) -> Self {
-        Value::Number(Number::I32(v))
+        Value::new(ValueCase::Number(Number::I32(v)))
     }
 }
 
 impl From<i64> for Value {
     fn from(v: i64) -> Self {
-        Value::Number(Number::I64(v))
+        Value::new(ValueCase::Number(Number::I64(v)))
     }
 }
 
 impl From<f32> for Value {
     fn from(v: f32) -> Self {
-        Value::Number(Number::F32(v))
+        Value::new(ValueCase::Number(Number::F32(v)))
     }
 }
 
 impl From<f64> for Value {
     fn from(v: f64) -> Self {
-        Value::Number(Number::F64(v))
+        Value::new(ValueCase::Number(Number::F64(v)))
     }
 }
 

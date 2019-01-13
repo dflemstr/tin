@@ -1,6 +1,5 @@
 use std::cmp;
 use std::collections;
-use std::sync;
 
 use specs;
 
@@ -15,32 +14,26 @@ mod macros;
 pub fn eval<'a, F>(
     element: &element::Element,
     lookup: F,
-) -> Result<Option<sync::Arc<value::Value>>, error::Error>
+) -> Result<Option<value::Value>, error::Error>
 where
-    F: Fn(specs::Entity) -> Option<&'a sync::Arc<value::Value>>,
+    F: Fn(specs::Entity) -> Option<&'a value::Value>,
 {
     match element {
-        element::Element::Number(v) => {
-            Ok(Some(sync::Arc::new(value::Value::Number(eval_number(v)))))
-        }
-        element::Element::String(ref v) => Ok(Some(sync::Arc::new(value::Value::String(
-            sync::Arc::new(v.clone()),
-        )))),
+        element::Element::Number(v) => Ok(Some(value::Value::number(eval_number(v)))),
+        element::Element::String(ref v) => Ok(Some(value::Value::string(v))),
         element::Element::Symbol(element::Symbol { ref label }) => {
-            Ok(Some(sync::Arc::new(value::Value::Symbol(value::Symbol {
-                label: sync::Arc::new(label.clone()),
-            }))))
+            Ok(Some(value::Value::symbol(label)))
         }
         element::Element::Tuple(element::Tuple { ref fields }) => Ok(fields
             .iter()
             .map(|f| lookup(*f).cloned())
             .collect::<Option<Vec<_>>>()
-            .map(|fields| sync::Arc::new(value::Value::Tuple(value::Tuple { fields })))),
+            .map(|fields| value::Value::tuple(value::Tuple { fields }))),
         element::Element::Record(element::Record { ref fields }) => Ok(fields
             .iter()
             .map(|(k, f)| lookup(*f).map(|v| (k.clone(), v.clone())))
             .collect::<Option<collections::HashMap<_, _>>>()
-            .map(|fields| sync::Arc::new(value::Value::Record(value::Record { fields })))),
+            .map(|fields| value::Value::record(value::Record { fields }))),
         element::Element::UnOp(element::UnOp { operator, operand }) => {
             transpose(lookup(*operand).map(|operand| eval_un_op(*operator, &operand)))
         }
@@ -51,8 +44,8 @@ where
             Ok(lookup(*initializer).cloned())
         }
         element::Element::Select(element::Select { record, field }) => {
-            transpose(lookup(*record).map(|record| match &**record {
-                value::Value::Record(r) => Ok(r.fields[field].clone()),
+            transpose(lookup(*record).map(|record| match record.case() {
+                value::ValueCase::Record(r) => Ok(r.fields[field].clone()),
                 other => Err(error::Error::RuntimeTypeConflict(format!(
                     "not a record: {:?}",
                     other
@@ -84,146 +77,127 @@ fn eval_number(number: &element::Number) -> value::Number {
 
 fn eval_un_op(
     operator: element::UnOperator,
-    operand: &sync::Arc<value::Value>,
-) -> Result<sync::Arc<value::Value>, error::Error> {
+    operand: &value::Value,
+) -> Result<value::Value, error::Error> {
     match operator {
-        element::UnOperator::Not => Ok(sync::Arc::new((!to_bool(operand)?).into())),
-        element::UnOperator::BNot => {
-            match_integral_value!("~!", (**operand), |v| Ok(sync::Arc::new((!v).into())))
+        element::UnOperator::Not => Ok((!to_bool(operand)?).into()),
+        element::UnOperator::BNot => match_integral_value!("~!", (operand), |v| Ok((!v).into())),
+        element::UnOperator::Cl0 => {
+            match_integral_value!("#^0", (operand), |v| Ok(v.leading_zeros().into()))
         }
-        element::UnOperator::Cl0 => match_integral_value!("#^0", (**operand), |v| Ok(
-            sync::Arc::new(v.leading_zeros().into())
-        )),
-        element::UnOperator::Cl1 => match_integral_value!("#^1", (**operand), |v| Ok(
-            sync::Arc::new((!v).leading_zeros().into())
-        )),
+        element::UnOperator::Cl1 => {
+            match_integral_value!("#^1", (operand), |v| Ok((!v).leading_zeros().into()))
+        }
         element::UnOperator::Cls => unimplemented!(),
-        element::UnOperator::Ct0 => match_integral_value!("#$0", (**operand), |v| Ok(
-            sync::Arc::new(v.trailing_zeros().into())
-        )),
-        element::UnOperator::Ct1 => match_integral_value!("#$1", (**operand), |v| Ok(
-            sync::Arc::new((!v).trailing_zeros().into())
-        )),
-        element::UnOperator::C0 => match_integral_value!("#0", (**operand), |v| Ok(
-            sync::Arc::new(v.count_zeros().into())
-        )),
-        element::UnOperator::C1 => match_integral_value!("#1", (**operand), |v| Ok(
-            sync::Arc::new(v.count_ones().into())
-        )),
+        element::UnOperator::Ct0 => {
+            match_integral_value!("#$0", (operand), |v| Ok(v.trailing_zeros().into()))
+        }
+        element::UnOperator::Ct1 => {
+            match_integral_value!("#$1", (operand), |v| Ok((!v).trailing_zeros().into()))
+        }
+        element::UnOperator::C0 => {
+            match_integral_value!("#0", (operand), |v| Ok(v.count_zeros().into()))
+        }
+        element::UnOperator::C1 => {
+            match_integral_value!("#1", (operand), |v| Ok(v.count_ones().into()))
+        }
         element::UnOperator::Sqrt => {
-            match_fractional_value!("^/", (**operand), |v| Ok(sync::Arc::new(v.sqrt().into())))
+            match_fractional_value!("^/", (operand), |v| Ok(v.sqrt().into()))
         }
     }
 }
 
 fn eval_bi_op(
-    lhs: &sync::Arc<value::Value>,
+    lhs: &value::Value,
     operator: element::BiOperator,
-    rhs: &sync::Arc<value::Value>,
-) -> Result<sync::Arc<value::Value>, error::Error> {
+    rhs: &value::Value,
+) -> Result<value::Value, error::Error> {
     match operator {
-        element::BiOperator::Eq => Ok(sync::Arc::new(
-            (cmp_value(lhs, rhs)?
-                .map(|o| o == cmp::Ordering::Equal)
-                .unwrap_or(false))
-            .into(),
-        )),
-        element::BiOperator::Ne => Ok(sync::Arc::new(
-            (cmp_value(lhs, rhs)?
-                .map(|o| o != cmp::Ordering::Equal)
-                .unwrap_or(false))
-            .into(),
-        )),
-        element::BiOperator::Lt => Ok(sync::Arc::new(
-            (cmp_value(lhs, rhs)?
-                .map(|o| o == cmp::Ordering::Less)
-                .unwrap_or(false))
-            .into(),
-        )),
-        element::BiOperator::Ge => Ok(sync::Arc::new(
-            (cmp_value(lhs, rhs)?
-                .map(|o| o != cmp::Ordering::Less)
-                .unwrap_or(false))
-            .into(),
-        )),
-        element::BiOperator::Gt => Ok(sync::Arc::new(
-            (cmp_value(lhs, rhs)?
-                .map(|o| o == cmp::Ordering::Greater)
-                .unwrap_or(false))
-            .into(),
-        )),
-        element::BiOperator::Le => Ok(sync::Arc::new(
-            (cmp_value(lhs, rhs)?
-                .map(|o| o != cmp::Ordering::Greater)
-                .unwrap_or(false))
-            .into(),
-        )),
-        element::BiOperator::Cmp => Ok(sync::Arc::new(cmp_value(lhs, rhs)?.into())),
+        element::BiOperator::Eq => Ok((cmp_value(lhs, rhs)?
+            .map(|o| o == cmp::Ordering::Equal)
+            .unwrap_or(false))
+        .into()),
+        element::BiOperator::Ne => Ok((cmp_value(lhs, rhs)?
+            .map(|o| o != cmp::Ordering::Equal)
+            .unwrap_or(false))
+        .into()),
+        element::BiOperator::Lt => Ok((cmp_value(lhs, rhs)?
+            .map(|o| o == cmp::Ordering::Less)
+            .unwrap_or(false))
+        .into()),
+        element::BiOperator::Ge => Ok((cmp_value(lhs, rhs)?
+            .map(|o| o != cmp::Ordering::Less)
+            .unwrap_or(false))
+        .into()),
+        element::BiOperator::Gt => Ok((cmp_value(lhs, rhs)?
+            .map(|o| o == cmp::Ordering::Greater)
+            .unwrap_or(false))
+        .into()),
+        element::BiOperator::Le => Ok((cmp_value(lhs, rhs)?
+            .map(|o| o != cmp::Ordering::Greater)
+            .unwrap_or(false))
+        .into()),
+        element::BiOperator::Cmp => Ok(cmp_value(lhs, rhs)?.into()),
         element::BiOperator::Add => add(lhs, rhs),
-        element::BiOperator::Sub => match_number_value!("-", (&**lhs, &**rhs), |l, r| int: Ok(
-            sync::Arc::new((l.wrapping_sub(*r)).into())
+        element::BiOperator::Sub => match_number_value!("-", (lhs, rhs), |l, r| int: Ok(
+            (l.wrapping_sub(*r)).into()
         ), frac: Ok(
-            sync::Arc::new((l - r).into())
+            (l - r).into()
         )),
-        element::BiOperator::Mul => match_number_value!("*", (&**lhs, &**rhs), |l, r| int: Ok(
-            sync::Arc::new((l.wrapping_mul(*r)).into())
+        element::BiOperator::Mul => match_number_value!("*", (lhs, rhs), |l, r| int: Ok(
+            (l.wrapping_mul(*r)).into()
         ), frac: Ok(
-            sync::Arc::new((l * r).into())
+            (l * r).into()
         )),
-        element::BiOperator::Div => {
-            match_number_value!("/", (&**lhs, &**rhs), |l, r| int: if *r == 0 {
-                Err(error::Error::EvaluationError(module::Error::new(module::ErrorKind::IntegerDivisonByZero)))
-            } else {
-                Ok(sync::Arc::new((l.wrapping_div(*r)).into()))
-            }, frac: Ok(
-                sync::Arc::new((l / r).into())
-            ))
-        }
-        element::BiOperator::Rem => {
-            match_number_value!("%", (&**lhs, &**rhs), |l, r| int: if *r == 0 {
-                Err(error::Error::EvaluationError(module::Error::new(module::ErrorKind::IntegerDivisonByZero)))
-            } else {
-                Ok(sync::Arc::new((l.wrapping_rem(*r)).into()))
-            }, frac: Ok(
-                sync::Arc::new((l % r).into())
-            ))
-        }
+        element::BiOperator::Div => match_number_value!("/", (lhs, rhs), |l, r| int: if *r == 0 {
+            Err(error::Error::EvaluationError(module::Error::new(module::ErrorKind::IntegerDivisonByZero)))
+        } else {
+            Ok((l.wrapping_div(*r)).into())
+        }, frac: Ok((l / r).into()
+        )),
+        element::BiOperator::Rem => match_number_value!("%", (lhs, rhs), |l, r| int: if *r == 0 {
+            Err(error::Error::EvaluationError(module::Error::new(module::ErrorKind::IntegerDivisonByZero)))
+        } else {
+            Ok((l.wrapping_rem(*r)).into())
+        }, frac: Ok(
+            (l % r).into()
+        )),
         element::BiOperator::And => bool_op("&", lhs, rhs, |l, r| l & r),
-        element::BiOperator::BAnd => match_integral_value!("~&", (&**lhs, &**rhs), |l, r| Ok(
-            sync::Arc::new((l & r).into())
-        )),
+        element::BiOperator::BAnd => {
+            match_integral_value!("~&", (lhs, rhs), |l, r| Ok((l & r).into()))
+        }
         element::BiOperator::Or => bool_op("|", lhs, rhs, |l, r| l | r),
-        element::BiOperator::BOr => match_integral_value!("~|", (&**lhs, &**rhs), |l, r| Ok(
-            sync::Arc::new((l | r).into())
-        )),
+        element::BiOperator::BOr => {
+            match_integral_value!("~|", (lhs, rhs), |l, r| Ok((l | r).into()))
+        }
         element::BiOperator::Xor => bool_op("|", lhs, rhs, |l, r| l ^ r),
-        element::BiOperator::BXor => match_integral_value!("~^", (&**lhs, &**rhs), |l, r| Ok(
-            sync::Arc::new((l ^ r).into())
-        )),
+        element::BiOperator::BXor => {
+            match_integral_value!("~^", (lhs, rhs), |l, r| Ok((l ^ r).into()))
+        }
         element::BiOperator::AndNot => bool_op("&!", lhs, rhs, |l, r| l & !r),
-        element::BiOperator::BAndNot => match_integral_value!("~&!", (&**lhs, &**rhs), |l, r| Ok(
-            sync::Arc::new((l & !r).into())
-        )),
+        element::BiOperator::BAndNot => {
+            match_integral_value!("~&!", (lhs, rhs), |l, r| Ok((l & !r).into()))
+        }
         element::BiOperator::OrNot => bool_op("|!", lhs, rhs, |l, r| l | !r),
-        element::BiOperator::BOrNot => match_integral_value!("~|!", (&**lhs, &**rhs), |l, r| Ok(
-            sync::Arc::new((l | !r).into())
-        )),
+        element::BiOperator::BOrNot => {
+            match_integral_value!("~|!", (lhs, rhs), |l, r| Ok((l | !r).into()))
+        }
         element::BiOperator::XorNot => bool_op("^!", lhs, rhs, |l, r| l ^ !r),
-        element::BiOperator::BXorNot => match_integral_value!("~^!", (&**lhs, &**rhs), |l, r| Ok(
-            sync::Arc::new((l ^ !r).into())
-        )),
-        element::BiOperator::RotL => match_integral_value!("<-<", (&**lhs), |l| Ok(
-            sync::Arc::new((l.rotate_left(to_u32(rhs)?)).into())
-        )),
-        element::BiOperator::RotR => match_integral_value!(">->", (&**lhs), |l| Ok(
-            sync::Arc::new((l.rotate_right(to_u32(rhs)?)).into())
-        )),
-        element::BiOperator::ShL => match_integral_value!("<<", (&**lhs), |l| Ok(sync::Arc::new(
-            (l << to_u32(rhs)?).into()
-        ))),
-        element::BiOperator::ShR => match_integral_value!(">>", (&**lhs), |l| Ok(sync::Arc::new(
-            (l >> to_u32(rhs)?).into()
-        ))),
+        element::BiOperator::BXorNot => {
+            match_integral_value!("~^!", (lhs, rhs), |l, r| Ok((l ^ !r).into()))
+        }
+        element::BiOperator::RotL => {
+            match_integral_value!("<-<", (lhs), |l| Ok((l.rotate_left(to_u32(rhs)?)).into()))
+        }
+        element::BiOperator::RotR => {
+            match_integral_value!(">->", (lhs), |l| Ok((l.rotate_right(to_u32(rhs)?)).into()))
+        }
+        element::BiOperator::ShL => {
+            match_integral_value!("<<", (lhs), |l| Ok((l << to_u32(rhs)?).into()))
+        }
+        element::BiOperator::ShR => {
+            match_integral_value!(">>", (lhs), |l| Ok((l >> to_u32(rhs)?).into()))
+        }
     }
 }
 
@@ -241,8 +215,8 @@ fn to_bool(value: &value::Value) -> Result<bool, error::Error> {
 }
 
 fn to_u32(value: &value::Value) -> Result<u32, error::Error> {
-    match *value {
-        value::Value::Number(n) => match n {
+    match *value.case() {
+        value::ValueCase::Number(ref n) => match *n {
             value::Number::U32(n) => Ok(n),
             _ => Err(error::Error::RuntimeTypeConflict(format!(
                 "not an u32: {:?}",
@@ -260,12 +234,12 @@ fn cmp_value(
     lhs: &value::Value,
     rhs: &value::Value,
 ) -> Result<Option<cmp::Ordering>, error::Error> {
-    match (lhs, rhs) {
-        (value::Value::Number(lhs), value::Value::Number(rhs)) => cmp_number(lhs, rhs),
-        (value::Value::String(lhs), value::Value::String(rhs)) => Ok(lhs.partial_cmp(rhs)),
-        (value::Value::Symbol(lhs), value::Value::Symbol(rhs)) => Ok(lhs.partial_cmp(rhs)),
-        (value::Value::Tuple(lhs), value::Value::Tuple(rhs)) => cmp_tuple(lhs, rhs),
-        (value::Value::Record(lhs), value::Value::Record(rhs)) => cmp_record(lhs, rhs),
+    match (lhs.case(), rhs.case()) {
+        (value::ValueCase::Number(lhs), value::ValueCase::Number(rhs)) => cmp_number(lhs, rhs),
+        (value::ValueCase::String(lhs), value::ValueCase::String(rhs)) => Ok(lhs.partial_cmp(rhs)),
+        (value::ValueCase::Symbol(lhs), value::ValueCase::Symbol(rhs)) => Ok(lhs.partial_cmp(rhs)),
+        (value::ValueCase::Tuple(lhs), value::ValueCase::Tuple(rhs)) => cmp_tuple(lhs, rhs),
+        (value::ValueCase::Record(lhs), value::ValueCase::Record(rhs)) => cmp_record(lhs, rhs),
         _ => Err(error::Error::RuntimeTypeConflict(format!(
             "type mismatch; type of {:?} != type of {:?}",
             lhs, rhs
@@ -277,17 +251,17 @@ fn cmp_number(
     lhs: &value::Number,
     rhs: &value::Number,
 ) -> Result<Option<cmp::Ordering>, error::Error> {
-    match (lhs, rhs) {
-        (value::Number::U8(lhs), value::Number::U8(rhs)) => Ok(lhs.partial_cmp(rhs)),
-        (value::Number::U16(lhs), value::Number::U16(rhs)) => Ok(lhs.partial_cmp(rhs)),
-        (value::Number::U32(lhs), value::Number::U32(rhs)) => Ok(lhs.partial_cmp(rhs)),
-        (value::Number::U64(lhs), value::Number::U64(rhs)) => Ok(lhs.partial_cmp(rhs)),
-        (value::Number::I8(lhs), value::Number::I8(rhs)) => Ok(lhs.partial_cmp(rhs)),
-        (value::Number::I16(lhs), value::Number::I16(rhs)) => Ok(lhs.partial_cmp(rhs)),
-        (value::Number::I32(lhs), value::Number::I32(rhs)) => Ok(lhs.partial_cmp(rhs)),
-        (value::Number::I64(lhs), value::Number::I64(rhs)) => Ok(lhs.partial_cmp(rhs)),
-        (value::Number::F32(lhs), value::Number::F32(rhs)) => Ok(lhs.partial_cmp(rhs)),
-        (value::Number::F64(lhs), value::Number::F64(rhs)) => Ok(lhs.partial_cmp(rhs)),
+    match (*lhs, *rhs) {
+        (value::Number::U8(ref lhs), value::Number::U8(ref rhs)) => Ok(lhs.partial_cmp(rhs)),
+        (value::Number::U16(ref lhs), value::Number::U16(ref rhs)) => Ok(lhs.partial_cmp(rhs)),
+        (value::Number::U32(ref lhs), value::Number::U32(ref rhs)) => Ok(lhs.partial_cmp(rhs)),
+        (value::Number::U64(ref lhs), value::Number::U64(ref rhs)) => Ok(lhs.partial_cmp(rhs)),
+        (value::Number::I8(ref lhs), value::Number::I8(ref rhs)) => Ok(lhs.partial_cmp(rhs)),
+        (value::Number::I16(ref lhs), value::Number::I16(ref rhs)) => Ok(lhs.partial_cmp(rhs)),
+        (value::Number::I32(ref lhs), value::Number::I32(ref rhs)) => Ok(lhs.partial_cmp(rhs)),
+        (value::Number::I64(ref lhs), value::Number::I64(ref rhs)) => Ok(lhs.partial_cmp(rhs)),
+        (value::Number::F32(ref lhs), value::Number::F32(ref rhs)) => Ok(lhs.partial_cmp(rhs)),
+        (value::Number::F64(ref lhs), value::Number::F64(ref rhs)) => Ok(lhs.partial_cmp(rhs)),
         _ => Err(error::Error::RuntimeTypeConflict(format!(
             "type mismatch; type of {:?} != type of {:?}",
             lhs, rhs
@@ -301,7 +275,7 @@ fn cmp_tuple(
 ) -> Result<Option<cmp::Ordering>, error::Error> {
     if lhs.fields.len() == rhs.fields.len() {
         for (lhs, rhs) in lhs.fields.iter().zip(rhs.fields.iter()) {
-            let result = cmp_value(&**lhs, &**rhs)?;
+            let result = cmp_value(lhs, rhs)?;
             if result != Some(cmp::Ordering::Equal) {
                 return Ok(result);
             }
@@ -324,7 +298,7 @@ fn cmp_record(
     let lhs = &lhs.fields;
     if lhs.len() == rhs.len() && lhs.keys().all(|k| rhs.contains_key(k)) {
         for k in lhs.keys() {
-            let result = cmp_value(&*lhs[k], &*rhs[k])?;
+            let result = cmp_value(&lhs[k], &rhs[k])?;
             if result != Some(cmp::Ordering::Equal) {
                 return Ok(result);
             }
@@ -339,24 +313,19 @@ fn cmp_record(
     }
 }
 
-fn add(
-    lhs: &sync::Arc<value::Value>,
-    rhs: &sync::Arc<value::Value>,
-) -> Result<sync::Arc<value::Value>, error::Error> {
-    match (&**lhs, &**rhs) {
-        (value::Value::String(lhsv), value::Value::String(rhsv)) => {
+fn add(lhs: &value::Value, rhs: &value::Value) -> Result<value::Value, error::Error> {
+    match (lhs.case(), rhs.case()) {
+        (value::ValueCase::String(lhsv), value::ValueCase::String(rhsv)) => {
             if lhsv.is_empty() {
                 Ok(lhs.clone())
             } else if rhsv.is_empty() {
                 Ok(rhs.clone())
             } else {
-                Ok(sync::Arc::new(value::Value::String(sync::Arc::new(
-                    (**lhsv).clone() + rhsv,
-                ))))
+                Ok(value::Value::string(lhsv.clone() + rhsv))
             }
         }
-        (value::Value::Number(lhs), value::Value::Number(rhs)) => {
-            match_number!("+", (lhs, rhs), |l, r| int: Ok(sync::Arc::new((l.wrapping_add(*r)).into())), frac: Ok(sync::Arc::new((l + r).into())))
+        (value::ValueCase::Number(lhs), value::ValueCase::Number(rhs)) => {
+            match_number!("+", (lhs, rhs), |l, r| int: Ok((l.wrapping_add(*r)).into()), frac: Ok((l + r).into()))
         }
         other => Err(error::Error::RuntimeTypeConflict(format!(
             "operation + not supported on values {:?}",
@@ -367,17 +336,17 @@ fn add(
 
 fn bool_op<F>(
     _name: &str,
-    lhs: &sync::Arc<value::Value>,
-    rhs: &sync::Arc<value::Value>,
+    lhs: &value::Value,
+    rhs: &value::Value,
     op: F,
-) -> Result<sync::Arc<value::Value>, error::Error>
+) -> Result<value::Value, error::Error>
 where
     F: FnOnce(bool, bool) -> bool,
 {
     let lhs = to_bool(lhs)?;
     let rhs = to_bool(rhs)?;
 
-    Ok(sync::Arc::new(op(lhs, rhs).into()))
+    Ok(op(lhs, rhs).into())
 }
 
 // TODO: awaits https://github.com/rust-lang/rust/issues/47338

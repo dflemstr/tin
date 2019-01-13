@@ -21,12 +21,12 @@ impl<'a> Translator<'a> {
 
     pub fn store_value(&mut self, layout: &layout::Layout, value: &value::Value) {
         self.storage.reserve(layout.size);
-        match value {
-            value::Value::Number(v) => self.store_number(layout, *v),
-            value::Value::String(v) => self.store_string(layout, v),
-            value::Value::Symbol(_) => {} // TODO type dependent
-            value::Value::Tuple(v) => self.store_tuple(layout, v),
-            value::Value::Record(v) => self.store_record(layout, v),
+        match value.case() {
+            value::ValueCase::Number(v) => self.store_number(layout, *v),
+            value::ValueCase::String(v) => self.store_string(layout, v),
+            value::ValueCase::Symbol(_) => {} // TODO type dependent
+            value::ValueCase::Tuple(v) => self.store_tuple(layout, v),
+            value::ValueCase::Record(v) => self.store_record(layout, v),
         }
     }
 
@@ -109,7 +109,7 @@ impl<'a> Translator<'a> {
                 self.storage.write_all(&[0u8]).unwrap();
                 pos += 1;
             }
-            self.store_value(&offset_layout.layout, &**value);
+            self.store_value(&offset_layout.layout, value);
             pos += offset_layout.layout.size;
         }
     }
@@ -128,7 +128,7 @@ impl<'a> Translator<'a> {
                 self.storage.write_all(&[0u8]).unwrap();
                 pos += 1;
             }
-            self.store_value(&offset_layout.layout, &**value);
+            self.store_value(&offset_layout.layout, value);
             pos += offset_layout.layout.size;
         }
     }
