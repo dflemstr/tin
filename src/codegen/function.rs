@@ -19,12 +19,7 @@ use crate::ir::component::ty;
 use crate::module;
 use crate::value;
 
-pub struct DataTranslator<'a> {
-    storage: &'a mut Vec<u8>,
-    ptr_type: Type,
-}
-
-pub struct FunctionTranslator<'a, 'f>
+pub struct Translator<'a, 'f>
 where
     'f: 'a,
 {
@@ -44,127 +39,7 @@ where
     codemap: &'a codespan::CodeMap,
 }
 
-impl<'a> DataTranslator<'a> {
-    pub fn new(storage: &'a mut Vec<u8>, ptr_type: Type) -> Self {
-        DataTranslator { storage, ptr_type }
-    }
-
-    pub fn store_value(&mut self, layout: &layout::Layout, value: &value::Value) {
-        self.storage.reserve(layout.size);
-        match value {
-            value::Value::Number(v) => self.store_number(layout, *v),
-            value::Value::String(v) => self.store_string(layout, v),
-            value::Value::Symbol(_) => {} // TODO type dependent
-            value::Value::Tuple(v) => self.store_tuple(layout, v),
-            value::Value::Record(v) => self.store_record(layout, v),
-        }
-    }
-
-    pub fn store_number(&mut self, _layout: &layout::Layout, number: value::Number) {
-        use byteorder::WriteBytesExt;
-
-        match number {
-            value::Number::U8(v) => self.storage.write_u8(v).unwrap(),
-            value::Number::U16(v) => self
-                .storage
-                .write_u16::<byteorder::NativeEndian>(v)
-                .unwrap(),
-            value::Number::U32(v) => self
-                .storage
-                .write_u32::<byteorder::NativeEndian>(v)
-                .unwrap(),
-            value::Number::U64(v) => self
-                .storage
-                .write_u64::<byteorder::NativeEndian>(v)
-                .unwrap(),
-            value::Number::I8(v) => self.storage.write_i8(v).unwrap(),
-            value::Number::I16(v) => self
-                .storage
-                .write_i16::<byteorder::NativeEndian>(v)
-                .unwrap(),
-            value::Number::I32(v) => self
-                .storage
-                .write_i32::<byteorder::NativeEndian>(v)
-                .unwrap(),
-            value::Number::I64(v) => self
-                .storage
-                .write_i64::<byteorder::NativeEndian>(v)
-                .unwrap(),
-            value::Number::F32(v) => self
-                .storage
-                .write_f32::<byteorder::NativeEndian>(v)
-                .unwrap(),
-            value::Number::F64(v) => self
-                .storage
-                .write_f64::<byteorder::NativeEndian>(v)
-                .unwrap(),
-        }
-    }
-
-    pub fn store_string(&mut self, _layout: &layout::Layout, string: &str) {
-        use byteorder::WriteBytesExt;
-        use std::io::Write;
-
-        let len = string.len();
-        match self.ptr_type.bits() {
-            8 => self.storage.write_u8(len as u8).unwrap(),
-            16 => self
-                .storage
-                .write_u16::<byteorder::NativeEndian>(len as u16)
-                .unwrap(),
-            32 => self
-                .storage
-                .write_u32::<byteorder::NativeEndian>(len as u32)
-                .unwrap(),
-            64 => self
-                .storage
-                .write_u64::<byteorder::NativeEndian>(len as u64)
-                .unwrap(),
-            _ => unimplemented!(),
-        }
-
-        self.storage.write_all(string.as_bytes()).unwrap();
-    }
-
-    pub fn store_tuple(&mut self, layout: &layout::Layout, tuple: &value::Tuple) {
-        use std::io::Write;
-
-        let unnamed_fields = layout.unnamed_fields.as_ref().unwrap();
-        let mut pos = 0;
-        assert_eq!(tuple.fields.len(), unnamed_fields.len());
-
-        for (value, offset_layout) in tuple.fields.iter().zip(unnamed_fields.iter()) {
-            assert!(offset_layout.offset >= pos);
-            while pos < offset_layout.offset {
-                self.storage.write_all(&[0u8]).unwrap();
-                pos += 1;
-            }
-            self.store_value(&offset_layout.layout, &**value);
-            pos += offset_layout.layout.size;
-        }
-    }
-
-    pub fn store_record(&mut self, layout: &layout::Layout, record: &value::Record) {
-        use std::io::Write;
-
-        let named_fields = layout.named_fields.as_ref().unwrap();
-        let mut pos = 0;
-        assert_eq!(record.fields.len(), named_fields.len());
-
-        for ((_, value), named_field) in record.fields.iter().zip(named_fields.iter()) {
-            let offset_layout = &named_field.offset_layout;
-            assert!(offset_layout.offset >= pos);
-            while pos < offset_layout.offset {
-                self.storage.write_all(&[0u8]).unwrap();
-                pos += 1;
-            }
-            self.store_value(&offset_layout.layout, &**value);
-            pos += offset_layout.layout.size;
-        }
-    }
-}
-
-impl<'a, 'f> FunctionTranslator<'a, 'f> {
+impl<'a, 'f> Translator<'a, 'f> {
     pub fn new(
         module: &'a mut cranelift_module::Module<cranelift_simplejit::SimpleJITBackend>,
         builder: &'a mut FunctionBuilder<'f>,
@@ -181,7 +56,7 @@ impl<'a, 'f> FunctionTranslator<'a, 'f> {
         defined_strings: &'a mut collections::HashMap<String, cranelift_module::DataId>,
         codemap: &'a codespan::CodeMap,
     ) -> Self {
-        FunctionTranslator {
+        Translator {
             module,
             builder,
             constexprs,
@@ -409,38 +284,44 @@ impl<'a, 'f> FunctionTranslator<'a, 'f> {
             element::BiOperator::Le => unimplemented!(),
             element::BiOperator::Cmp => unimplemented!(),
             element::BiOperator::Add => match self.types.get(lhs).unwrap().scalar_class() {
-                ty::ScalarClass::Integral(_) => self.builder.ins().iadd(lhs_value, rhs_value),
-                ty::ScalarClass::Fractional => self.builder.ins().fadd(lhs_value, rhs_value),
+                ty::class::ScalarClass::Integral(_) => {
+                    self.builder.ins().iadd(lhs_value, rhs_value)
+                }
+                ty::class::ScalarClass::Fractional => self.builder.ins().fadd(lhs_value, rhs_value),
                 _ => unreachable!(),
             },
             element::BiOperator::Sub => match self.types.get(lhs).unwrap().scalar_class() {
-                ty::ScalarClass::Integral(_) => self.builder.ins().isub(lhs_value, rhs_value),
-                ty::ScalarClass::Fractional => self.builder.ins().fsub(lhs_value, rhs_value),
+                ty::class::ScalarClass::Integral(_) => {
+                    self.builder.ins().isub(lhs_value, rhs_value)
+                }
+                ty::class::ScalarClass::Fractional => self.builder.ins().fsub(lhs_value, rhs_value),
                 _ => unreachable!(),
             },
             element::BiOperator::Mul => match self.types.get(lhs).unwrap().scalar_class() {
-                ty::ScalarClass::Integral(_) => self.builder.ins().imul(lhs_value, rhs_value),
-                ty::ScalarClass::Fractional => self.builder.ins().fmul(lhs_value, rhs_value),
+                ty::class::ScalarClass::Integral(_) => {
+                    self.builder.ins().imul(lhs_value, rhs_value)
+                }
+                ty::class::ScalarClass::Fractional => self.builder.ins().fmul(lhs_value, rhs_value),
                 _ => unreachable!(),
             },
             element::BiOperator::Div => match self.types.get(lhs).unwrap().scalar_class() {
-                ty::ScalarClass::Integral(ty::IntegralScalarClass::Unsigned) => {
+                ty::class::ScalarClass::Integral(ty::class::IntegralScalarClass::Unsigned) => {
                     self.error_if_zero(entity, rhs_value, module::ErrorKind::IntegerDivisonByZero);
                     self.builder.ins().udiv(lhs_value, rhs_value)
                 }
-                ty::ScalarClass::Integral(ty::IntegralScalarClass::Signed) => {
+                ty::class::ScalarClass::Integral(ty::class::IntegralScalarClass::Signed) => {
                     self.error_if_zero(entity, rhs_value, module::ErrorKind::IntegerDivisonByZero);
                     self.builder.ins().sdiv(lhs_value, rhs_value)
                 }
-                ty::ScalarClass::Fractional => self.builder.ins().fdiv(lhs_value, rhs_value),
+                ty::class::ScalarClass::Fractional => self.builder.ins().fdiv(lhs_value, rhs_value),
                 _ => unreachable!(),
             },
             element::BiOperator::Rem => match self.types.get(lhs).unwrap().scalar_class() {
-                ty::ScalarClass::Integral(ty::IntegralScalarClass::Unsigned) => {
+                ty::class::ScalarClass::Integral(ty::class::IntegralScalarClass::Unsigned) => {
                     self.error_if_zero(entity, rhs_value, module::ErrorKind::IntegerDivisonByZero);
                     self.builder.ins().urem(lhs_value, rhs_value)
                 }
-                ty::ScalarClass::Integral(ty::IntegralScalarClass::Signed) => {
+                ty::class::ScalarClass::Integral(ty::class::IntegralScalarClass::Signed) => {
                     self.error_if_zero(entity, rhs_value, module::ErrorKind::IntegerDivisonByZero);
                     self.builder.ins().srem(lhs_value, rhs_value)
                 }
@@ -462,10 +343,10 @@ impl<'a, 'f> FunctionTranslator<'a, 'f> {
             element::BiOperator::RotR => self.builder.ins().rotr(lhs_value, rhs_value),
             element::BiOperator::ShL => self.builder.ins().ishl(lhs_value, rhs_value),
             element::BiOperator::ShR => match self.types.get(lhs).unwrap().scalar_class() {
-                ty::ScalarClass::Integral(ty::IntegralScalarClass::Unsigned) => {
+                ty::class::ScalarClass::Integral(ty::class::IntegralScalarClass::Unsigned) => {
                     self.builder.ins().ushr(lhs_value, rhs_value)
                 }
-                ty::ScalarClass::Integral(ty::IntegralScalarClass::Signed) => {
+                ty::class::ScalarClass::Integral(ty::class::IntegralScalarClass::Signed) => {
                     self.builder.ins().sshr(lhs_value, rhs_value)
                 }
                 _ => unreachable!(),
@@ -706,14 +587,8 @@ impl<'a, 'f> FunctionTranslator<'a, 'f> {
     }
 }
 
-impl<'a> fmt::Debug for DataTranslator<'a> {
+impl<'a, 'f> fmt::Debug for Translator<'a, 'f> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f.debug_struct("DataTranslator").finish()
-    }
-}
-
-impl<'a, 'f> fmt::Debug for FunctionTranslator<'a, 'f> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f.debug_struct("FunctionTranslator").finish()
+        f.debug_struct("Translator").finish()
     }
 }

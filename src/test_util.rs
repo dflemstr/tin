@@ -23,11 +23,11 @@ pub fn render_graph(name: &str, ir: &ir::Ir) -> Result<(), failure::Error> {
 
 pub fn format_error<D>(code_map: &codespan::CodeMap, error: D) -> String
 where
-    D: crate::diagnostic::Diagnostic,
+    D: crate::diagnostic::Diagnostics,
 {
-    let mut diagnostics = Vec::new();
+    let mut diagnostics = crate::diagnostic::DiagnosticsBuilder::new();
     error.to_diagnostics(&mut diagnostics);
-    format_diagnostics(code_map, &diagnostics)
+    format_diagnostics(code_map, &diagnostics.build())
 }
 
 fn format_diagnostics(

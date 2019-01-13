@@ -11,14 +11,14 @@ pub mod ty;
 macro_rules! for_each_component {
     (|$name:ident| $body:expr) => {
         apply_component!(constexpr::Constexpr, $name, $body);
-        apply_component!(constexpr::ConstexprError, $name, $body);
+        apply_component!(constexpr::error::Error, $name, $body);
         apply_component!(element::Element, $name, $body);
         apply_component!(layout::Layout, $name, $body);
         apply_component!(location::Location, $name, $body);
         apply_component!(replacement::Replacement, $name, $body);
         apply_component!(symbol::Symbol, $name, $body);
         apply_component!(ty::Type, $name, $body);
-        apply_component!(ty::TypeError<specs::Entity>, $name, $body);
+        apply_component!(ty::error::Error<specs::Entity>, $name, $body);
     };
 }
 

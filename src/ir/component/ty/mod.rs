@@ -4,6 +4,9 @@ use std::fmt;
 use specs::Component;
 use specs::VecStorage;
 
+pub mod class;
+pub mod error;
+
 #[derive(Component, Clone, Debug, Eq, PartialEq, VisitEntities, VisitEntitiesMut)]
 #[storage(VecStorage)]
 pub enum Type {
@@ -14,22 +17,6 @@ pub enum Type {
     Union(Union),
     Record(Record),
     Function(Function),
-}
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq, VisitEntities, VisitEntitiesMut)]
-pub enum ScalarClass {
-    Symbol,
-    Integral(IntegralScalarClass),
-    Fractional,
-    Complex,
-    Undefined,
-}
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq, VisitEntities, VisitEntitiesMut)]
-pub enum IntegralScalarClass {
-    Unsigned,
-    Signed,
-    Any,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, VisitEntities, VisitEntitiesMut)]
@@ -72,59 +59,33 @@ pub struct Function {
     pub result: Box<Type>,
 }
 
-#[derive(Component, Clone, Debug, Eq, Fail, PartialEq, VisitEntities, VisitEntitiesMut)]
-#[storage(VecStorage)]
-pub struct TypeError<E>
-where
-    E: fmt::Debug + Send + Sync + 'static,
-{
-    pub expected: ExpectedType,
-    pub actual: Type,
-    pub main_entity: E,
-    pub aux_entities: Vec<AuxEntity<E>>,
-}
-
-#[derive(Clone, Debug, Eq, PartialEq, VisitEntities, VisitEntitiesMut)]
-pub struct AuxEntity<E> {
-    pub entity: E,
-    pub label: String,
-}
-
-#[derive(Clone, Debug, Eq, PartialEq, VisitEntities, VisitEntitiesMut)]
-pub enum ExpectedType {
-    Specific(Type),
-    ScalarClass(ScalarClass),
-    AnyOf(Vec<ExpectedType>),
-    Union,
-}
-
 impl Type {
-    pub fn scalar_class(&self) -> ScalarClass {
+    pub fn scalar_class(&self) -> class::ScalarClass {
         match *self {
             Type::Number(ref n) => n.scalar_class(),
-            Type::String => ScalarClass::Complex,
-            Type::Symbol(_) => ScalarClass::Symbol,
-            Type::Union(_) => ScalarClass::Undefined,
-            Type::Tuple(_) => ScalarClass::Complex,
-            Type::Record(_) => ScalarClass::Complex,
-            Type::Function(_) => ScalarClass::Undefined,
+            Type::String => class::ScalarClass::Complex,
+            Type::Symbol(_) => class::ScalarClass::Symbol,
+            Type::Union(_) => class::ScalarClass::Undefined,
+            Type::Tuple(_) => class::ScalarClass::Complex,
+            Type::Record(_) => class::ScalarClass::Complex,
+            Type::Function(_) => class::ScalarClass::Undefined,
         }
     }
 }
 
 impl Number {
-    pub fn scalar_class(&self) -> ScalarClass {
+    pub fn scalar_class(&self) -> class::ScalarClass {
         match *self {
-            Number::U8 => ScalarClass::Integral(IntegralScalarClass::Unsigned),
-            Number::U16 => ScalarClass::Integral(IntegralScalarClass::Unsigned),
-            Number::U32 => ScalarClass::Integral(IntegralScalarClass::Unsigned),
-            Number::U64 => ScalarClass::Integral(IntegralScalarClass::Unsigned),
-            Number::I8 => ScalarClass::Integral(IntegralScalarClass::Signed),
-            Number::I16 => ScalarClass::Integral(IntegralScalarClass::Signed),
-            Number::I32 => ScalarClass::Integral(IntegralScalarClass::Signed),
-            Number::I64 => ScalarClass::Integral(IntegralScalarClass::Signed),
-            Number::F32 => ScalarClass::Fractional,
-            Number::F64 => ScalarClass::Fractional,
+            Number::U8 => class::ScalarClass::Integral(class::IntegralScalarClass::Unsigned),
+            Number::U16 => class::ScalarClass::Integral(class::IntegralScalarClass::Unsigned),
+            Number::U32 => class::ScalarClass::Integral(class::IntegralScalarClass::Unsigned),
+            Number::U64 => class::ScalarClass::Integral(class::IntegralScalarClass::Unsigned),
+            Number::I8 => class::ScalarClass::Integral(class::IntegralScalarClass::Signed),
+            Number::I16 => class::ScalarClass::Integral(class::IntegralScalarClass::Signed),
+            Number::I32 => class::ScalarClass::Integral(class::IntegralScalarClass::Signed),
+            Number::I64 => class::ScalarClass::Integral(class::IntegralScalarClass::Signed),
+            Number::F32 => class::ScalarClass::Fractional,
+            Number::F64 => class::ScalarClass::Fractional,
         }
     }
 }
@@ -238,58 +199,5 @@ impl fmt::Display for Function {
         write!(f, "|")?;
         self.result.fmt(f)?;
         Ok(())
-    }
-}
-
-impl<E> fmt::Display for TypeError<E>
-where
-    E: fmt::Debug + Send + Sync,
-{
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "expected ")?;
-        self.expected.fmt(f)?;
-        write!(f, " but got ")?;
-        self.actual.fmt(f)?;
-        Ok(())
-    }
-}
-
-impl fmt::Display for ExpectedType {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match *self {
-            ExpectedType::Specific(ref ty) => ty.fmt(f),
-            ExpectedType::ScalarClass(ref class) => class.fmt(f),
-            ExpectedType::AnyOf(ref options) => {
-                let last = options.len() - 1;
-                for (i, option) in options.iter().enumerate() {
-                    if i == last {
-                        write!(f, " or ")?;
-                    } else if i > 0 {
-                        write!(f, ", ")?;
-                    }
-                    option.fmt(f)?;
-                }
-                Ok(())
-            }
-            ExpectedType::Union => f.write_str("any union type"),
-        }
-    }
-}
-
-impl fmt::Display for ScalarClass {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match *self {
-            ScalarClass::Symbol => f.write_str("any symbol"),
-            ScalarClass::Integral(IntegralScalarClass::Unsigned) => {
-                f.write_str("any unsigned integer type")
-            }
-            ScalarClass::Integral(IntegralScalarClass::Signed) => {
-                f.write_str("any signed integer type")
-            }
-            ScalarClass::Integral(IntegralScalarClass::Any) => f.write_str("any integer type"),
-            ScalarClass::Fractional => f.write_str("any floating point type"),
-            ScalarClass::Complex => f.write_str("any complex type"),
-            ScalarClass::Undefined => f.write_str("any non-scalar type"),
-        }
     }
 }

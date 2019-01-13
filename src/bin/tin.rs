@@ -77,10 +77,11 @@ fn run() -> Result<i32, failure::Error> {
 
 fn report_diagnostics(codemap: &codespan::CodeMap, error: tin::Error) -> tin::Error {
     use codespan_reporting::termcolor;
-    use tin::diagnostic::Diagnostic;
+    use tin::diagnostic::Diagnostics;
 
-    let mut diagnostics = Vec::new();
-    error.to_diagnostics(&mut diagnostics);
+    let mut builder = tin::diagnostic::DiagnosticsBuilder::new();
+    error.to_diagnostics(&mut builder);
+    let diagnostics = builder.build();
 
     if !diagnostics.is_empty() {
         let stream = termcolor::StandardStream::stderr(termcolor::ColorChoice::Auto);

@@ -75,7 +75,7 @@ macro_rules! match_number {
                 $name,
                 ($($params),*),
                 |$($params),*| $body_frac,
-                Err(Error::RuntimeTypeConflict(format!("expected numbers of the same type but got {:?}", ($($params),*))))
+                Err(error::Error::RuntimeTypeConflict(format!("expected numbers of the same type but got {:?}", ($($params),*))))
             )
         )
     };
@@ -97,7 +97,7 @@ macro_rules! match_integral {
             $name,
             ($($value),*),
             |$($params),*| $body,
-            Err(Error::RuntimeTypeConflict(format!("expected integral numbers of the same type but got {:?}", ($($params),*))))
+            Err(error::Error::RuntimeTypeConflict(format!("expected integral numbers of the same type but got {:?}", ($($params),*))))
         )
     };
 }
@@ -112,7 +112,7 @@ macro_rules! match_fractional {
             $name,
             ($($value),*),
             |$($params),*| $body,
-            Err(Error::RuntimeTypeConflict(format!("expected fractional numbers of the same type but got {:?}", ($($params),*))))
+            Err(error::Error::RuntimeTypeConflict(format!("expected fractional numbers of the same type but got {:?}", ($($params),*))))
         )
     };
 }
@@ -130,7 +130,7 @@ macro_rules! match_number_value {
                 ($($params),*),
                 |$($params),*| int: $body_int, frac: $body_frac
             ),
-            Err(Error::RuntimeTypeConflict(format!("expected number values of the same type but got {:?}", ($($params),*))))
+            Err(error::Error::RuntimeTypeConflict(format!("expected number values of the same type but got {:?}", ($($params),*))))
         )
     };
 }
@@ -148,7 +148,7 @@ macro_rules! match_integral_value {
                 ($($params),*),
                 |$($params),*| $body
             ),
-            Err(Error::RuntimeTypeConflict(format!("expected integral number values of the same type but got {:?}", ($($params),*))))
+            Err(error::Error::RuntimeTypeConflict(format!("expected integral number values of the same type but got {:?}", ($($params),*))))
         )
     };
 }
@@ -166,7 +166,7 @@ macro_rules! match_fractional_value {
                 ($($params),*),
                 |$($params),*| $body
             ),
-            Err(Error::RuntimeTypeConflict(format!("expected fractional number values of the same type but got {:?}", ($($params),*))))
+            Err(error::Error::RuntimeTypeConflict(format!("expected fractional number values of the same type but got {:?}", ($($params),*))))
         )
     };
 }

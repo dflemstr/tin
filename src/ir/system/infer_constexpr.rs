@@ -13,7 +13,7 @@ impl<'a> specs::System<'a> for System {
         specs::Entities<'a>,
         specs::ReadStorage<'a, element::Element>,
         specs::WriteStorage<'a, constexpr::Constexpr>,
-        specs::WriteStorage<'a, constexpr::ConstexprError>,
+        specs::WriteStorage<'a, constexpr::error::Error>,
     );
 
     fn run(&mut self, (entities, elements, mut constexprs, mut errors): Self::SystemData) {
@@ -51,7 +51,7 @@ impl System {
     fn infer_constexpr<D>(
         element: &element::Element,
         constexprs: &specs::Storage<constexpr::Constexpr, D>,
-    ) -> Result<Option<constexpr::Constexpr>, constexpr::ConstexprError>
+    ) -> Result<Option<constexpr::Constexpr>, constexpr::error::Error>
     where
         D: ops::Deref<Target = specs::storage::MaskedStorage<constexpr::Constexpr>>,
     {
@@ -62,9 +62,9 @@ impl System {
     }
 }
 
-impl From<interpreter::Error> for constexpr::ConstexprError {
-    fn from(e: interpreter::Error) -> Self {
-        constexpr::ConstexprError::Evaluation(e)
+impl From<interpreter::error::Error> for constexpr::error::Error {
+    fn from(e: interpreter::error::Error) -> Self {
+        constexpr::error::Error::Evaluation(e)
     }
 }
 

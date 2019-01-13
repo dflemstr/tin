@@ -97,10 +97,11 @@ where
 }
 
 fn report_diagnostics(codemap: &codespan::CodeMap, error: tin::Error, mut out: &mut Vec<u8>) {
-    use tin::diagnostic::Diagnostic;
+    use tin::diagnostic::Diagnostics;
 
-    let mut diagnostics = Vec::new();
-    error.to_diagnostics(&mut diagnostics);
+    let mut builder = tin::diagnostic::DiagnosticsBuilder::new();
+    error.to_diagnostics(&mut builder);
+    let diagnostics = builder.build();
 
     for diagnostic in diagnostics {
         codespan_reporting::emit(

@@ -8,21 +8,14 @@ use crate::ir::component::element;
 use crate::module;
 use crate::value;
 
+pub mod error;
 #[macro_use]
 mod macros;
-
-#[derive(Clone, Debug, Fail, PartialEq)]
-pub enum Error {
-    #[fail(display = "type conflict: {}", _0)]
-    RuntimeTypeConflict(String),
-    #[fail(display = "evaluation error: {}", _0)]
-    EvaluationError(#[cause] module::Error),
-}
 
 pub fn eval<'a, F>(
     element: &element::Element,
     lookup: F,
-) -> Result<Option<sync::Arc<value::Value>>, Error>
+) -> Result<Option<sync::Arc<value::Value>>, error::Error>
 where
     F: Fn(specs::Entity) -> Option<&'a sync::Arc<value::Value>>,
 {
@@ -60,7 +53,7 @@ where
         element::Element::Select(element::Select { record, field }) => {
             transpose(lookup(*record).map(|record| match &**record {
                 value::Value::Record(r) => Ok(r.fields[field].clone()),
-                other => Err(Error::RuntimeTypeConflict(format!(
+                other => Err(error::Error::RuntimeTypeConflict(format!(
                     "not a record: {:?}",
                     other
                 ))),
@@ -92,7 +85,7 @@ fn eval_number(number: &element::Number) -> value::Number {
 fn eval_un_op(
     operator: element::UnOperator,
     operand: &sync::Arc<value::Value>,
-) -> Result<sync::Arc<value::Value>, Error> {
+) -> Result<sync::Arc<value::Value>, error::Error> {
     match operator {
         element::UnOperator::Not => Ok(sync::Arc::new((!to_bool(operand)?).into())),
         element::UnOperator::BNot => {
@@ -127,7 +120,7 @@ fn eval_bi_op(
     lhs: &sync::Arc<value::Value>,
     operator: element::BiOperator,
     rhs: &sync::Arc<value::Value>,
-) -> Result<sync::Arc<value::Value>, Error> {
+) -> Result<sync::Arc<value::Value>, error::Error> {
     match operator {
         element::BiOperator::Eq => Ok(sync::Arc::new(
             (cmp_value(lhs, rhs)?
@@ -179,7 +172,7 @@ fn eval_bi_op(
         )),
         element::BiOperator::Div => {
             match_number_value!("/", (&**lhs, &**rhs), |l, r| int: if *r == 0 {
-                Err(Error::EvaluationError(module::Error::new(module::ErrorKind::IntegerDivisonByZero)))
+                Err(error::Error::EvaluationError(module::Error::new(module::ErrorKind::IntegerDivisonByZero)))
             } else {
                 Ok(sync::Arc::new((l.wrapping_div(*r)).into()))
             }, frac: Ok(
@@ -188,7 +181,7 @@ fn eval_bi_op(
         }
         element::BiOperator::Rem => {
             match_number_value!("%", (&**lhs, &**rhs), |l, r| int: if *r == 0 {
-                Err(Error::EvaluationError(module::Error::new(module::ErrorKind::IntegerDivisonByZero)))
+                Err(error::Error::EvaluationError(module::Error::new(module::ErrorKind::IntegerDivisonByZero)))
             } else {
                 Ok(sync::Arc::new((l.wrapping_rem(*r)).into()))
             }, frac: Ok(
@@ -234,50 +227,56 @@ fn eval_bi_op(
     }
 }
 
-fn to_bool(value: &value::Value) -> Result<bool, Error> {
+fn to_bool(value: &value::Value) -> Result<bool, error::Error> {
     if value == &*value::TRUE {
         Ok(true)
     } else if value == &*value::FALSE {
         Ok(false)
     } else {
-        Err(Error::RuntimeTypeConflict(format!(
+        Err(error::Error::RuntimeTypeConflict(format!(
             "not a bool value: {:?}",
             value
         )))
     }
 }
 
-fn to_u32(value: &value::Value) -> Result<u32, Error> {
+fn to_u32(value: &value::Value) -> Result<u32, error::Error> {
     match *value {
         value::Value::Number(n) => match n {
             value::Number::U32(n) => Ok(n),
-            _ => Err(Error::RuntimeTypeConflict(format!(
+            _ => Err(error::Error::RuntimeTypeConflict(format!(
                 "not an u32: {:?}",
                 value
             ))),
         },
-        _ => Err(Error::RuntimeTypeConflict(format!(
+        _ => Err(error::Error::RuntimeTypeConflict(format!(
             "not an u32: {:?}",
             value
         ))),
     }
 }
 
-fn cmp_value(lhs: &value::Value, rhs: &value::Value) -> Result<Option<cmp::Ordering>, Error> {
+fn cmp_value(
+    lhs: &value::Value,
+    rhs: &value::Value,
+) -> Result<Option<cmp::Ordering>, error::Error> {
     match (lhs, rhs) {
         (value::Value::Number(lhs), value::Value::Number(rhs)) => cmp_number(lhs, rhs),
         (value::Value::String(lhs), value::Value::String(rhs)) => Ok(lhs.partial_cmp(rhs)),
         (value::Value::Symbol(lhs), value::Value::Symbol(rhs)) => Ok(lhs.partial_cmp(rhs)),
         (value::Value::Tuple(lhs), value::Value::Tuple(rhs)) => cmp_tuple(lhs, rhs),
         (value::Value::Record(lhs), value::Value::Record(rhs)) => cmp_record(lhs, rhs),
-        _ => Err(Error::RuntimeTypeConflict(format!(
+        _ => Err(error::Error::RuntimeTypeConflict(format!(
             "type mismatch; type of {:?} != type of {:?}",
             lhs, rhs
         ))),
     }
 }
 
-fn cmp_number(lhs: &value::Number, rhs: &value::Number) -> Result<Option<cmp::Ordering>, Error> {
+fn cmp_number(
+    lhs: &value::Number,
+    rhs: &value::Number,
+) -> Result<Option<cmp::Ordering>, error::Error> {
     match (lhs, rhs) {
         (value::Number::U8(lhs), value::Number::U8(rhs)) => Ok(lhs.partial_cmp(rhs)),
         (value::Number::U16(lhs), value::Number::U16(rhs)) => Ok(lhs.partial_cmp(rhs)),
@@ -289,14 +288,17 @@ fn cmp_number(lhs: &value::Number, rhs: &value::Number) -> Result<Option<cmp::Or
         (value::Number::I64(lhs), value::Number::I64(rhs)) => Ok(lhs.partial_cmp(rhs)),
         (value::Number::F32(lhs), value::Number::F32(rhs)) => Ok(lhs.partial_cmp(rhs)),
         (value::Number::F64(lhs), value::Number::F64(rhs)) => Ok(lhs.partial_cmp(rhs)),
-        _ => Err(Error::RuntimeTypeConflict(format!(
+        _ => Err(error::Error::RuntimeTypeConflict(format!(
             "type mismatch; type of {:?} != type of {:?}",
             lhs, rhs
         ))),
     }
 }
 
-fn cmp_tuple(lhs: &value::Tuple, rhs: &value::Tuple) -> Result<Option<cmp::Ordering>, Error> {
+fn cmp_tuple(
+    lhs: &value::Tuple,
+    rhs: &value::Tuple,
+) -> Result<Option<cmp::Ordering>, error::Error> {
     if lhs.fields.len() == rhs.fields.len() {
         for (lhs, rhs) in lhs.fields.iter().zip(rhs.fields.iter()) {
             let result = cmp_value(&**lhs, &**rhs)?;
@@ -306,7 +308,7 @@ fn cmp_tuple(lhs: &value::Tuple, rhs: &value::Tuple) -> Result<Option<cmp::Order
         }
         Ok(Some(cmp::Ordering::Equal))
     } else {
-        Err(Error::RuntimeTypeConflict(format!(
+        Err(error::Error::RuntimeTypeConflict(format!(
             "cannot compare tuples of different length: {} vs {}",
             lhs.fields.len(),
             rhs.fields.len()
@@ -314,7 +316,10 @@ fn cmp_tuple(lhs: &value::Tuple, rhs: &value::Tuple) -> Result<Option<cmp::Order
     }
 }
 
-fn cmp_record(lhs: &value::Record, rhs: &value::Record) -> Result<Option<cmp::Ordering>, Error> {
+fn cmp_record(
+    lhs: &value::Record,
+    rhs: &value::Record,
+) -> Result<Option<cmp::Ordering>, error::Error> {
     let rhs = &rhs.fields;
     let lhs = &lhs.fields;
     if lhs.len() == rhs.len() && lhs.keys().all(|k| rhs.contains_key(k)) {
@@ -326,7 +331,7 @@ fn cmp_record(lhs: &value::Record, rhs: &value::Record) -> Result<Option<cmp::Or
         }
         Ok(Some(cmp::Ordering::Equal))
     } else {
-        Err(Error::RuntimeTypeConflict(format!(
+        Err(error::Error::RuntimeTypeConflict(format!(
             "cannot compare records with different fields: {:?} vs {:?}",
             lhs.keys().collect::<Vec<_>>(),
             rhs.keys().collect::<Vec<_>>()
@@ -337,7 +342,7 @@ fn cmp_record(lhs: &value::Record, rhs: &value::Record) -> Result<Option<cmp::Or
 fn add(
     lhs: &sync::Arc<value::Value>,
     rhs: &sync::Arc<value::Value>,
-) -> Result<sync::Arc<value::Value>, Error> {
+) -> Result<sync::Arc<value::Value>, error::Error> {
     match (&**lhs, &**rhs) {
         (value::Value::String(lhsv), value::Value::String(rhsv)) => {
             if lhsv.is_empty() {
@@ -353,7 +358,7 @@ fn add(
         (value::Value::Number(lhs), value::Value::Number(rhs)) => {
             match_number!("+", (lhs, rhs), |l, r| int: Ok(sync::Arc::new((l.wrapping_add(*r)).into())), frac: Ok(sync::Arc::new((l + r).into())))
         }
-        other => Err(Error::RuntimeTypeConflict(format!(
+        other => Err(error::Error::RuntimeTypeConflict(format!(
             "operation + not supported on values {:?}",
             other
         ))),
@@ -365,7 +370,7 @@ fn bool_op<F>(
     lhs: &sync::Arc<value::Value>,
     rhs: &sync::Arc<value::Value>,
     op: F,
-) -> Result<sync::Arc<value::Value>, Error>
+) -> Result<sync::Arc<value::Value>, error::Error>
 where
     F: FnOnce(bool, bool) -> bool,
 {

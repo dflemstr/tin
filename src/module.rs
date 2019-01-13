@@ -15,7 +15,7 @@ pub struct Module {
 
 /// An error that may happen at runtime.
 #[derive(Clone, Debug, Fail, PartialEq)]
-#[fail(display = "runtime error: {}{}", kind, backtrace)]
+#[fail(display = "{}{}", kind, backtrace)]
 pub struct Error {
     kind: ErrorKind,
     backtrace: Trace,

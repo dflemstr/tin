@@ -1,4 +1,4 @@
-error: error during constexpr evaluation
+error: integer division by zero
 - testdata/err/constexpr_div_by_zero.tn:1:20
 1 | main = || -> i32 { 1i32 / 0i32 };
-  |                    ^^^^^^^^^^^ runtime error: integer division by zero
+  |                    ^^^^^^^^^^^ while evaluating this constexpr

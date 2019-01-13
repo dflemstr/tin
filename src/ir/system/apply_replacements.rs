@@ -23,7 +23,7 @@ impl<'a> specs::System<'a> for System {
         specs::WriteStorage<'a, layout::Layout>,
         specs::WriteStorage<'a, symbol::Symbol>,
         specs::WriteStorage<'a, ty::Type>,
-        specs::WriteStorage<'a, ty::TypeError<specs::Entity>>,
+        specs::WriteStorage<'a, ty::error::Error<specs::Entity>>,
     );
 
     fn run(

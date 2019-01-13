@@ -247,138 +247,143 @@ impl Error {
     }
 }
 
-impl diagnostic::Diagnostic for Error {
-    fn to_diagnostics(&self, result: &mut Vec<codespan_reporting::Diagnostic>) {
-        let message = self.to_string();
+impl diagnostic::Diagnostics for Error {
+    fn to_diagnostics(&self, builder: &mut diagnostic::DiagnosticsBuilder) {
         match self {
-            Error::Invalid { location } => result.push(codespan_reporting::Diagnostic {
-                severity: codespan_reporting::Severity::Error,
-                message,
-                code: None,
-                labels: vec![codespan_reporting::Label {
+            Error::Invalid { location } => {
+                builder.add_label(codespan_reporting::Label {
                     span: *location,
                     message: None,
                     style: codespan_reporting::LabelStyle::Primary,
-                }],
-            }),
-            Error::Unexpected { token, expected } => {
-                result.push(codespan_reporting::Diagnostic {
-                    severity: codespan_reporting::Severity::Error,
-                    message,
-                    code: None,
-                    labels: vec![codespan_reporting::Label {
-                        span: *token,
-                        message: None,
-                        style: codespan_reporting::LabelStyle::Primary,
-                    }],
                 });
+
+                builder.add_diagnostic(
+                    codespan_reporting::Severity::Error,
+                    None,
+                    format!("{}", self),
+                );
+            }
+            Error::Unexpected { token, expected } => {
+                builder.add_label(codespan_reporting::Label {
+                    span: *token,
+                    message: None,
+                    style: codespan_reporting::LabelStyle::Primary,
+                });
+                builder.add_diagnostic(
+                    codespan_reporting::Severity::Error,
+                    None,
+                    format!("{}", self),
+                );
 
                 if !expected.is_empty() {
                     use itertools::Itertools;
 
-                    result.push(codespan_reporting::Diagnostic {
-                        severity: codespan_reporting::Severity::Help,
-                        message: format!(
+                    builder.add_diagnostic(
+                        codespan_reporting::Severity::Help,
+                        None,
+                        format!(
                             "valid tokens at this point: [{}]",
                             expected.iter().join(", ")
                         ),
-                        code: None,
-                        labels: vec![],
-                    })
+                    );
                 }
             }
-            Error::Extra { token } => result.push(codespan_reporting::Diagnostic {
-                severity: codespan_reporting::Severity::Error,
-                message,
-                code: None,
-                labels: vec![codespan_reporting::Label {
+            Error::Extra { token } => {
+                builder.add_label(codespan_reporting::Label {
                     span: *token,
                     message: None,
                     style: codespan_reporting::LabelStyle::Primary,
-                }],
-            }),
+                });
+
+                builder.add_diagnostic(
+                    codespan_reporting::Severity::Error,
+                    None,
+                    format!("{}", self),
+                )
+            }
             Error::IllegalEscapeSequence { token, escape, .. } => {
-                result.push(codespan_reporting::Diagnostic {
-                    severity: codespan_reporting::Severity::Error,
-                    message,
-                    code: None,
-                    labels: vec![
-                        codespan_reporting::Label {
-                            span: *escape,
-                            message: Some("bad escape sequence".to_owned()),
-                            style: codespan_reporting::LabelStyle::Primary,
-                        },
-                        codespan_reporting::Label {
-                            span: *token,
-                            message: Some("in this string literal".to_owned()),
-                            style: codespan_reporting::LabelStyle::Secondary,
-                        },
-                    ],
-                })
+                builder.add_label(codespan_reporting::Label {
+                    span: *escape,
+                    message: Some("bad escape sequence".to_owned()),
+                    style: codespan_reporting::LabelStyle::Primary,
+                });
+                builder.add_label(codespan_reporting::Label {
+                    span: *token,
+                    message: Some("in this string literal".to_owned()),
+                    style: codespan_reporting::LabelStyle::Secondary,
+                });
+
+                builder.add_diagnostic(
+                    codespan_reporting::Severity::Error,
+                    None,
+                    format!("{}", self),
+                );
             }
             Error::UnterminatedUnicodeEscapeSequence { token, escape, .. } => {
-                result.push(codespan_reporting::Diagnostic {
-                    severity: codespan_reporting::Severity::Error,
-                    message,
-                    code: None,
-                    labels: vec![
-                        codespan_reporting::Label {
-                            span: *escape,
-                            message: Some("unterminated unicode escape sequence".to_owned()),
-                            style: codespan_reporting::LabelStyle::Primary,
-                        },
-                        codespan_reporting::Label {
-                            span: *token,
-                            message: Some("in this string literal".to_owned()),
-                            style: codespan_reporting::LabelStyle::Secondary,
-                        },
-                    ],
-                })
+                builder.add_label(codespan_reporting::Label {
+                    span: *escape,
+                    message: Some("unterminated unicode escape sequence".to_owned()),
+                    style: codespan_reporting::LabelStyle::Primary,
+                });
+                builder.add_label(codespan_reporting::Label {
+                    span: *token,
+                    message: Some("in this string literal".to_owned()),
+                    style: codespan_reporting::LabelStyle::Secondary,
+                });
+
+                builder.add_diagnostic(
+                    codespan_reporting::Severity::Error,
+                    None,
+                    format!("{}", self),
+                );
             }
             Error::IllegalUnicode { token, escape, .. } => {
-                result.push(codespan_reporting::Diagnostic {
-                    severity: codespan_reporting::Severity::Error,
-                    message,
-                    code: None,
-                    labels: vec![
-                        codespan_reporting::Label {
-                            span: *escape,
-                            message: Some("bad code point".to_owned()),
-                            style: codespan_reporting::LabelStyle::Primary,
-                        },
-                        codespan_reporting::Label {
-                            span: *token,
-                            message: Some("in this string literal".to_owned()),
-                            style: codespan_reporting::LabelStyle::Secondary,
-                        },
-                    ],
-                })
+                builder.add_label(codespan_reporting::Label {
+                    span: *escape,
+                    message: Some("unterminated unicode escape sequence".to_owned()),
+                    style: codespan_reporting::LabelStyle::Primary,
+                });
+                builder.add_label(codespan_reporting::Label {
+                    span: *token,
+                    message: Some("in this string literal".to_owned()),
+                    style: codespan_reporting::LabelStyle::Secondary,
+                });
+
+                builder.add_diagnostic(
+                    codespan_reporting::Severity::Error,
+                    None,
+                    format!("{}", self),
+                );
             }
-            Error::IllegalIntLiteral { token, .. } => result.push(codespan_reporting::Diagnostic {
-                severity: codespan_reporting::Severity::Error,
-                message,
-                code: None,
-                labels: vec![codespan_reporting::Label {
+            Error::IllegalIntLiteral { token, .. } => {
+                builder.add_label(codespan_reporting::Label {
                     span: *token,
                     message: Some("in this int literal".to_owned()),
                     style: codespan_reporting::LabelStyle::Primary,
-                }],
-            }),
+                });
+
+                builder.add_diagnostic(
+                    codespan_reporting::Severity::Error,
+                    None,
+                    format!("{}", self),
+                );
+            }
             Error::IllegalFloatLiteral { token, .. } => {
-                result.push(codespan_reporting::Diagnostic {
-                    severity: codespan_reporting::Severity::Error,
-                    message,
-                    code: None,
-                    labels: vec![codespan_reporting::Label {
-                        span: *token,
-                        message: Some("in this float literal".to_owned()),
-                        style: codespan_reporting::LabelStyle::Primary,
-                    }],
-                })
+                builder.add_label(codespan_reporting::Label {
+                    span: *token,
+                    message: Some("in this float literal".to_owned()),
+                    style: codespan_reporting::LabelStyle::Primary,
+                });
+
+                builder.add_diagnostic(
+                    codespan_reporting::Severity::Error,
+                    None,
+                    format!("{}", self),
+                );
             }
             Error::Multiple { errors } => {
                 for error in errors {
-                    error.to_diagnostics(result);
+                    error.to_diagnostics(builder);
                 }
             }
         }
