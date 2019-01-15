@@ -83,9 +83,7 @@ impl fmt::Display for Layout {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}/{}", self.size, self.alignment)?;
 
-        if !self
-            .named_fields.is_empty()
-        {
+        if !self.named_fields.is_empty() {
             write!(f, "[")?;
 
             let mut needs_sep = false;
@@ -100,9 +98,7 @@ impl fmt::Display for Layout {
             write!(f, "]")?;
         }
 
-        if !self
-            .unnamed_fields.is_empty()
-        {
+        if !self.unnamed_fields.is_empty() {
             write!(f, "{{")?;
 
             let mut needs_sep = false;
