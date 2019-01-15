@@ -1,10 +1,6 @@
 use std::fmt;
 
-use specs;
-
 use cranelift::prelude::*;
-use cranelift_module;
-use cranelift_simplejit;
 
 use crate::ir::component::layout;
 use crate::value;
@@ -99,7 +95,7 @@ impl<'a> Translator<'a> {
     pub fn store_tuple(&mut self, layout: &layout::Layout, tuple: &value::Tuple) {
         use std::io::Write;
 
-        let unnamed_fields = layout.unnamed_fields.as_ref().unwrap();
+        let unnamed_fields = &layout.unnamed_fields;
         let mut pos = 0;
         assert_eq!(tuple.fields.len(), unnamed_fields.len());
 
@@ -117,7 +113,7 @@ impl<'a> Translator<'a> {
     pub fn store_record(&mut self, layout: &layout::Layout, record: &value::Record) {
         use std::io::Write;
 
-        let named_fields = layout.named_fields.as_ref().unwrap();
+        let named_fields = &layout.named_fields;
         let mut pos = 0;
         assert_eq!(record.fields.len(), named_fields.len());
 

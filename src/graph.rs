@@ -45,7 +45,7 @@ enum Label<'a> {
     AppliedParameter(usize),
     ParameterSignature,
     ClosureCaptureDefinition(&'a str),
-    ClosureCaptureUsage(usize),
+    ClosureCaptureUsage(&'a str),
     ClosureParameter(usize),
     ClosureStatement(usize),
     ClosureSignature,
@@ -187,11 +187,11 @@ impl<'a> dot::GraphWalk<'a, Node, Edge<'a>> for Graph<'a> {
                         signature,
                         result,
                     }) => {
-                        for (idx, capture) in captures.iter().enumerate() {
+                        for (name, capture) in captures {
                             edges.push(Edge {
                                 source: Node(entity),
                                 target: Node(*capture),
-                                label: Label::ClosureCaptureUsage(idx),
+                                label: Label::ClosureCaptureUsage(name),
                             });
                         }
                         for (idx, parameter) in parameters.iter().enumerate() {

@@ -204,7 +204,7 @@ impl<'a, 'f> Translator<'a, 'f> {
         mem_flags.set_notrap();
         mem_flags.set_aligned();
 
-        for (idx, offset_layout) in layout.unnamed_fields.as_ref().unwrap().iter().enumerate() {
+        for (idx, offset_layout) in layout.unnamed_fields.iter().enumerate() {
             let value = tuple.fields[idx];
             let value = self.eval_element(value, self.elements.get(value).unwrap());
             let offset = offset_layout.offset as i32;
@@ -227,7 +227,7 @@ impl<'a, 'f> Translator<'a, 'f> {
         mem_flags.set_notrap();
         mem_flags.set_aligned();
 
-        for named_field in layout.named_fields.as_ref().unwrap() {
+        for named_field in &layout.named_fields {
             let value = record.fields[&named_field.field];
             let value = self.eval_element(value, self.elements.get(value).unwrap());
             let offset = named_field.offset_layout.offset as i32;
@@ -370,8 +370,6 @@ impl<'a, 'f> Translator<'a, 'f> {
             abi_type::AbiType::from_ir_type(field_type).into_specific(self.ptr_type);
         let field_offset = record_layout
             .named_fields
-            .as_ref()
-            .unwrap()
             .iter()
             .find(|f| *f.field == select.field)
             .unwrap()

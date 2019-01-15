@@ -1,5 +1,3 @@
-use specs;
-
 use crate::diagnostic;
 use crate::ir::component::constexpr;
 use crate::ir::component::ty;

@@ -16,8 +16,8 @@ pub struct ModuleBuilder<'a> {
     symbol: Vec<symbol::Part>,
     current_scope: collections::HashMap<String, specs::Entity>,
     scopes: Vec<collections::HashMap<String, specs::Entity>>,
-    current_captures: Vec<specs::Entity>,
-    captures: Vec<Vec<specs::Entity>>,
+    current_captures: collections::HashMap<String, specs::Entity>,
+    captures: Vec<collections::HashMap<String, specs::Entity>>,
 }
 
 impl<'a> ModuleBuilder<'a> {
@@ -25,7 +25,7 @@ impl<'a> ModuleBuilder<'a> {
         let symbol = Vec::new();
         let current_scope = collections::HashMap::new();
         let scopes = Vec::new();
-        let current_captures = Vec::new();
+        let current_captures = collections::HashMap::new();
         let captures = Vec::new();
 
         ModuleBuilder {
@@ -114,7 +114,7 @@ impl<'a> ModuleBuilder<'a> {
                         .insert(capture, location::Location(identifier.context.span))
                         .unwrap();
 
-                    self.current_captures.push(capture);
+                    self.current_captures.insert(name.clone(), capture);
 
                     capture
                 })
@@ -591,8 +591,8 @@ impl<'a> ModuleBuilder<'a> {
         self.captures.push(mem::replace(
             &mut self.current_captures,
             captures_size_hint
-                .map(Vec::with_capacity)
-                .unwrap_or_else(|| Vec::new()),
+                .map(collections::HashMap::with_capacity)
+                .unwrap_or_else(|| collections::HashMap::new()),
         ));
     }
 

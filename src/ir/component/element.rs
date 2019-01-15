@@ -199,7 +199,7 @@ pub struct Capture {
 
 #[derive(Debug, VisitEntities, VisitEntitiesMut)]
 pub struct Closure {
-    pub captures: Vec<specs::Entity>,
+    pub captures: collections::HashMap<String, specs::Entity>,
     pub parameters: Vec<specs::Entity>,
     pub statements: Vec<specs::Entity>,
     pub signature: specs::Entity,

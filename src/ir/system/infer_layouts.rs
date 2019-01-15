@@ -91,12 +91,9 @@ impl System {
             element::Element::Capture(element::Capture { captured, .. }) => {
                 self.infer_capture_layout(captured, layouts)
             }
-            element::Element::Closure(element::Closure {
-                ref parameters,
-                signature,
-                result,
-                ..
-            }) => self.infer_closure_layout(parameters, signature, result, layouts),
+            element::Element::Closure(element::Closure { ref captures, .. }) => {
+                self.infer_closure_layout(captures, layouts)
+            }
             element::Element::Module(element::Module { ref variables }) => {
                 self.infer_module_layout(variables, layouts)
             }
@@ -399,43 +396,55 @@ impl System {
 
     fn infer_closure_layout<D>(
         &self,
-        _parameters: &[specs::Entity],
-        _signature: specs::Entity,
-        _result: specs::Entity,
-        _layouts: &specs::Storage<layout::Layout, D>,
+        captures: &collections::HashMap<String, specs::Entity>,
+        layouts: &specs::Storage<layout::Layout, D>,
     ) -> Option<layout::Layout>
     where
         D: ops::Deref<Target = specs::storage::MaskedStorage<layout::Layout>>,
     {
-        // TODO
-        None
-        /*
-            if let Some(parameters) = parameters
+        if let Some(mut capture_layouts) = captures
+            .iter()
+            .map(|(n, f)| layouts.get(*f).map(|l| (n, l)))
+            .collect::<Option<Vec<_>>>()
+        {
+            let unnamed_fields = vec![layout::OffsetLayout {
+                offset: 0,
+                layout: layout::Layout::scalar(self.ptr_size),
+            }];
+
+            capture_layouts.sort_unstable_by_key(|(n, l)| (usize::MAX - l.size, n.as_str()));
+            let alignment = capture_layouts
                 .iter()
-                .map(|p| types.get(*p).cloned())
-                .collect::<Option<Vec<_>>>()
-            {
-            if let Some(signature) = signature {
-                if let Some(result) = types.get(signature).cloned() {
-                    let result = Box::new(result);
-                    Some(ty::Type::Function(ty::Function { parameters, result }))
-                } else {
-                    trace!("inference failure: no signature for closure");
-                    None
-                }
-            } else if let Some(result) = types.get(result).cloned() {
-                let result = Box::new(result);
-                Some(ty::Type::Function(ty::Function { parameters, result }))
-            } else {
-                trace!("inference failure: missing signature type for closure, and no inferrable result type");
-                None
-            }
+                .map(|(_, l)| l.alignment)
+                .max()
+                .unwrap_or(self.ptr_size);
+            let mut size = self.ptr_size;
+
+            let named_fields = capture_layouts
+                .into_iter()
+                .map(|(field, layout)| {
+                    let offset = align_up(size, layout.alignment);
+                    size = offset + layout.size;
+                    let field = field.clone();
+                    let layout = layout.clone();
+                    let offset_layout = layout::OffsetLayout { offset, layout };
+
+                    layout::NamedField {
+                        field,
+                        offset_layout,
+                    }
+                })
+                .collect::<Vec<_>>();
+
+            Some(layout::Layout {
+                size,
+                alignment,
+                named_fields,
+                unnamed_fields,
+            })
         } else {
-            trace!("inference failure: missing parameter type(s) for closure");
-            // TODO: implement surjective type inference
             None
         }
-        */
     }
 
     fn infer_module_layout<D>(

@@ -36,10 +36,11 @@
     missing_copy_implementations,
     trivial_casts,
     trivial_numeric_casts,
-    unstable_features,
+    //unstable_features,
     unused_import_braces,
     unused_qualifications
 )]
+#![feature(const_vec_new)]
 #![cfg_attr(feature = "cargo-clippy", deny(clippy::all, clippy::pedantic))]
 
 #[macro_use]
