@@ -13,7 +13,7 @@ proc-macro = true
 [dependencies]
 synstructure = "0.10.1"
 quote = "0.6.10"
-proc-macro2 = "0.4.24"
+proc-macro2 = "0.4.25"
 
 [dev-dependencies]
 specs = "0.14.3"
