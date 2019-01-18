@@ -138,7 +138,7 @@ impl fmt::Display for Tuple {
         let mut needs_sep = false;
         for ty in &self.fields {
             if needs_sep {
-                write!(f, ",")?;
+                write!(f, ", ")?;
             }
             ty.fmt(f)?;
             needs_sep = true;
@@ -153,7 +153,7 @@ impl fmt::Display for Union {
         let mut needs_sep = false;
         for ty in &self.alternatives {
             if needs_sep {
-                write!(f, "|")?;
+                write!(f, " | ")?;
             }
             ty.fmt(f)?;
             needs_sep = true;
@@ -168,7 +168,7 @@ impl fmt::Display for Record {
         let mut needs_sep = false;
         for (id, ty) in &self.fields {
             if needs_sep {
-                write!(f, ",")?;
+                write!(f, ", ")?;
             }
             write!(f, "{}: ", id)?;
             ty.fmt(f)?;
@@ -185,12 +185,12 @@ impl fmt::Display for Function {
         let mut needs_sep = false;
         for ty in &self.parameters {
             if needs_sep {
-                write!(f, ",")?;
+                write!(f, ", ")?;
             }
             ty.fmt(f)?;
             needs_sep = true;
         }
-        write!(f, "|")?;
+        write!(f, "| -> ")?;
         self.result.fmt(f)?;
         Ok(())
     }

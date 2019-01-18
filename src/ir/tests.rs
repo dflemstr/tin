@@ -57,7 +57,7 @@ a = || -> u32 {
   c
 };
 "#;
-    let expected = Err(r#"error: undefined reference to "c"
+    let expected = Err(r#"error: undefined reference to `c`
 - <lexically_scoped_closure_vars>:7:3
 7 |   c
   |   ^
@@ -81,7 +81,7 @@ a = || -> u32 {
   b
 };
 "#;
-    let expected = Err(r#"error: undefined reference to "c"
+    let expected = Err(r#"error: undefined reference to `c`
 - <ordered_local_vars>:3:7
 3 |   b = c;
   |       ^
@@ -109,10 +109,10 @@ a = || -> u32 {
   |   ^^^^^^^^^^^
 - <type_error>:3:10
 3 |   1f32 + 2f64
-  |          ^^^^ expected f32 but got f64
+  |          ^^^^ expected `f32` but got `f64`
 - <type_error>:3:3
 3 |   1f32 + 2f64
-  |   ---- other operand has type f32
+  |   ---- other operand has type `f32`
 "#
     .to_owned());
     let actual = check_module("type_error", source);
@@ -130,13 +130,13 @@ fn check_module(name: &'static str, source: &str) -> Result<(), String> {
         .add_filemap(codespan::FileName::Virtual(name.into()), source.to_owned())
         .span();
     let ast_module =
-        ast::Module::parse(span, source).map_err(|e| test_util::format_error(&codemap, e))?;
+        ast::Module::parse(span, source).map_err(|e| crate::diagnostic::to_string(&codemap, &e))?;
 
     let mut ir = Ir::new();
     ir.load(&ast_module)
-        .map_err(|e| test_util::format_error(&codemap, e))?;
+        .map_err(|e| crate::diagnostic::to_string(&codemap, &e))?;
     ir.check_types()
-        .map_err(|e| test_util::format_error(&codemap, e))?;
+        .map_err(|e| crate::diagnostic::to_string(&codemap, &e))?;
 
     test_util::render_graph(&format!(concat!(module_path!(), "::{}"), name), &ir).unwrap();
 

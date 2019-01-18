@@ -424,7 +424,7 @@ where
                         main_entity: result,
                         aux_entities: vec![ty::error::AuxEntity {
                             entity: signature,
-                            label: format!("declared return type is {}", signature_ty),
+                            label: format!("declared return type is `{}`", signature_ty),
                         }],
                     }))
                 }
@@ -473,7 +473,7 @@ fn if_eq_then(
             main_entity: rhs_entity,
             aux_entities: vec![ty::error::AuxEntity {
                 entity: lhs_entity,
-                label: format!("other operand has type {}", lhs),
+                label: format!("other operand has type `{}`", lhs),
             }],
         })
     }
@@ -495,7 +495,7 @@ fn bool_op(
                 main_entity: rhs_entity,
                 aux_entities: vec![ty::error::AuxEntity {
                     entity: lhs_entity,
-                    label: format!("other operand has type {}", lhs),
+                    label: format!("other operand has type `{}`", lhs),
                 }],
             })
         }
@@ -506,7 +506,7 @@ fn bool_op(
             main_entity: lhs_entity,
             aux_entities: vec![ty::error::AuxEntity {
                 entity: rhs_entity,
-                label: format!("other operand has type {}", rhs),
+                label: format!("other operand has type `{}`", rhs),
             }],
         })
     }
@@ -528,7 +528,7 @@ fn or_op(
                 main_entity: rhs_entity,
                 aux_entities: vec![ty::error::AuxEntity {
                     entity: lhs_entity,
-                    label: format!("other operand has type {}", lhs),
+                    label: format!("other operand has type `{}`", lhs),
                 }],
             })
         }
@@ -542,7 +542,7 @@ fn or_op(
                 main_entity: rhs_entity,
                 aux_entities: vec![ty::error::AuxEntity {
                     entity: lhs_entity,
-                    label: format!("other operand has type {}", lhs),
+                    label: format!("other operand has type `{}`", lhs),
                 }],
             })
         }
@@ -556,7 +556,7 @@ fn or_op(
             main_entity: lhs_entity,
             aux_entities: vec![ty::error::AuxEntity {
                 entity: rhs_entity,
-                label: format!("other operand has type {}", rhs),
+                label: format!("other operand has type `{}`", rhs),
             }],
         })
     }
@@ -599,7 +599,7 @@ fn if_integral_and_eq_then(
                     main_entity: rhs_entity,
                     aux_entities: vec![ty::error::AuxEntity {
                         entity: lhs_entity,
-                        label: format!("other operand has type {}", lhs),
+                        label: format!("other operand has type `{}`", lhs),
                     }],
                 })
             }
@@ -612,7 +612,7 @@ fn if_integral_and_eq_then(
             main_entity: lhs_entity,
             aux_entities: vec![ty::error::AuxEntity {
                 entity: rhs_entity,
-                label: format!("other operand has type {}", rhs),
+                label: format!("other operand has type `{}`", rhs),
             }],
         }),
     }

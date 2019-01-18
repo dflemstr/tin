@@ -39,8 +39,9 @@ where
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "expected ")?;
         self.expected.fmt(f)?;
-        write!(f, " but got ")?;
+        write!(f, " but got `")?;
         self.actual.fmt(f)?;
+        write!(f, "`")?;
         Ok(())
     }
 }
@@ -48,7 +49,7 @@ where
 impl fmt::Display for ExpectedType {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
-            ExpectedType::Specific(ref ty) => ty.fmt(f),
+            ExpectedType::Specific(ref ty) => write!(f, "`{}`", ty),
             ExpectedType::ScalarClass(ref class) => class.fmt(f),
             ExpectedType::AnyOf(ref options) => {
                 let last = options.len() - 1;

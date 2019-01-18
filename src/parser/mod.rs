@@ -391,7 +391,6 @@ mod tests {
 
     use crate::ast;
     use crate::ast::MapContext;
-    use crate::test_util;
 
     #[test]
     fn e2e() {
@@ -1654,7 +1653,7 @@ help: valid tokens at this point: ["!", "#$0", "#$1", "#0", "#1", "#^-", "#^0", 
         let result = crate::ast::Module::new_parser().parse(span, &mut errors, source);
         super::handle_parse_result(source, span, result, errors)
             .map(|r| r.map_context(&mut |_| ()))
-            .map_err(|e| test_util::format_error(&code_map, e))
+            .map_err(|e| crate::diagnostic::to_string(&code_map, &e))
     }
 
     fn parse_expression(name: &'static str, source: &str) -> Result<ast::Expression<()>, String> {
@@ -1669,6 +1668,6 @@ help: valid tokens at this point: ["!", "#$0", "#$1", "#0", "#1", "#^-", "#^0", 
         let result = crate::ast::Expression::new_parser().parse(span, &mut errors, source);
         super::handle_parse_result(source, span, result, errors)
             .map(|r| r.map_context(&mut |_| ()))
-            .map_err(|e| test_util::format_error(&code_map, e))
+            .map_err(|e| crate::diagnostic::to_string(&code_map, &e))
     }
 }

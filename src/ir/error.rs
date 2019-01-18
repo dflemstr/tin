@@ -6,7 +6,7 @@ use crate::ir::component::ty;
 #[derive(Clone, Debug, Fail, PartialEq)]
 pub enum Error {
     /// The IR cannot be built because something refers to an identifier that is not defined.
-    #[fail(display = "undefined reference to {:?}", reference)]
+    #[fail(display = "undefined reference to `{}`", reference)]
     UndefinedReference {
         /// The identifier of the undefined reference.
         reference: String,
