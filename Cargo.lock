@@ -132,8 +132,8 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 
 [[package]]
 name = "cargo-husky"
-version = "1.2.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
+version = "1.2.2-alpha.0"
+source = "git+https://github.com/dflemstr/cargo-husky.git?branch=run-for-all#1048516a597ac7982e4ccb28d7f9602ed5307ab2"
 
 [[package]]
 name = "cc"
@@ -1417,7 +1417,7 @@ name = "tin"
 version = "0.3.0"
 dependencies = [
  "byteorder 1.2.7 (registry+https://github.com/rust-lang/crates.io-index)",
- "cargo-husky 1.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "cargo-husky 1.2.2-alpha.0 (git+https://github.com/dflemstr/cargo-husky.git?branch=run-for-all)",
  "codespan 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "codespan-reporting 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "cranelift 0.26.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -1595,7 +1595,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 "checksum block-padding 0.1.2 (registry+https://github.com/rust-lang/crates.io-index)" = "4fc4358306e344bf9775d0197fd00d2603e5afb0771bb353538630f022068ea3"
 "checksum byte-tools 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)" = "980479e6fde23246dfb54d47580d66b4e99202e7579c5eaa9fe10ecb5ebd2182"
 "checksum byteorder 1.2.7 (registry+https://github.com/rust-lang/crates.io-index)" = "94f88df23a25417badc922ab0f5716cc1330e87f71ddd9203b3a3ccd9cedf75d"
-"checksum cargo-husky 1.2.1 (registry+https://github.com/rust-lang/crates.io-index)" = "fbfc091f50aebd54f00e6501772fbec6163d1847bf8ab0b191bf550453617370"
+"checksum cargo-husky 1.2.2-alpha.0 (git+https://github.com/dflemstr/cargo-husky.git?branch=run-for-all)" = "<none>"
 "checksum cc 1.0.28 (registry+https://github.com/rust-lang/crates.io-index)" = "bb4a8b715cb4597106ea87c7c84b2f1d452c7492033765df7f32651e66fcf749"
 "checksum cfg-if 0.1.6 (registry+https://github.com/rust-lang/crates.io-index)" = "082bb9b28e00d3c9d39cc03e64ce4cea0f1bb9b3fde493f0cbc008472d22bdf4"
 "checksum chrono 0.4.6 (registry+https://github.com/rust-lang/crates.io-index)" = "45912881121cb26fad7c38c17ba7daa18764771836b34fab7d3fbd93ed633878"
