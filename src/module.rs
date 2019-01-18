@@ -80,10 +80,10 @@ where
 {
     let mut error = ptr::null_mut();
     let result = call(&mut error);
-    if !error.is_null() {
-        Err(*unsafe { Box::from_raw(error) })
-    } else {
+    if error.is_null() {
         Ok(result)
+    } else {
+        Err(*unsafe { Box::from_raw(error) })
     }
 }
 
@@ -95,6 +95,7 @@ macro_rules! define_function {
 
         impl<$ret, $($argt),*> $name<$ret, $($argt),*> {
             /// Call the underlying function in a safe manner.
+            #[allow(clippy::redundant_closure)]
             pub fn call(&self, $($argn: $argt),*) -> Result<$ret, Error> {
                 wrap_call(|err| self.0($($argn,)* err))
             }

@@ -84,7 +84,7 @@ pub fn parse_number_literal<T>(
             input,
             errors,
             2,
-            0u8,
+            0_u8,
             u8::from_str,
             ast::NumberValue::U8,
         )
@@ -94,7 +94,7 @@ pub fn parse_number_literal<T>(
             input,
             errors,
             3,
-            0u16,
+            0_u16,
             u16::from_str,
             ast::NumberValue::U16,
         )
@@ -104,7 +104,7 @@ pub fn parse_number_literal<T>(
             input,
             errors,
             3,
-            0u32,
+            0_u32,
             u32::from_str,
             ast::NumberValue::U32,
         )
@@ -114,7 +114,7 @@ pub fn parse_number_literal<T>(
             input,
             errors,
             3,
-            0u64,
+            0_u64,
             u64::from_str,
             ast::NumberValue::U64,
         )
@@ -124,7 +124,7 @@ pub fn parse_number_literal<T>(
             input,
             errors,
             2,
-            0i8,
+            0_i8,
             i8::from_str,
             ast::NumberValue::I8,
         )
@@ -134,7 +134,7 @@ pub fn parse_number_literal<T>(
             input,
             errors,
             3,
-            0i16,
+            0_i16,
             i16::from_str,
             ast::NumberValue::I16,
         )
@@ -144,7 +144,7 @@ pub fn parse_number_literal<T>(
             input,
             errors,
             3,
-            0i32,
+            0_i32,
             i32::from_str,
             ast::NumberValue::I32,
         )
@@ -154,7 +154,7 @@ pub fn parse_number_literal<T>(
             input,
             errors,
             3,
-            0i64,
+            0_i64,
             i64::from_str,
             ast::NumberValue::I64,
         )
@@ -164,7 +164,7 @@ pub fn parse_number_literal<T>(
             input,
             errors,
             3,
-            0f32,
+            0_f32,
             f32::from_str,
             ast::NumberValue::F32,
         )
@@ -174,7 +174,7 @@ pub fn parse_number_literal<T>(
             input,
             errors,
             3,
-            0f64,
+            0_f64,
             f64::from_str,
             ast::NumberValue::F64,
         )
@@ -289,22 +289,19 @@ pub fn parse_escaped_string<T>(
                         let unicode_start = unicode_start + codespan::ByteOffset(1);
                         // The +1 is for the initial quote char
                         let unicode_end = codespan::ByteOffset((i + 1) as codespan::RawOffset);
-                        match char::from_u32(unicode) {
-                            Some(c) => {
-                                result.push(c);
-                                state = State::Normal;
-                            }
-                            None => {
-                                errors.push(lalrpop_util::ParseError::User {
-                                    error: parser::Error::IllegalUnicode {
-                                        token: span,
-                                        escape: span.subspan(unicode_start, unicode_end),
-                                        bad_codepoint: unicode,
-                                    },
-                                });
-                                state = State::Normal;
-                                is_invalid = true;
-                            }
+                        if let Some(c) = char::from_u32(unicode) {
+                            result.push(c);
+                            state = State::Normal;
+                        } else {
+                            errors.push(lalrpop_util::ParseError::User {
+                                error: parser::Error::IllegalUnicode {
+                                    token: span,
+                                    escape: span.subspan(unicode_start, unicode_end),
+                                    bad_codepoint: unicode,
+                                },
+                            });
+                            state = State::Normal;
+                            is_invalid = true;
                         }
                     }
                     _ => {

@@ -16,6 +16,7 @@ struct ReplacementEntityVisitor {
 }
 
 impl<'a> specs::System<'a> for System {
+    #[cfg_attr(feature = "cargo-clippy", allow(clippy::type_complexity))]
     type SystemData = (
         specs::Entities<'a>,
         specs::ReadStorage<'a, replacement::Replacement>,

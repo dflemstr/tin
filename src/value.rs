@@ -4,42 +4,42 @@ use std::sync;
 
 lazy_static! {
     pub static ref NIL: Value = {
-        Value::new(ValueCase::Symbol(Symbol {
+        Value::new(Case::Symbol(Symbol {
             label: "nil".to_owned(),
         }))
     };
     pub static ref FALSE: Value = {
-        Value::new(ValueCase::Symbol(Symbol {
+        Value::new(Case::Symbol(Symbol {
             label: "f".to_owned(),
         }))
     };
     pub static ref TRUE: Value = {
-        Value::new(ValueCase::Symbol(Symbol {
+        Value::new(Case::Symbol(Symbol {
             label: "t".to_owned(),
         }))
     };
     pub static ref LT: Value = {
-        Value::new(ValueCase::Symbol(Symbol {
+        Value::new(Case::Symbol(Symbol {
             label: "lt".to_owned(),
         }))
     };
     pub static ref EQ: Value = {
-        Value::new(ValueCase::Symbol(Symbol {
+        Value::new(Case::Symbol(Symbol {
             label: "eq".to_owned(),
         }))
     };
     pub static ref GT: Value = {
-        Value::new(ValueCase::Symbol(Symbol {
+        Value::new(Case::Symbol(Symbol {
             label: "gt".to_owned(),
         }))
     };
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub struct Value(sync::Arc<ValueCase>);
+pub struct Value(sync::Arc<Case>);
 
 #[derive(Clone, Debug, PartialEq)]
-pub enum ValueCase {
+pub enum Case {
     Number(Number),
     String(String),
     Symbol(Symbol),
@@ -77,38 +77,38 @@ pub struct Record {
 }
 
 impl Value {
-    pub fn new(storage: ValueCase) -> Self {
+    pub fn new(storage: Case) -> Self {
         Value(sync::Arc::new(storage))
     }
 
     pub fn number(number: Number) -> Self {
-        Value::new(ValueCase::Number(number))
+        Value::new(Case::Number(number))
     }
 
     pub fn string<S>(string: S) -> Self
     where
-        S: ToString,
+        S: Into<String>,
     {
-        Value(sync::Arc::new(ValueCase::String(string.to_string())))
+        Value(sync::Arc::new(Case::String(string.into())))
     }
 
     pub fn symbol<S>(label: S) -> Self
     where
-        S: ToString,
+        S: Into<String>,
     {
-        let label = label.to_string();
-        Value::new(ValueCase::Symbol(Symbol { label }))
+        let label = label.into();
+        Value::new(Case::Symbol(Symbol { label }))
     }
 
     pub fn tuple(tuple: Tuple) -> Self {
-        Value::new(ValueCase::Tuple(tuple))
+        Value::new(Case::Tuple(tuple))
     }
 
     pub fn record(record: Record) -> Self {
-        Value::new(ValueCase::Record(record))
+        Value::new(Case::Record(record))
     }
 
-    pub fn case(&self) -> &ValueCase {
+    pub fn case(&self) -> &Case {
         &self.0
     }
 }
@@ -125,61 +125,61 @@ impl From<bool> for Value {
 
 impl From<u8> for Value {
     fn from(v: u8) -> Self {
-        Value::new(ValueCase::Number(Number::U8(v)))
+        Value::new(Case::Number(Number::U8(v)))
     }
 }
 
 impl From<u16> for Value {
     fn from(v: u16) -> Self {
-        Value::new(ValueCase::Number(Number::U16(v)))
+        Value::new(Case::Number(Number::U16(v)))
     }
 }
 
 impl From<u32> for Value {
     fn from(v: u32) -> Self {
-        Value::new(ValueCase::Number(Number::U32(v)))
+        Value::new(Case::Number(Number::U32(v)))
     }
 }
 
 impl From<u64> for Value {
     fn from(v: u64) -> Self {
-        Value::new(ValueCase::Number(Number::U64(v)))
+        Value::new(Case::Number(Number::U64(v)))
     }
 }
 
 impl From<i8> for Value {
     fn from(v: i8) -> Self {
-        Value::new(ValueCase::Number(Number::I8(v)))
+        Value::new(Case::Number(Number::I8(v)))
     }
 }
 
 impl From<i16> for Value {
     fn from(v: i16) -> Self {
-        Value::new(ValueCase::Number(Number::I16(v)))
+        Value::new(Case::Number(Number::I16(v)))
     }
 }
 
 impl From<i32> for Value {
     fn from(v: i32) -> Self {
-        Value::new(ValueCase::Number(Number::I32(v)))
+        Value::new(Case::Number(Number::I32(v)))
     }
 }
 
 impl From<i64> for Value {
     fn from(v: i64) -> Self {
-        Value::new(ValueCase::Number(Number::I64(v)))
+        Value::new(Case::Number(Number::I64(v)))
     }
 }
 
 impl From<f32> for Value {
     fn from(v: f32) -> Self {
-        Value::new(ValueCase::Number(Number::F32(v)))
+        Value::new(Case::Number(Number::F32(v)))
     }
 }
 
 impl From<f64> for Value {
     fn from(v: f64) -> Self {
-        Value::new(ValueCase::Number(Number::F64(v)))
+        Value::new(Case::Number(Number::F64(v)))
     }
 }
 
@@ -198,6 +198,6 @@ where
     A: Into<Value>,
 {
     fn from(v: Option<A>) -> Self {
-        v.map(Into::into).unwrap_or_else(|| NIL.clone())
+        v.map_or_else(|| NIL.clone(), Into::into)
     }
 }

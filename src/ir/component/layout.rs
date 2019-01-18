@@ -9,17 +9,17 @@ pub struct Layout {
     pub size: usize,
     pub alignment: usize,
     pub named_fields: Vec<NamedField>,
-    pub unnamed_fields: Vec<OffsetLayout>,
+    pub unnamed_fields: Vec<Offset>,
 }
 
 #[derive(Clone, Debug, VisitEntities, VisitEntitiesMut)]
 pub struct NamedField {
     pub field: String,
-    pub offset_layout: OffsetLayout,
+    pub offset_layout: Offset,
 }
 
 #[derive(Clone, Debug, VisitEntities, VisitEntitiesMut)]
-pub struct OffsetLayout {
+pub struct Offset {
     pub offset: usize,
     pub layout: Layout,
 }
@@ -54,11 +54,7 @@ impl Layout {
         }
     }
 
-    pub fn unnamed_fields(
-        size: usize,
-        alignment: usize,
-        unnamed_fields: Vec<OffsetLayout>,
-    ) -> Layout {
+    pub fn unnamed_fields(size: usize, alignment: usize, unnamed_fields: Vec<Offset>) -> Layout {
         let named_fields = Vec::new();
 
         Layout {
@@ -70,9 +66,9 @@ impl Layout {
     }
 }
 
-impl OffsetLayout {
-    pub const fn zero() -> OffsetLayout {
-        OffsetLayout {
+impl Offset {
+    pub const fn zero() -> Offset {
+        Offset {
             offset: 0,
             layout: Layout::zero(),
         }
@@ -117,7 +113,7 @@ impl fmt::Display for Layout {
     }
 }
 
-impl fmt::Display for OffsetLayout {
+impl fmt::Display for Offset {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}({})", self.offset, self.layout)
     }

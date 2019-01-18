@@ -31,7 +31,7 @@ impl Ir {
         use specs::world::Builder;
 
         let entity = self.world.create_entity().build();
-        builder::ModuleBuilder::new(&mut self.world).add_module(entity, module)?;
+        builder::Builder::new(&mut self.world).add_module(entity, module)?;
 
         let mut dispatcher = specs::DispatcherBuilder::new()
             .with(
@@ -41,7 +41,7 @@ impl Ir {
             )
             .build();
 
-        dispatcher.dispatch(&mut self.world.res);
+        dispatcher.dispatch(&self.world.res);
 
         self.maintain()?;
 
@@ -59,7 +59,7 @@ impl Ir {
             .with(system::infer_layouts::System::new(8), "infer_layouts", &[])
             .build();
 
-        dispatcher.dispatch(&mut self.world.res);
+        dispatcher.dispatch(&self.world.res);
 
         self.maintain()?;
 

@@ -188,25 +188,13 @@ where
             }
         }
         element::UnOperator::BNot => if_integral_then(operand, ty, ty),
-        element::UnOperator::Cl0 => {
-            if_integral_then(operand, ty, &ty::Type::Number(ty::Number::U32))
-        }
-        element::UnOperator::Cl1 => {
-            if_integral_then(operand, ty, &ty::Type::Number(ty::Number::U32))
-        }
-        element::UnOperator::Cls => {
-            if_integral_then(operand, ty, &ty::Type::Number(ty::Number::U32))
-        }
-        element::UnOperator::Ct0 => {
-            if_integral_then(operand, ty, &ty::Type::Number(ty::Number::U32))
-        }
-        element::UnOperator::Ct1 => {
-            if_integral_then(operand, ty, &ty::Type::Number(ty::Number::U32))
-        }
-        element::UnOperator::C0 => {
-            if_integral_then(operand, ty, &ty::Type::Number(ty::Number::U32))
-        }
-        element::UnOperator::C1 => {
+        element::UnOperator::Cl0
+        | element::UnOperator::Cl1
+        | element::UnOperator::Cls
+        | element::UnOperator::Ct0
+        | element::UnOperator::Ct1
+        | element::UnOperator::C0
+        | element::UnOperator::C1 => {
             if_integral_then(operand, ty, &ty::Type::Number(ty::Number::U32))
         }
         element::UnOperator::Sqrt => if_fractional_then(operand, ty, ty),
@@ -226,55 +214,28 @@ where
     match (types.get(lhs), types.get(rhs)) {
         (Some(lhs_ty), Some(rhs_ty)) => {
             let result = match operator {
-                element::BiOperator::Eq => if_eq_then(lhs, lhs_ty, rhs, rhs_ty, &*BOOL_TYPE),
-                element::BiOperator::Ne => if_eq_then(lhs, lhs_ty, rhs, rhs_ty, &*BOOL_TYPE),
-                element::BiOperator::Lt => if_eq_then(lhs, lhs_ty, rhs, rhs_ty, &*BOOL_TYPE),
-                element::BiOperator::Ge => if_eq_then(lhs, lhs_ty, rhs, rhs_ty, &*BOOL_TYPE),
-                element::BiOperator::Gt => if_eq_then(lhs, lhs_ty, rhs, rhs_ty, &*BOOL_TYPE),
-                element::BiOperator::Le => if_eq_then(lhs, lhs_ty, rhs, rhs_ty, &*BOOL_TYPE),
+                element::BiOperator::Eq
+                | element::BiOperator::Ne
+                | element::BiOperator::Lt
+                | element::BiOperator::Ge
+                | element::BiOperator::Gt
+                | element::BiOperator::Le => if_eq_then(lhs, lhs_ty, rhs, rhs_ty, &*BOOL_TYPE),
                 element::BiOperator::Cmp => unimplemented!(),
-                element::BiOperator::Add => if_eq_then(lhs, lhs_ty, rhs, rhs_ty, lhs_ty),
-                element::BiOperator::Sub => if_eq_then(lhs, lhs_ty, rhs, rhs_ty, lhs_ty),
-                element::BiOperator::Mul => if_eq_then(lhs, lhs_ty, rhs, rhs_ty, lhs_ty),
-                element::BiOperator::Div => if_eq_then(lhs, lhs_ty, rhs, rhs_ty, lhs_ty),
-                element::BiOperator::Rem => if_eq_then(lhs, lhs_ty, rhs, rhs_ty, lhs_ty),
-                element::BiOperator::And => bool_op(lhs, lhs_ty, rhs, rhs_ty),
-                element::BiOperator::BAnd => if_eq_then(lhs, lhs_ty, rhs, rhs_ty, lhs_ty),
+                element::BiOperator::Add
+                | element::BiOperator::Sub
+                | element::BiOperator::Mul
+                | element::BiOperator::Div
+                | element::BiOperator::Rem
+                // TODO: don't allow floats
+                | element::BiOperator::BAnd
+                | element::BiOperator::BOr
+                | element::BiOperator::BXor
+                | element::BiOperator::BAndNot
+                | element::BiOperator::BOrNot
+                | element::BiOperator::BXorNot => if_eq_then(lhs, lhs_ty, rhs, rhs_ty, lhs_ty),
                 element::BiOperator::Or => or_op(lhs, lhs_ty, rhs, rhs_ty),
-                element::BiOperator::BOr => if_eq_then(lhs, lhs_ty, rhs, rhs_ty, lhs_ty),
-                element::BiOperator::Xor => bool_op(lhs, lhs_ty, rhs, rhs_ty),
-                element::BiOperator::BXor => if_eq_then(lhs, lhs_ty, rhs, rhs_ty, lhs_ty),
-                element::BiOperator::AndNot => bool_op(lhs, lhs_ty, rhs, rhs_ty),
-                element::BiOperator::BAndNot => if_eq_then(lhs, lhs_ty, rhs, rhs_ty, lhs_ty),
-                element::BiOperator::OrNot => bool_op(lhs, lhs_ty, rhs, rhs_ty),
-                element::BiOperator::BOrNot => if_eq_then(lhs, lhs_ty, rhs, rhs_ty, lhs_ty),
-                element::BiOperator::XorNot => bool_op(lhs, lhs_ty, rhs, rhs_ty),
-                element::BiOperator::BXorNot => if_eq_then(lhs, lhs_ty, rhs, rhs_ty, lhs_ty),
-                element::BiOperator::RotL => if_integral_and_eq_then(
-                    lhs,
-                    lhs_ty,
-                    rhs,
-                    rhs_ty,
-                    &ty::Type::Number(ty::Number::U32),
-                    lhs_ty,
-                ),
-                element::BiOperator::RotR => if_integral_and_eq_then(
-                    lhs,
-                    lhs_ty,
-                    rhs,
-                    rhs_ty,
-                    &ty::Type::Number(ty::Number::U32),
-                    lhs_ty,
-                ),
-                element::BiOperator::ShL => if_integral_and_eq_then(
-                    lhs,
-                    lhs_ty,
-                    rhs,
-                    rhs_ty,
-                    &ty::Type::Number(ty::Number::U32),
-                    lhs_ty,
-                ),
-                element::BiOperator::ShR => if_integral_and_eq_then(
+                element::BiOperator::And |element::BiOperator::Xor |element::BiOperator::AndNot |element::BiOperator::OrNot | element::BiOperator::XorNot => bool_op(lhs, lhs_ty, rhs, rhs_ty),
+                element::BiOperator::RotL | element::BiOperator::RotR |element::BiOperator::ShL |element::BiOperator::ShR => if_integral_and_eq_then(
                     lhs,
                     lhs_ty,
                     rhs,
@@ -562,7 +523,7 @@ fn or_op(
             Inference::Type(ty::Type::Union(u.clone().with(symbol)))
         } else {
             Inference::Error(ty::error::Error {
-                expected: ty::error::ExpectedType::ScalarClass(ty::class::ScalarClass::Symbol),
+                expected: ty::error::ExpectedType::ScalarClass(ty::class::Scalar::Symbol),
                 actual: rhs.clone(),
                 main_entity: rhs_entity,
                 aux_entities: vec![ty::error::AuxEntity {
@@ -607,10 +568,10 @@ fn if_integral_then(
     result: &ty::Type,
 ) -> Inference<ty::Type> {
     match ty.scalar_class() {
-        ty::class::ScalarClass::Integral(_) => Inference::Type(result.clone()),
+        ty::class::Scalar::Integral(_) => Inference::Type(result.clone()),
         _ => Inference::Error(ty::error::Error {
-            expected: ty::error::ExpectedType::ScalarClass(ty::class::ScalarClass::Integral(
-                ty::class::IntegralScalarClass::Any,
+            expected: ty::error::ExpectedType::ScalarClass(ty::class::Scalar::Integral(
+                ty::class::IntegralScalar::Any,
             )),
             actual: ty.clone(),
             main_entity: entity,
@@ -628,7 +589,7 @@ fn if_integral_and_eq_then(
     result: &ty::Type,
 ) -> Inference<ty::Type> {
     match lhs.scalar_class() {
-        ty::class::ScalarClass::Integral(_) => {
+        ty::class::Scalar::Integral(_) => {
             if rhs == expected {
                 Inference::Type(result.clone())
             } else {
@@ -644,8 +605,8 @@ fn if_integral_and_eq_then(
             }
         }
         _ => Inference::Error(ty::error::Error {
-            expected: ty::error::ExpectedType::ScalarClass(ty::class::ScalarClass::Integral(
-                ty::class::IntegralScalarClass::Any,
+            expected: ty::error::ExpectedType::ScalarClass(ty::class::Scalar::Integral(
+                ty::class::IntegralScalar::Any,
             )),
             actual: lhs.clone(),
             main_entity: lhs_entity,
@@ -663,9 +624,9 @@ fn if_fractional_then(
     result: &ty::Type,
 ) -> Inference<ty::Type> {
     match ty.scalar_class() {
-        ty::class::ScalarClass::Fractional => Inference::Type(result.clone()),
+        ty::class::Scalar::Fractional => Inference::Type(result.clone()),
         _ => Inference::Error(ty::error::Error {
-            expected: ty::error::ExpectedType::ScalarClass(ty::class::ScalarClass::Fractional),
+            expected: ty::error::ExpectedType::ScalarClass(ty::class::Scalar::Fractional),
             actual: ty.clone(),
             main_entity: entity,
             aux_entities: vec![],

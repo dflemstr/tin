@@ -6,7 +6,6 @@ use std::str;
 use cranelift::prelude::types;
 
 use crate::codegen::abi_type;
-use crate::codegen::abi_type::AbiType::*;
 use crate::module;
 
 #[derive(Debug)]
@@ -44,10 +43,10 @@ macro_rules! builtin {
 }
 
 builtins! {
-    (ALLOC, alloc, &[Ptr, Ptr], &[Ptr]),
-    (DEALLOC, dealloc, &[Ptr, Ptr, Ptr], &[]),
-    (ERROR, error, &[Scalar(types::I32)], &[Ptr]),
-    (UNWIND_FRAME, unwind_frame, &[Ptr, Ptr, Ptr, Ptr, Ptr, Scalar(types::I32), Scalar(types::I32)], &[]),
+    (ALLOC, alloc, &[abi_type::AbiType::Ptr, abi_type::AbiType::Ptr], &[abi_type::AbiType::Ptr]),
+    (DEALLOC, dealloc, &[abi_type::AbiType::Ptr, abi_type::AbiType::Ptr, abi_type::AbiType::Ptr], &[]),
+    (ERROR, error, &[abi_type::AbiType::Scalar(types::I32)], &[abi_type::AbiType::Ptr]),
+    (UNWIND_FRAME, unwind_frame, &[abi_type::AbiType::Ptr, abi_type::AbiType::Ptr, abi_type::AbiType::Ptr, abi_type::AbiType::Ptr, abi_type::AbiType::Ptr, abi_type::AbiType::Scalar(types::I32), abi_type::AbiType::Scalar(types::I32)], &[]),
 }
 
 unsafe extern "C" fn alloc(size: usize, align: num::NonZeroUsize) -> *mut u8 {

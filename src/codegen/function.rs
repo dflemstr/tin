@@ -40,6 +40,7 @@ where
 }
 
 impl<'a, 'f> Translator<'a, 'f> {
+    #[cfg_attr(feature = "cargo-clippy", allow(clippy::too_many_arguments))]
     pub fn new(
         module: &'a mut cranelift_module::Module<cranelift_simplejit::SimpleJITBackend>,
         builder: &'a mut FunctionBuilder<'f>,
@@ -75,11 +76,10 @@ impl<'a, 'f> Translator<'a, 'f> {
     }
 
     pub fn exec_element(&mut self, entity: specs::Entity, element: &element::Element) {
-        match *element {
-            element::Element::Variable(ref v) => self.exec_variable(entity, v),
-            _ => {
-                self.eval_element(entity, element);
-            }
+        if let element::Element::Variable(ref v) = element {
+            self.exec_variable(entity, v);
+        } else {
+            self.eval_element(entity, element);
         }
     }
 
@@ -91,7 +91,7 @@ impl<'a, 'f> Translator<'a, 'f> {
 
     pub fn eval_element(&mut self, entity: specs::Entity, element: &element::Element) -> Value {
         if let Some(constexpr) = self.constexprs.get(entity) {
-            self.eval_constexpr(&entity, constexpr)
+            self.eval_constexpr(entity, constexpr)
         } else {
             match *element {
                 element::Element::Number(ref v) => self.eval_number_value(entity, v),
@@ -115,59 +115,62 @@ impl<'a, 'f> Translator<'a, 'f> {
         }
     }
 
-    fn eval_constexpr(
-        &mut self,
-        entity: &specs::Entity,
-        constexpr: &constexpr::Constexpr,
-    ) -> Value {
-        match *constexpr.value.case() {
-            value::ValueCase::Number(ref n) => match *n {
-                value::Number::U8(ref v) => self.builder.ins().iconst(types::I8, *v as i64),
-                value::Number::U16(ref v) => self.builder.ins().iconst(types::I16, *v as i64),
-                value::Number::U32(ref v) => self.builder.ins().iconst(types::I32, *v as i64),
-                value::Number::U64(ref v) => self.builder.ins().iconst(types::I64, *v as i64),
-                value::Number::I8(ref v) => self.builder.ins().iconst(types::I8, *v as i64),
-                value::Number::I16(ref v) => self.builder.ins().iconst(types::I16, *v as i64),
-                value::Number::I32(ref v) => self.builder.ins().iconst(types::I32, *v as i64),
+    fn eval_constexpr(&mut self, entity: specs::Entity, constexpr: &constexpr::Constexpr) -> Value {
+        if let value::Case::Number(ref n) = *constexpr.value.case() {
+            match *n {
+                value::Number::U8(ref v) => self.builder.ins().iconst(types::I8, i64::from(*v)),
+                value::Number::U16(ref v) => self.builder.ins().iconst(types::I16, i64::from(*v)),
+                value::Number::U32(ref v) => self.builder.ins().iconst(types::I32, i64::from(*v)),
+                value::Number::U64(ref v) => {
+                    #[cfg_attr(
+                        feature = "cargo-clippy",
+                        allow(clippy::cast_possible_truncation, clippy::cast_possible_wrap)
+                    )]
+                    let value = *v as i64;
+                    self.builder.ins().iconst(types::I64, value)
+                }
+                value::Number::I8(ref v) => self.builder.ins().iconst(types::I8, i64::from(*v)),
+                value::Number::I16(ref v) => self.builder.ins().iconst(types::I16, i64::from(*v)),
+                value::Number::I32(ref v) => self.builder.ins().iconst(types::I32, i64::from(*v)),
                 value::Number::I64(ref v) => self.builder.ins().iconst(types::I64, *v),
                 value::Number::F32(ref v) => self.builder.ins().f32const(Ieee32::with_float(*v)),
                 value::Number::F64(ref v) => self.builder.ins().f64const(Ieee64::with_float(*v)),
-            },
-            _ => {
-                let ty = self.types.get(*entity).unwrap();
-                let abi_type = abi_type::AbiType::from_ir_type(ty).into_specific(self.ptr_type);
-
-                assert_eq!(self.ptr_type, abi_type);
-
-                let data_id = self
-                    .module
-                    .declare_data(
-                        &entity.id().to_string(),
-                        cranelift_module::Linkage::Local,
-                        false,
-                    )
-                    .unwrap();
-                let global_value = self
-                    .module
-                    .declare_data_in_func(data_id, &mut self.builder.func);
-                self.builder.ins().global_value(self.ptr_type, global_value)
             }
+        } else {
+            let ty = self.types.get(entity).unwrap();
+            let abi_type = abi_type::AbiType::from_ir_type(ty).into_specific(self.ptr_type);
+
+            assert_eq!(self.ptr_type, abi_type);
+
+            let data_id = self
+                .module
+                .declare_data(
+                    &entity.id().to_string(),
+                    cranelift_module::Linkage::Local,
+                    false,
+                )
+                .unwrap();
+            let global_value = self
+                .module
+                .declare_data_in_func(data_id, &mut self.builder.func);
+            self.builder.ins().global_value(self.ptr_type, global_value)
         }
     }
 
+    #[cfg_attr(feature = "cargo-clippy", allow(clippy::cast_possible_wrap))]
     pub fn eval_number_value(
         &mut self,
         _entity: specs::Entity,
         number_value: &element::Number,
     ) -> Value {
         match *number_value {
-            element::Number::U8(v) => self.builder.ins().iconst(types::I8, v as i64),
-            element::Number::U16(v) => self.builder.ins().iconst(types::I16, v as i64),
-            element::Number::U32(v) => self.builder.ins().iconst(types::I32, v as i64),
+            element::Number::U8(v) => self.builder.ins().iconst(types::I8, i64::from(v)),
+            element::Number::U16(v) => self.builder.ins().iconst(types::I16, i64::from(v)),
+            element::Number::U32(v) => self.builder.ins().iconst(types::I32, i64::from(v)),
             element::Number::U64(v) => self.builder.ins().iconst(types::I64, v as i64),
-            element::Number::I8(v) => self.builder.ins().iconst(types::I8, v as i64),
-            element::Number::I16(v) => self.builder.ins().iconst(types::I16, v as i64),
-            element::Number::I32(v) => self.builder.ins().iconst(types::I32, v as i64),
+            element::Number::I8(v) => self.builder.ins().iconst(types::I8, i64::from(v)),
+            element::Number::I16(v) => self.builder.ins().iconst(types::I16, i64::from(v)),
+            element::Number::I32(v) => self.builder.ins().iconst(types::I32, i64::from(v)),
             element::Number::I64(v) => self.builder.ins().iconst(types::I64, v),
             element::Number::F32(v) => self.builder.ins().f32const(Ieee32::with_float(v)),
             element::Number::F64(v) => self.builder.ins().f64const(Ieee64::with_float(v)),
@@ -191,6 +194,10 @@ impl<'a, 'f> Translator<'a, 'f> {
         self.builder.ins().symbol_value(self.ptr_type, local_id)
     }
 
+    #[cfg_attr(
+        feature = "cargo-clippy",
+        allow(clippy::cast_possible_truncation, clippy::cast_possible_wrap)
+    )]
     pub fn eval_tuple(&mut self, entity: specs::Entity, tuple: &element::Tuple) -> Value {
         let layout = self.layouts.get(entity).unwrap();
         let alloc_size = self.builder.ins().iconst(self.ptr_type, layout.size as i64);
@@ -216,7 +223,17 @@ impl<'a, 'f> Translator<'a, 'f> {
 
     pub fn eval_record(&mut self, entity: specs::Entity, record: &element::Record) -> Value {
         let layout = self.layouts.get(entity).unwrap();
+
+        #[cfg_attr(
+            feature = "cargo-clippy",
+            allow(clippy::cast_possible_truncation, clippy::cast_possible_wrap)
+        )]
         let alloc_size = self.builder.ins().iconst(self.ptr_type, layout.size as i64);
+
+        #[cfg_attr(
+            feature = "cargo-clippy",
+            allow(clippy::cast_possible_truncation, clippy::cast_possible_wrap)
+        )]
         let alloc_align = self
             .builder
             .ins()
@@ -230,6 +247,11 @@ impl<'a, 'f> Translator<'a, 'f> {
         for named_field in &layout.named_fields {
             let value = record.fields[&named_field.field];
             let value = self.eval_element(value, self.elements.get(value).unwrap());
+
+            #[cfg_attr(
+                feature = "cargo-clippy",
+                allow(clippy::cast_possible_truncation, clippy::cast_possible_wrap)
+            )]
             let offset = named_field.offset_layout.offset as i32;
             self.builder.ins().store(mem_flags, value, result, offset);
         }
@@ -244,8 +266,9 @@ impl<'a, 'f> Translator<'a, 'f> {
         let operand_value = self.eval_element(operand, self.elements.get(operand).unwrap());
 
         match operator {
-            element::UnOperator::Not => self.builder.ins().bnot(operand_value),
-            element::UnOperator::BNot => self.builder.ins().bnot(operand_value),
+            element::UnOperator::Not | element::UnOperator::BNot => {
+                self.builder.ins().bnot(operand_value)
+            }
             element::UnOperator::Cl0 => self.builder.ins().clz(operand_value),
             element::UnOperator::Cl1 => {
                 let inverted = self.builder.ins().bnot(operand_value);
@@ -284,69 +307,69 @@ impl<'a, 'f> Translator<'a, 'f> {
             element::BiOperator::Le => unimplemented!(),
             element::BiOperator::Cmp => unimplemented!(),
             element::BiOperator::Add => match self.types.get(lhs).unwrap().scalar_class() {
-                ty::class::ScalarClass::Integral(_) => {
-                    self.builder.ins().iadd(lhs_value, rhs_value)
-                }
-                ty::class::ScalarClass::Fractional => self.builder.ins().fadd(lhs_value, rhs_value),
+                ty::class::Scalar::Integral(_) => self.builder.ins().iadd(lhs_value, rhs_value),
+                ty::class::Scalar::Fractional => self.builder.ins().fadd(lhs_value, rhs_value),
                 _ => unreachable!(),
             },
             element::BiOperator::Sub => match self.types.get(lhs).unwrap().scalar_class() {
-                ty::class::ScalarClass::Integral(_) => {
-                    self.builder.ins().isub(lhs_value, rhs_value)
-                }
-                ty::class::ScalarClass::Fractional => self.builder.ins().fsub(lhs_value, rhs_value),
+                ty::class::Scalar::Integral(_) => self.builder.ins().isub(lhs_value, rhs_value),
+                ty::class::Scalar::Fractional => self.builder.ins().fsub(lhs_value, rhs_value),
                 _ => unreachable!(),
             },
             element::BiOperator::Mul => match self.types.get(lhs).unwrap().scalar_class() {
-                ty::class::ScalarClass::Integral(_) => {
-                    self.builder.ins().imul(lhs_value, rhs_value)
-                }
-                ty::class::ScalarClass::Fractional => self.builder.ins().fmul(lhs_value, rhs_value),
+                ty::class::Scalar::Integral(_) => self.builder.ins().imul(lhs_value, rhs_value),
+                ty::class::Scalar::Fractional => self.builder.ins().fmul(lhs_value, rhs_value),
                 _ => unreachable!(),
             },
             element::BiOperator::Div => match self.types.get(lhs).unwrap().scalar_class() {
-                ty::class::ScalarClass::Integral(ty::class::IntegralScalarClass::Unsigned) => {
+                ty::class::Scalar::Integral(ty::class::IntegralScalar::Unsigned) => {
                     self.error_if_zero(entity, rhs_value, module::ErrorKind::IntegerDivisonByZero);
                     self.builder.ins().udiv(lhs_value, rhs_value)
                 }
-                ty::class::ScalarClass::Integral(ty::class::IntegralScalarClass::Signed) => {
+                ty::class::Scalar::Integral(ty::class::IntegralScalar::Signed) => {
                     self.error_if_zero(entity, rhs_value, module::ErrorKind::IntegerDivisonByZero);
                     self.builder.ins().sdiv(lhs_value, rhs_value)
                 }
-                ty::class::ScalarClass::Fractional => self.builder.ins().fdiv(lhs_value, rhs_value),
+                ty::class::Scalar::Fractional => self.builder.ins().fdiv(lhs_value, rhs_value),
                 _ => unreachable!(),
             },
             element::BiOperator::Rem => match self.types.get(lhs).unwrap().scalar_class() {
-                ty::class::ScalarClass::Integral(ty::class::IntegralScalarClass::Unsigned) => {
+                ty::class::Scalar::Integral(ty::class::IntegralScalar::Unsigned) => {
                     self.error_if_zero(entity, rhs_value, module::ErrorKind::IntegerDivisonByZero);
                     self.builder.ins().urem(lhs_value, rhs_value)
                 }
-                ty::class::ScalarClass::Integral(ty::class::IntegralScalarClass::Signed) => {
+                ty::class::Scalar::Integral(ty::class::IntegralScalar::Signed) => {
                     self.error_if_zero(entity, rhs_value, module::ErrorKind::IntegerDivisonByZero);
                     self.builder.ins().srem(lhs_value, rhs_value)
                 }
                 _ => unreachable!(),
             },
-            element::BiOperator::And => self.builder.ins().band(lhs_value, rhs_value),
-            element::BiOperator::BAnd => self.builder.ins().band(lhs_value, rhs_value),
-            element::BiOperator::Or => self.builder.ins().bor(lhs_value, rhs_value),
-            element::BiOperator::BOr => self.builder.ins().bor(lhs_value, rhs_value),
-            element::BiOperator::Xor => self.builder.ins().bxor(lhs_value, rhs_value),
-            element::BiOperator::BXor => self.builder.ins().bxor(lhs_value, rhs_value),
-            element::BiOperator::AndNot => self.builder.ins().band_not(lhs_value, rhs_value),
-            element::BiOperator::BAndNot => self.builder.ins().band_not(lhs_value, rhs_value),
-            element::BiOperator::OrNot => self.builder.ins().bor_not(lhs_value, rhs_value),
-            element::BiOperator::BOrNot => self.builder.ins().bor_not(lhs_value, rhs_value),
-            element::BiOperator::XorNot => self.builder.ins().bxor_not(lhs_value, rhs_value),
-            element::BiOperator::BXorNot => self.builder.ins().bxor_not(lhs_value, rhs_value),
+            element::BiOperator::And | element::BiOperator::BAnd => {
+                self.builder.ins().band(lhs_value, rhs_value)
+            }
+            element::BiOperator::Or | element::BiOperator::BOr => {
+                self.builder.ins().bor(lhs_value, rhs_value)
+            }
+            element::BiOperator::Xor | element::BiOperator::BXor => {
+                self.builder.ins().bxor(lhs_value, rhs_value)
+            }
+            element::BiOperator::AndNot | element::BiOperator::BAndNot => {
+                self.builder.ins().band_not(lhs_value, rhs_value)
+            }
+            element::BiOperator::OrNot | element::BiOperator::BOrNot => {
+                self.builder.ins().bor_not(lhs_value, rhs_value)
+            }
+            element::BiOperator::XorNot | element::BiOperator::BXorNot => {
+                self.builder.ins().bxor_not(lhs_value, rhs_value)
+            }
             element::BiOperator::RotL => self.builder.ins().rotl(lhs_value, rhs_value),
             element::BiOperator::RotR => self.builder.ins().rotr(lhs_value, rhs_value),
             element::BiOperator::ShL => self.builder.ins().ishl(lhs_value, rhs_value),
             element::BiOperator::ShR => match self.types.get(lhs).unwrap().scalar_class() {
-                ty::class::ScalarClass::Integral(ty::class::IntegralScalarClass::Unsigned) => {
+                ty::class::Scalar::Integral(ty::class::IntegralScalar::Unsigned) => {
                     self.builder.ins().ushr(lhs_value, rhs_value)
                 }
-                ty::class::ScalarClass::Integral(ty::class::IntegralScalarClass::Signed) => {
+                ty::class::Scalar::Integral(ty::class::IntegralScalar::Signed) => {
                     self.builder.ins().sshr(lhs_value, rhs_value)
                 }
                 _ => unreachable!(),
@@ -368,6 +391,11 @@ impl<'a, 'f> Translator<'a, 'f> {
         let field_type = &record_type.fields[&select.field];
         let field_abi_type =
             abi_type::AbiType::from_ir_type(field_type).into_specific(self.ptr_type);
+
+        #[cfg_attr(
+            feature = "cargo-clippy",
+            allow(clippy::cast_possible_truncation, clippy::cast_possible_wrap)
+        )]
         let field_offset = record_layout
             .named_fields
             .iter()
@@ -463,7 +491,7 @@ impl<'a, 'f> Translator<'a, 'f> {
         let kind = self
             .builder
             .ins()
-            .iconst(types::I32, kind.to_u32().unwrap() as i64);
+            .iconst(types::I32, i64::from(kind.to_u32().unwrap()));
 
         let location = self.locations.get(entity).unwrap().0;
 
@@ -501,8 +529,8 @@ impl<'a, 'f> Translator<'a, 'f> {
             .builder
             .ins()
             .iconst(self.ptr_type, filename_len as i64);
-        let line = self.builder.ins().iconst(types::I32, line.0 as i64);
-        let col = self.builder.ins().iconst(types::I32, col.0 as i64);
+        let line = self.builder.ins().iconst(types::I32, i64::from(line.0));
+        let col = self.builder.ins().iconst(types::I32, i64::from(col.0));
 
         (filename, filename_len, line, col)
     }
@@ -538,6 +566,7 @@ impl<'a, 'f> Translator<'a, 'f> {
         self.builder.inst_results(call)[0]
     }
 
+    #[cfg_attr(feature = "cargo-clippy", allow(clippy::too_many_arguments))]
     pub fn builtin_unwind_frame(
         &mut self,
         error: Value,

@@ -102,16 +102,14 @@ impl System {
 
     fn infer_number_layout(&self, number: &element::Number) -> Option<layout::Layout> {
         match *number {
-            element::Number::U8(_) => Some(layout::Layout::scalar(1)),
-            element::Number::U16(_) => Some(layout::Layout::scalar(2)),
-            element::Number::U32(_) => Some(layout::Layout::scalar(4)),
-            element::Number::U64(_) => Some(layout::Layout::scalar(8)),
-            element::Number::I8(_) => Some(layout::Layout::scalar(1)),
-            element::Number::I16(_) => Some(layout::Layout::scalar(2)),
-            element::Number::I32(_) => Some(layout::Layout::scalar(4)),
-            element::Number::I64(_) => Some(layout::Layout::scalar(8)),
-            element::Number::F32(_) => Some(layout::Layout::scalar(4)),
-            element::Number::F64(_) => Some(layout::Layout::scalar(8)),
+            element::Number::U8(_) | element::Number::I8(_) => Some(layout::Layout::scalar(1)),
+            element::Number::U16(_) | element::Number::I16(_) => Some(layout::Layout::scalar(2)),
+            element::Number::U32(_) | element::Number::I32(_) | element::Number::F32(_) => {
+                Some(layout::Layout::scalar(4))
+            }
+            element::Number::U64(_) | element::Number::I64(_) | element::Number::F64(_) => {
+                Some(layout::Layout::scalar(8))
+            }
         }
     }
 
@@ -132,17 +130,17 @@ impl System {
             if layouts.is_empty() {
                 Some(layout::Layout::zero())
             } else {
-                layouts.sort_unstable_by_key(|(i, l)| (usize::MAX - l.size, *i));
+                layouts.sort_unstable_by_key(|(i, l)| (usize::max_value() - l.size, *i));
                 let alignment = layouts.iter().map(|(_, l)| l.alignment).max().unwrap();
                 let mut size = 0;
 
-                let mut unnamed_fields = vec![layout::OffsetLayout::zero(); layouts.len()];
+                let mut unnamed_fields = vec![layout::Offset::zero(); layouts.len()];
 
                 for (i, layout) in layouts {
                     let offset = align_up(size, layout.alignment);
                     size = offset + layout.size;
                     let layout = layout.clone();
-                    unnamed_fields[i] = layout::OffsetLayout { offset, layout };
+                    unnamed_fields[i] = layout::Offset { offset, layout };
                 }
 
                 Some(layout::Layout::unnamed_fields(
@@ -172,7 +170,7 @@ impl System {
             if layouts.is_empty() {
                 Some(layout::Layout::zero())
             } else {
-                layouts.sort_unstable_by_key(|(n, l)| (usize::MAX - l.size, n.as_str()));
+                layouts.sort_unstable_by_key(|(n, l)| (usize::max_value() - l.size, n.as_str()));
                 let alignment = layouts.iter().map(|(_, l)| l.alignment).max().unwrap();
                 let mut size = 0;
 
@@ -183,7 +181,7 @@ impl System {
                         size = offset + layout.size;
                         let field = field.clone();
                         let layout = layout.clone();
-                        let offset_layout = layout::OffsetLayout { offset, layout };
+                        let offset_layout = layout::Offset { offset, layout };
 
                         layout::NamedField {
                             field,
@@ -212,15 +210,15 @@ impl System {
 
         match operator {
             element::UnOperator::Not => Some(BOOL_LAYOUT),
-            element::UnOperator::BNot => operand,
-            element::UnOperator::Cl0 => operand,
-            element::UnOperator::Cl1 => operand,
-            element::UnOperator::Cls => operand,
-            element::UnOperator::Ct0 => operand,
-            element::UnOperator::Ct1 => operand,
-            element::UnOperator::C0 => operand,
-            element::UnOperator::C1 => operand,
-            element::UnOperator::Sqrt => operand,
+            element::UnOperator::BNot
+            | element::UnOperator::Cl0
+            | element::UnOperator::Cl1
+            | element::UnOperator::Cls
+            | element::UnOperator::Ct0
+            | element::UnOperator::Ct1
+            | element::UnOperator::C0
+            | element::UnOperator::C1
+            | element::UnOperator::Sqrt => operand,
         }
     }
 
@@ -237,47 +235,44 @@ impl System {
         let lhs = layouts.get(lhs).cloned();
         let rhs = layouts.get(rhs).cloned();
 
-        match (lhs.as_ref(), rhs.as_ref()) {
-            (Some(lhs), Some(rhs)) => {
-                if lhs.size != rhs.size {
-                    return None;
-                }
-                if lhs.alignment != rhs.alignment {
-                    return None;
-                }
+        if let (Some(lhs), Some(rhs)) = (lhs.as_ref(), rhs.as_ref()) {
+            if lhs.size != rhs.size {
+                return None;
             }
-            _ => (),
-        };
+            if lhs.alignment != rhs.alignment {
+                return None;
+            }
+        }
 
         match operator {
-            element::BiOperator::Eq => Some(BOOL_LAYOUT),
-            element::BiOperator::Ne => Some(BOOL_LAYOUT),
-            element::BiOperator::Lt => Some(BOOL_LAYOUT),
-            element::BiOperator::Ge => Some(BOOL_LAYOUT),
-            element::BiOperator::Gt => Some(BOOL_LAYOUT),
-            element::BiOperator::Le => Some(BOOL_LAYOUT),
+            element::BiOperator::Eq
+            | element::BiOperator::Ne
+            | element::BiOperator::Lt
+            | element::BiOperator::Ge
+            | element::BiOperator::Gt
+            | element::BiOperator::Le
+            | element::BiOperator::And
+            | element::BiOperator::Or
+            | element::BiOperator::Xor
+            | element::BiOperator::AndNot
+            | element::BiOperator::OrNot
+            | element::BiOperator::XorNot => Some(BOOL_LAYOUT),
             element::BiOperator::Cmp => unimplemented!(),
-            element::BiOperator::Add => lhs,
-            element::BiOperator::Sub => lhs,
-            element::BiOperator::Mul => lhs,
-            element::BiOperator::Div => lhs,
-            element::BiOperator::Rem => lhs,
-            element::BiOperator::And => Some(BOOL_LAYOUT),
-            element::BiOperator::BAnd => lhs,
-            element::BiOperator::Or => Some(BOOL_LAYOUT),
-            element::BiOperator::BOr => lhs,
-            element::BiOperator::Xor => Some(BOOL_LAYOUT),
-            element::BiOperator::BXor => lhs,
-            element::BiOperator::AndNot => Some(BOOL_LAYOUT),
-            element::BiOperator::BAndNot => lhs,
-            element::BiOperator::OrNot => Some(BOOL_LAYOUT),
-            element::BiOperator::BOrNot => lhs,
-            element::BiOperator::XorNot => Some(BOOL_LAYOUT),
-            element::BiOperator::BXorNot => lhs,
-            element::BiOperator::RotL => lhs,
-            element::BiOperator::RotR => lhs,
-            element::BiOperator::ShL => lhs,
-            element::BiOperator::ShR => lhs,
+            element::BiOperator::Add
+            | element::BiOperator::Sub
+            | element::BiOperator::Mul
+            | element::BiOperator::Div
+            | element::BiOperator::Rem
+            | element::BiOperator::BAnd
+            | element::BiOperator::BOr
+            | element::BiOperator::BXor
+            | element::BiOperator::BAndNot
+            | element::BiOperator::BOrNot
+            | element::BiOperator::BXorNot
+            | element::BiOperator::RotL
+            | element::BiOperator::RotR
+            | element::BiOperator::ShL
+            | element::BiOperator::ShR => lhs,
         }
     }
 
@@ -407,12 +402,13 @@ impl System {
             .map(|(n, f)| layouts.get(*f).map(|l| (n, l)))
             .collect::<Option<Vec<_>>>()
         {
-            let unnamed_fields = vec![layout::OffsetLayout {
+            let unnamed_fields = vec![layout::Offset {
                 offset: 0,
                 layout: layout::Layout::scalar(self.ptr_size),
             }];
 
-            capture_layouts.sort_unstable_by_key(|(n, l)| (usize::MAX - l.size, n.as_str()));
+            capture_layouts
+                .sort_unstable_by_key(|(n, l)| (usize::max_value() - l.size, n.as_str()));
             let alignment = capture_layouts
                 .iter()
                 .map(|(_, l)| l.alignment)
@@ -427,7 +423,7 @@ impl System {
                     size = offset + layout.size;
                     let field = field.clone();
                     let layout = layout.clone();
-                    let offset_layout = layout::OffsetLayout { offset, layout };
+                    let offset_layout = layout::Offset { offset, layout };
 
                     layout::NamedField {
                         field,
@@ -467,6 +463,7 @@ impl System {
     }
 }
 
+#[allow(clippy::cast_sign_loss, clippy::cast_possible_wrap)]
 fn align_up(offset: usize, alignment: usize) -> usize {
     debug_assert!(alignment.is_power_of_two());
     offset + ((-(offset as isize)) & (alignment as isize - 1)) as usize

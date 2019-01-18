@@ -42,6 +42,7 @@
 )]
 #![feature(const_vec_new)]
 #![cfg_attr(feature = "cargo-clippy", deny(clippy::all, clippy::pedantic))]
+#![cfg_attr(feature = "cargo-clippy", allow(clippy::use_self))]
 
 #[macro_use]
 extern crate enum_primitive_derive;

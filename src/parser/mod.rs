@@ -157,12 +157,10 @@ fn handle_parse_result<A, T1, T2>(
     let len = errors.len();
     if errors.is_empty() {
         Ok(result.unwrap())
+    } else if len == 1 {
+        Err(errors.pop().unwrap())
     } else {
-        if len == 1 {
-            Err(errors.pop().unwrap())
-        } else {
-            Err(Error::Multiple { errors })
-        }
+        Err(Error::Multiple { errors })
     }
 }
 
@@ -222,17 +220,18 @@ impl Error {
                 }
             }
             lalrpop_util::ParseError::UnrecognizedToken { token, expected } => {
-                let token = token
-                    .map(|(s, _, e)| {
+                let token = token.map_or(
+                    codespan::Span::new(
+                        span.end() - codespan::ByteOffset(1),
+                        span.end() - codespan::ByteOffset(1),
+                    ),
+                    |(s, _, e)| {
                         span.subspan(
                             codespan::ByteOffset(s as codespan::RawOffset),
                             codespan::ByteOffset(e as codespan::RawOffset),
                         )
-                    })
-                    .unwrap_or(codespan::Span::new(
-                        span.end() - codespan::ByteOffset(1),
-                        span.end() - codespan::ByteOffset(1),
-                    ));
+                    },
+                );
                 Error::Unexpected { token, expected }
             }
             lalrpop_util::ParseError::ExtraToken { token: (s, _, e) } => {
@@ -260,7 +259,7 @@ impl diagnostic::Diagnostics for Error {
                 builder.add_diagnostic(
                     codespan_reporting::Severity::Error,
                     None,
-                    format!("{}", self),
+                    &self.to_string(),
                 );
             }
             Error::Unexpected { token, expected } => {
@@ -272,7 +271,7 @@ impl diagnostic::Diagnostics for Error {
                 builder.add_diagnostic(
                     codespan_reporting::Severity::Error,
                     None,
-                    format!("{}", self),
+                    &self.to_string(),
                 );
 
                 if !expected.is_empty() {
@@ -281,7 +280,7 @@ impl diagnostic::Diagnostics for Error {
                     builder.add_diagnostic(
                         codespan_reporting::Severity::Help,
                         None,
-                        format!(
+                        &format!(
                             "valid tokens at this point: [{}]",
                             expected.iter().join(", ")
                         ),
@@ -295,11 +294,7 @@ impl diagnostic::Diagnostics for Error {
                     style: codespan_reporting::LabelStyle::Primary,
                 });
 
-                builder.add_diagnostic(
-                    codespan_reporting::Severity::Error,
-                    None,
-                    format!("{}", self),
-                )
+                builder.add_diagnostic(codespan_reporting::Severity::Error, None, &self.to_string())
             }
             Error::IllegalEscapeSequence { token, escape, .. } => {
                 builder.add_label(codespan_reporting::Label {
@@ -316,7 +311,7 @@ impl diagnostic::Diagnostics for Error {
                 builder.add_diagnostic(
                     codespan_reporting::Severity::Error,
                     None,
-                    format!("{}", self),
+                    &self.to_string(),
                 );
             }
             Error::UnterminatedUnicodeEscapeSequence { token, escape, .. } => {
@@ -334,13 +329,13 @@ impl diagnostic::Diagnostics for Error {
                 builder.add_diagnostic(
                     codespan_reporting::Severity::Error,
                     None,
-                    format!("{}", self),
+                    &self.to_string(),
                 );
             }
             Error::IllegalUnicode { token, escape, .. } => {
                 builder.add_label(codespan_reporting::Label {
                     span: *escape,
-                    message: Some("unterminated unicode escape sequence".to_owned()),
+                    message: Some("illegal unicode escape sequence".to_owned()),
                     style: codespan_reporting::LabelStyle::Primary,
                 });
                 builder.add_label(codespan_reporting::Label {
@@ -352,7 +347,7 @@ impl diagnostic::Diagnostics for Error {
                 builder.add_diagnostic(
                     codespan_reporting::Severity::Error,
                     None,
-                    format!("{}", self),
+                    &self.to_string(),
                 );
             }
             Error::IllegalIntLiteral { token, .. } => {
@@ -365,7 +360,7 @@ impl diagnostic::Diagnostics for Error {
                 builder.add_diagnostic(
                     codespan_reporting::Severity::Error,
                     None,
-                    format!("{}", self),
+                    &self.to_string(),
                 );
             }
             Error::IllegalFloatLiteral { token, .. } => {
@@ -378,7 +373,7 @@ impl diagnostic::Diagnostics for Error {
                 builder.add_diagnostic(
                     codespan_reporting::Severity::Error,
                     None,
-                    format!("{}", self),
+                    &self.to_string(),
                 );
             }
             Error::Multiple { errors } => {

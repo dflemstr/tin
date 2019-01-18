@@ -20,9 +20,9 @@ where
 {
     match element {
         element::Element::Number(v) => Ok(Some(value::Value::number(eval_number(v)))),
-        element::Element::String(ref v) => Ok(Some(value::Value::string(v))),
+        element::Element::String(ref v) => Ok(Some(value::Value::string(v.as_str()))),
         element::Element::Symbol(element::Symbol { ref label }) => {
-            Ok(Some(value::Value::symbol(label)))
+            Ok(Some(value::Value::symbol(label.as_str())))
         }
         element::Element::Tuple(element::Tuple { ref fields }) => Ok(fields
             .iter()
@@ -45,18 +45,14 @@ where
         }
         element::Element::Select(element::Select { record, field }) => {
             transpose(lookup(*record).map(|record| match record.case() {
-                value::ValueCase::Record(r) => Ok(r.fields[field].clone()),
+                value::Case::Record(r) => Ok(r.fields[field].clone()),
                 other => Err(error::Error::RuntimeTypeConflict(format!(
                     "not a record: {:?}",
                     other
                 ))),
             }))
         }
-        element::Element::Apply(element::Apply { .. }) => Ok(None), // TODO
-        element::Element::Parameter(element::Parameter { .. }) => Ok(None), // TODO
-        element::Element::Capture(element::Capture { .. }) => Ok(None), // TODO
-        element::Element::Closure(element::Closure { .. }) => Ok(None), // TODO
-        element::Element::Module(element::Module { .. }) => Ok(None), // TODO
+        _ => Ok(None), // TODO
     }
 }
 
@@ -107,36 +103,31 @@ fn eval_un_op(
     }
 }
 
+#[cfg_attr(feature = "cargo-clippy", allow(clippy::cyclomatic_complexity))]
 fn eval_bi_op(
     lhs: &value::Value,
     operator: element::BiOperator,
     rhs: &value::Value,
 ) -> Result<value::Value, error::Error> {
     match operator {
-        element::BiOperator::Eq => Ok((cmp_value(lhs, rhs)?
-            .map(|o| o == cmp::Ordering::Equal)
-            .unwrap_or(false))
-        .into()),
-        element::BiOperator::Ne => Ok((cmp_value(lhs, rhs)?
-            .map(|o| o != cmp::Ordering::Equal)
-            .unwrap_or(false))
-        .into()),
-        element::BiOperator::Lt => Ok((cmp_value(lhs, rhs)?
-            .map(|o| o == cmp::Ordering::Less)
-            .unwrap_or(false))
-        .into()),
-        element::BiOperator::Ge => Ok((cmp_value(lhs, rhs)?
-            .map(|o| o != cmp::Ordering::Less)
-            .unwrap_or(false))
-        .into()),
-        element::BiOperator::Gt => Ok((cmp_value(lhs, rhs)?
-            .map(|o| o == cmp::Ordering::Greater)
-            .unwrap_or(false))
-        .into()),
-        element::BiOperator::Le => Ok((cmp_value(lhs, rhs)?
-            .map(|o| o != cmp::Ordering::Greater)
-            .unwrap_or(false))
-        .into()),
+        element::BiOperator::Eq => {
+            Ok((cmp_value(lhs, rhs)?.map_or(false, |o| o == cmp::Ordering::Equal)).into())
+        }
+        element::BiOperator::Ne => {
+            Ok((cmp_value(lhs, rhs)?.map_or(false, |o| o != cmp::Ordering::Equal)).into())
+        }
+        element::BiOperator::Lt => {
+            Ok((cmp_value(lhs, rhs)?.map_or(false, |o| o == cmp::Ordering::Less)).into())
+        }
+        element::BiOperator::Ge => {
+            Ok((cmp_value(lhs, rhs)?.map_or(false, |o| o != cmp::Ordering::Less)).into())
+        }
+        element::BiOperator::Gt => {
+            Ok((cmp_value(lhs, rhs)?.map_or(false, |o| o == cmp::Ordering::Greater)).into())
+        }
+        element::BiOperator::Le => {
+            Ok((cmp_value(lhs, rhs)?.map_or(false, |o| o != cmp::Ordering::Greater)).into())
+        }
         element::BiOperator::Cmp => Ok(cmp_value(lhs, rhs)?.into()),
         element::BiOperator::Add => add(lhs, rhs),
         element::BiOperator::Sub => match_number_value!("-", (lhs, rhs), |l, r| int: Ok(
@@ -216,7 +207,7 @@ fn to_bool(value: &value::Value) -> Result<bool, error::Error> {
 
 fn to_u32(value: &value::Value) -> Result<u32, error::Error> {
     match *value.case() {
-        value::ValueCase::Number(ref n) => match *n {
+        value::Case::Number(ref n) => match *n {
             value::Number::U32(n) => Ok(n),
             _ => Err(error::Error::RuntimeTypeConflict(format!(
                 "not an u32: {:?}",
@@ -235,11 +226,11 @@ fn cmp_value(
     rhs: &value::Value,
 ) -> Result<Option<cmp::Ordering>, error::Error> {
     match (lhs.case(), rhs.case()) {
-        (value::ValueCase::Number(lhs), value::ValueCase::Number(rhs)) => cmp_number(lhs, rhs),
-        (value::ValueCase::String(lhs), value::ValueCase::String(rhs)) => Ok(lhs.partial_cmp(rhs)),
-        (value::ValueCase::Symbol(lhs), value::ValueCase::Symbol(rhs)) => Ok(lhs.partial_cmp(rhs)),
-        (value::ValueCase::Tuple(lhs), value::ValueCase::Tuple(rhs)) => cmp_tuple(lhs, rhs),
-        (value::ValueCase::Record(lhs), value::ValueCase::Record(rhs)) => cmp_record(lhs, rhs),
+        (value::Case::Number(lhs), value::Case::Number(rhs)) => cmp_number(lhs, rhs),
+        (value::Case::String(lhs), value::Case::String(rhs)) => Ok(lhs.partial_cmp(rhs)),
+        (value::Case::Symbol(lhs), value::Case::Symbol(rhs)) => Ok(lhs.partial_cmp(rhs)),
+        (value::Case::Tuple(lhs), value::Case::Tuple(rhs)) => cmp_tuple(lhs, rhs),
+        (value::Case::Record(lhs), value::Case::Record(rhs)) => cmp_record(lhs, rhs),
         _ => Err(error::Error::RuntimeTypeConflict(format!(
             "type mismatch; type of {:?} != type of {:?}",
             lhs, rhs
@@ -315,7 +306,7 @@ fn cmp_record(
 
 fn add(lhs: &value::Value, rhs: &value::Value) -> Result<value::Value, error::Error> {
     match (lhs.case(), rhs.case()) {
-        (value::ValueCase::String(lhsv), value::ValueCase::String(rhsv)) => {
+        (value::Case::String(lhsv), value::Case::String(rhsv)) => {
             if lhsv.is_empty() {
                 Ok(lhs.clone())
             } else if rhsv.is_empty() {
@@ -324,7 +315,7 @@ fn add(lhs: &value::Value, rhs: &value::Value) -> Result<value::Value, error::Er
                 Ok(value::Value::string(lhsv.clone() + rhsv))
             }
         }
-        (value::ValueCase::Number(lhs), value::ValueCase::Number(rhs)) => {
+        (value::Case::Number(lhs), value::Case::Number(rhs)) => {
             match_number!("+", (lhs, rhs), |l, r| int: Ok((l.wrapping_add(*r)).into()), frac: Ok((l + r).into()))
         }
         other => Err(error::Error::RuntimeTypeConflict(format!(

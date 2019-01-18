@@ -13,17 +13,13 @@ impl diagnostic::Diagnostics for Error {
     fn to_diagnostics(&self, builder: &mut diagnostic::DiagnosticsBuilder) {
         match *self {
             Error::RuntimeTypeConflict(ref cause) => {
-                builder.add_diagnostic(
-                    codespan_reporting::Severity::Bug,
-                    None,
-                    format!("{}", cause),
-                );
+                builder.add_diagnostic(codespan_reporting::Severity::Bug, None, cause);
             }
             Error::EvaluationError(ref cause) => {
                 builder.add_diagnostic(
                     codespan_reporting::Severity::Error,
                     None,
-                    format!("{}", cause),
+                    &cause.to_string(),
                 );
             }
         }

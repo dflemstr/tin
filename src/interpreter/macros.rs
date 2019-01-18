@@ -121,7 +121,7 @@ macro_rules! match_number_value {
     ($name:expr, ($($value:expr),*), |$($params:ident),*| int: $body_int:expr, frac: $body_frac:expr) => {
         match_branches!(
             [
-                value::ValueCase::Number,
+                value::Case::Number,
             ],
             $name,
             ($($value.case()),*),
@@ -139,7 +139,7 @@ macro_rules! match_integral_value {
     ($name:expr, ($($value:expr),*), |$($params:ident),*| $body:expr) => {
         match_branches!(
             [
-                value::ValueCase::Number,
+                value::Case::Number,
             ],
             $name,
             ($($value.case()),*),
@@ -157,7 +157,7 @@ macro_rules! match_fractional_value {
     ($name:expr, ($($value:expr),*), |$($params:ident),*| $body:expr) => {
         match_branches!(
             [
-                value::ValueCase::Number,
+                value::Case::Number,
             ],
             $name,
             ($($value.case()),*),

@@ -45,7 +45,7 @@ impl diagnostic::Diagnostics for Error {
                 builder.add_diagnostic(
                     codespan_reporting::Severity::Error,
                     None,
-                    format!("{}", self),
+                    &self.to_string(),
                 );
             }
             Error::Type(entity, ref type_error) => match type_error {
@@ -77,7 +77,7 @@ impl diagnostic::Diagnostics for Error {
                     builder.add_diagnostic(
                         codespan_reporting::Severity::Error,
                         None,
-                        format!("{}", self),
+                        &self.to_string(),
                     );
                 }
             },

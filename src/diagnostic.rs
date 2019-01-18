@@ -8,7 +8,7 @@ pub trait Diagnostics {
 }
 
 /// A builder for creating structured diagnostics.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct DiagnosticsBuilder {
     message: Option<String>,
     labels: Vec<codespan_reporting::Label>,
@@ -36,12 +36,15 @@ impl DiagnosticsBuilder {
 
     /// Add a message to be added to the following diagnostic.
     pub fn add_message(&mut self, message: String) {
-        self.message = Some(
+        // Needed because of ownership transfer
+        #[allow(clippy::option_map_unwrap_or)]
+        let message = Some(
             self.message
                 .as_ref()
                 .map(|old_msg| format!("{}: {}", old_msg, message))
                 .unwrap_or(message),
         );
+        self.message = message;
     }
 
     /// Add a new diagnostic, using the labels and messages accumulated so far.
@@ -49,14 +52,13 @@ impl DiagnosticsBuilder {
         &mut self,
         severity: codespan_reporting::Severity,
         code: Option<String>,
-        message: String,
+        message: &str,
     ) {
         let code = code.map(Into::into);
-        let message = self
-            .message
-            .as_ref()
-            .map(|old_msg| format!("{}: {}", old_msg, message))
-            .unwrap_or_else(|| format!("{}", message));
+        let message = self.message.as_ref().map_or_else(
+            || message.to_owned(),
+            |old_msg| format!("{}: {}", old_msg, message),
+        );
         let labels = mem::replace(&mut self.labels, Vec::new());
         let diagnostic = codespan_reporting::Diagnostic {
             severity,

@@ -60,32 +60,26 @@ pub struct Function {
 }
 
 impl Type {
-    pub fn scalar_class(&self) -> class::ScalarClass {
+    pub fn scalar_class(&self) -> class::Scalar {
         match *self {
             Type::Number(ref n) => n.scalar_class(),
-            Type::String => class::ScalarClass::Complex,
-            Type::Symbol(_) => class::ScalarClass::Symbol,
-            Type::Union(_) => class::ScalarClass::Undefined,
-            Type::Tuple(_) => class::ScalarClass::Complex,
-            Type::Record(_) => class::ScalarClass::Complex,
-            Type::Function(_) => class::ScalarClass::Undefined,
+            Type::Symbol(_) => class::Scalar::Symbol,
+            Type::Union(_) | Type::Function(_) => class::Scalar::Undefined,
+            Type::String | Type::Tuple(_) | Type::Record(_) => class::Scalar::Complex,
         }
     }
 }
 
 impl Number {
-    pub fn scalar_class(&self) -> class::ScalarClass {
-        match *self {
-            Number::U8 => class::ScalarClass::Integral(class::IntegralScalarClass::Unsigned),
-            Number::U16 => class::ScalarClass::Integral(class::IntegralScalarClass::Unsigned),
-            Number::U32 => class::ScalarClass::Integral(class::IntegralScalarClass::Unsigned),
-            Number::U64 => class::ScalarClass::Integral(class::IntegralScalarClass::Unsigned),
-            Number::I8 => class::ScalarClass::Integral(class::IntegralScalarClass::Signed),
-            Number::I16 => class::ScalarClass::Integral(class::IntegralScalarClass::Signed),
-            Number::I32 => class::ScalarClass::Integral(class::IntegralScalarClass::Signed),
-            Number::I64 => class::ScalarClass::Integral(class::IntegralScalarClass::Signed),
-            Number::F32 => class::ScalarClass::Fractional,
-            Number::F64 => class::ScalarClass::Fractional,
+    pub fn scalar_class(self) -> class::Scalar {
+        match self {
+            Number::U8 | Number::U16 | Number::U32 | Number::U64 => {
+                class::Scalar::Integral(class::IntegralScalar::Unsigned)
+            }
+            Number::I8 | Number::I16 | Number::I32 | Number::I64 => {
+                class::Scalar::Integral(class::IntegralScalar::Signed)
+            }
+            Number::F32 | Number::F64 => class::Scalar::Fractional,
         }
     }
 }

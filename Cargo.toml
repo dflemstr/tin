@@ -23,7 +23,7 @@ failure = "0.1.5"
 lalrpop-util = "0.16.2"
 log = "0.4.6"
 regex = "1.1.0"
-specs = {version = "0.14.3", default_features = false }
+specs = { version = "0.14.3", default_features = false }
 specs-derive = "0.4.0"
 specs-visitor-derive = { version = "0.3.0", path = "specs-visitor-derive" }
 specs-visitor = { version = "0.3.0", path = "specs-visitor" }
@@ -54,3 +54,7 @@ members = ["specs-visitor", "specs-visitor-derive", "tin-fuzz-target"]
 
 [dev-dependencies]
 pretty_assertions = "0.5.1"
+
+[dev-dependencies.cargo-husky]
+version = "1.2.1"
+features = ["prepush-hook", "precommit-hook", "run-cargo-test", "run-cargo-check", "run-cargo-clippy", "run-cargo-fmt"]

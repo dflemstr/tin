@@ -27,7 +27,7 @@ pub struct AuxEntity<E> {
 #[derive(Clone, Debug, Eq, PartialEq, VisitEntities, VisitEntitiesMut)]
 pub enum ExpectedType {
     Specific(ty::Type),
-    ScalarClass(class::ScalarClass),
+    ScalarClass(class::Scalar),
     AnyOf(Vec<ExpectedType>),
     Union,
 }

@@ -11,7 +11,7 @@ use crate::ir::component::symbol;
 use crate::ir::error;
 use crate::parser;
 
-pub struct ModuleBuilder<'a> {
+pub struct Builder<'a> {
     world: &'a mut specs::World,
     symbol: Vec<symbol::Part>,
     current_scope: collections::HashMap<String, specs::Entity>,
@@ -20,15 +20,15 @@ pub struct ModuleBuilder<'a> {
     captures: Vec<collections::HashMap<String, specs::Entity>>,
 }
 
-impl<'a> ModuleBuilder<'a> {
-    pub fn new(world: &'a mut specs::World) -> ModuleBuilder<'a> {
+impl<'a> Builder<'a> {
+    pub fn new(world: &'a mut specs::World) -> Builder<'a> {
         let symbol = Vec::new();
         let current_scope = collections::HashMap::new();
         let scopes = Vec::new();
         let current_captures = collections::HashMap::new();
         let captures = Vec::new();
 
-        ModuleBuilder {
+        Builder {
             world,
             symbol,
             current_scope,
@@ -168,7 +168,7 @@ impl<'a> ModuleBuilder<'a> {
             .write_storage()
             .insert(
                 entity,
-                element::Element::Number(ModuleBuilder::from_ast_number(number.value)),
+                element::Element::Number(Builder::from_ast_number(number.value)),
             )
             .unwrap();
 
@@ -309,7 +309,7 @@ impl<'a> ModuleBuilder<'a> {
     ) -> Result<(), error::Error> {
         use specs::world::Builder;
 
-        let operator = ModuleBuilder::translate_un_operator(un_op.operator);
+        let operator = self::Builder::translate_un_operator(un_op.operator);
 
         let operand = self.world.create_entity().build();
         self.add_expression(operand, &*un_op.operand)?;
@@ -340,7 +340,7 @@ impl<'a> ModuleBuilder<'a> {
         let lhs = self.world.create_entity().build();
         self.add_expression(lhs, &*bi_op.lhs)?;
 
-        let operator = ModuleBuilder::translate_bi_operator(bi_op.operator);
+        let operator = self::Builder::translate_bi_operator(bi_op.operator);
 
         let rhs = self.world.create_entity().build();
         self.add_expression(rhs, &*bi_op.rhs)?;
@@ -584,15 +584,17 @@ impl<'a> ModuleBuilder<'a> {
     fn push_scope(&mut self, scope_size_hint: Option<usize>, captures_size_hint: Option<usize>) {
         self.scopes.push(mem::replace(
             &mut self.current_scope,
-            scope_size_hint
-                .map(collections::HashMap::with_capacity)
-                .unwrap_or_else(|| collections::HashMap::new()),
+            scope_size_hint.map_or_else(
+                collections::HashMap::new,
+                collections::HashMap::with_capacity,
+            ),
         ));
         self.captures.push(mem::replace(
             &mut self.current_captures,
-            captures_size_hint
-                .map(collections::HashMap::with_capacity)
-                .unwrap_or_else(|| collections::HashMap::new()),
+            captures_size_hint.map_or_else(
+                collections::HashMap::new,
+                collections::HashMap::with_capacity,
+            ),
         ));
     }
 

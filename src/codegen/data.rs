@@ -18,11 +18,11 @@ impl<'a> Translator<'a> {
     pub fn store_value(&mut self, layout: &layout::Layout, value: &value::Value) {
         self.storage.reserve(layout.size);
         match value.case() {
-            value::ValueCase::Number(v) => self.store_number(layout, *v),
-            value::ValueCase::String(v) => self.store_string(layout, v),
-            value::ValueCase::Symbol(_) => {} // TODO type dependent
-            value::ValueCase::Tuple(v) => self.store_tuple(layout, v),
-            value::ValueCase::Record(v) => self.store_record(layout, v),
+            value::Case::Number(v) => self.store_number(layout, *v),
+            value::Case::String(v) => self.store_string(layout, v),
+            value::Case::Symbol(_) => {} // TODO type dependent
+            value::Case::Tuple(v) => self.store_tuple(layout, v),
+            value::Case::Record(v) => self.store_record(layout, v),
         }
     }
 
@@ -67,6 +67,7 @@ impl<'a> Translator<'a> {
         }
     }
 
+    #[cfg_attr(feature = "cargo-clippy", allow(clippy::cast_possible_truncation))]
     pub fn store_string(&mut self, _layout: &layout::Layout, string: &str) {
         use byteorder::WriteBytesExt;
         use std::io::Write;
@@ -102,7 +103,7 @@ impl<'a> Translator<'a> {
         for (value, offset_layout) in tuple.fields.iter().zip(unnamed_fields.iter()) {
             assert!(offset_layout.offset >= pos);
             while pos < offset_layout.offset {
-                self.storage.write_all(&[0u8]).unwrap();
+                self.storage.write_all(&[0_u8]).unwrap();
                 pos += 1;
             }
             self.store_value(&offset_layout.layout, value);
@@ -121,7 +122,7 @@ impl<'a> Translator<'a> {
             let offset_layout = &named_field.offset_layout;
             assert!(offset_layout.offset >= pos);
             while pos < offset_layout.offset {
-                self.storage.write_all(&[0u8]).unwrap();
+                self.storage.write_all(&[0_u8]).unwrap();
                 pos += 1;
             }
             self.store_value(&offset_layout.layout, value);

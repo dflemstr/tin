@@ -83,8 +83,13 @@ impl<'a> dot::GraphWalk<'a, Node, Edge<'a>> for Graph<'a> {
         borrow::Cow::Owned(
             self.entities
                 .join()
-                .filter(|e| self.elements.contains(*e))
-                .map(Node)
+                .filter_map(|e| {
+                    if self.elements.contains(e) {
+                        Some(Node(e))
+                    } else {
+                        None
+                    }
+                })
                 .collect::<Vec<_>>(),
         )
     }
@@ -97,9 +102,9 @@ impl<'a> dot::GraphWalk<'a, Node, Edge<'a>> for Graph<'a> {
         for entity in self.entities.join() {
             if let Some(element) = self.elements.get(entity) {
                 match element {
-                    element::Element::Number(_) => {}
-                    element::Element::String(_) => {}
-                    element::Element::Symbol(_) => {}
+                    element::Element::Number(_)
+                    | element::Element::String(_)
+                    | element::Element::Symbol(_) => {}
                     element::Element::Tuple(element::Tuple { fields }) => {
                         for (idx, field) in fields.iter().enumerate() {
                             edges.push(Edge {
@@ -352,9 +357,9 @@ impl<'a> dot::Labeller<'a, Node, Edge<'a>> for Graph<'a> {
             }
             Label::AppliedFunction => dot::LabelText::LabelStr("func".into()),
             Label::AppliedParameter(idx) => {
-                dot::LabelText::HtmlStr(format!("param <b>{}</b>", idx).into())
+                dot::LabelText::HtmlStr(format!("apply param <b>{}</b>", idx).into())
             }
-            Label::ParameterSignature => dot::LabelText::LabelStr("sig".into()),
+            Label::ParameterSignature => dot::LabelText::LabelStr("param sig".into()),
             Label::ClosureCaptureDefinition(ref name) => {
                 dot::LabelText::HtmlStr(format!("capture definition <b>{}</b>", name).into())
             }
@@ -362,13 +367,13 @@ impl<'a> dot::Labeller<'a, Node, Edge<'a>> for Graph<'a> {
                 dot::LabelText::HtmlStr(format!("capture usage <b>{}</b>", idx).into())
             }
             Label::ClosureParameter(idx) => {
-                dot::LabelText::HtmlStr(format!("param <b>{}</b>", idx).into())
+                dot::LabelText::HtmlStr(format!("closure param <b>{}</b>", idx).into())
             }
             Label::ClosureStatement(idx) => {
-                dot::LabelText::HtmlStr(format!("stmt <b>{}</b>", idx).into())
+                dot::LabelText::HtmlStr(format!("closure stmt <b>{}</b>", idx).into())
             }
-            Label::ClosureResult => dot::LabelText::HtmlStr("result".into()),
-            Label::ClosureSignature => dot::LabelText::LabelStr("sig".into()),
+            Label::ClosureResult => dot::LabelText::HtmlStr("closure result".into()),
+            Label::ClosureSignature => dot::LabelText::LabelStr("closure sig".into()),
             Label::ModuleDefinition(ref name) => {
                 dot::LabelText::HtmlStr(format!("def <b>{}</b>", name).into())
             }
@@ -380,23 +385,21 @@ impl<'a> dot::Labeller<'a, Node, Edge<'a>> for Graph<'a> {
 
     fn edge_style(&'a self, e: &Edge<'a>) -> dot::Style {
         match e.label {
-            Label::RecordField(_) => dot::Style::None,
-            Label::TupleField(_) => dot::Style::None,
-            Label::VariableInitializer => dot::Style::None,
-            Label::SelectField(_) => dot::Style::None,
-            Label::AppliedFunction => dot::Style::None,
-            Label::AppliedParameter(_) => dot::Style::None,
-            Label::ParameterSignature => dot::Style::Dotted,
-            Label::ClosureCaptureDefinition(_) => dot::Style::Dashed,
-            Label::ClosureCaptureUsage(_) => dot::Style::None,
-            Label::ClosureParameter(_) => dot::Style::None,
-            Label::ClosureStatement(_) => dot::Style::Dashed,
-            Label::ClosureResult => dot::Style::None,
-            Label::ClosureSignature => dot::Style::Dotted,
-            Label::ModuleDefinition(_) => dot::Style::None,
-            Label::UnOperand => dot::Style::None,
-            Label::BiLhs => dot::Style::None,
-            Label::BiRhs => dot::Style::None,
+            Label::RecordField(_)
+            | Label::TupleField(_)
+            | Label::VariableInitializer
+            | Label::SelectField(_)
+            | Label::AppliedFunction
+            | Label::AppliedParameter(_)
+            | Label::ClosureCaptureUsage(_)
+            | Label::ClosureParameter(_)
+            | Label::ClosureResult
+            | Label::ModuleDefinition(_)
+            | Label::UnOperand
+            | Label::BiLhs
+            | Label::BiRhs => dot::Style::None,
+            Label::ParameterSignature | Label::ClosureSignature => dot::Style::Dotted,
+            Label::ClosureCaptureDefinition(_) | Label::ClosureStatement(_) => dot::Style::Dashed,
         }
     }
 }
