@@ -63,11 +63,10 @@ impl<'a> Codegen<'a> {
 
     /// Compiles the captured IR into a module.
     pub fn compile(&self) -> module::Module {
-        #[cfg(feature = "parallel")]
-        use rayon::iter::ParallelIterator;
+        use crate::best_iter::BestIteratorCollect;
+        use crate::best_iter::BestIteratorMap;
+        use crate::best_iter::BestJoin;
         use specs::Join;
-        #[cfg(feature = "parallel")]
-        use specs::ParJoin;
 
         let Codegen {
             ref entities,
@@ -88,20 +87,16 @@ impl<'a> Codegen<'a> {
             cranelift_module::Module::new(builder);
         let ptr_type = module.target_config().pointer_type();
 
-        #[cfg(feature = "parallel")]
-        let data_tuples = (entities, layouts, constexprs).par_join();
-        #[cfg(not(feature = "parallel"))]
-        let data_tuples = (entities, layouts, constexprs).join();
-
-        let data_ctxs = data_tuples
-            .map(|(entity, layout, constexpr)| {
+        let data_ctxs: Vec<_> = (entities, layouts, constexprs)
+            .best_join()
+            .best_map(|(entity, layout, constexpr)| {
                 let mut ctx = cranelift_module::DataContext::new();
                 let mut data = Vec::new();
                 data::Translator::new(&mut data, ptr_type).store_value(layout, &constexpr.value);
                 ctx.define(data.into_boxed_slice());
                 (entity, ctx)
             })
-            .collect::<Vec<_>>();
+            .best_collect();
 
         let mut defined_strings = collections::HashMap::new();
 

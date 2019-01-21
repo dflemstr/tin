@@ -17,16 +17,17 @@ impl<'a> specs::System<'a> for System {
     );
 
     fn run(&mut self, (entities, elements, mut constexprs, mut errors): Self::SystemData) {
-        use specs::prelude::ParallelIterator;
-        use specs::ParJoin;
+        use crate::best_iter::BestIteratorCollect;
+        use crate::best_iter::BestIteratorFlatMap;
+        use crate::best_iter::BestJoin;
 
         loop {
-            let new_constexprs = (&entities, &elements, !&constexprs, !&errors)
-                .par_join()
-                .flat_map(|(entity, element, _, _)| {
+            let new_constexprs: Vec<_> = (&entities, &elements, !&constexprs, !&errors)
+                .best_join()
+                .best_flat_map(|(entity, element, _, _)| {
                     transpose(System::infer_constexpr(element, &constexprs)).map(|r| (entity, r))
                 })
-                .collect::<Vec<_>>();
+                .best_collect();
 
             debug!("inferred new constexprs: {:?}", new_constexprs);
             if new_constexprs.is_empty() {

@@ -39,40 +39,42 @@ impl<'a> specs::System<'a> for System {
             mut type_errors,
         ): Self::SystemData,
     ) {
-        use specs::prelude::ParallelIterator;
-        use specs::ParJoin;
+        use crate::best_iter::BestIterator;
+        use crate::best_iter::BestIteratorCollect;
+        use crate::best_iter::BestIteratorMap;
+        use crate::best_iter::BestJoin;
         use specs_visitor::VisitEntitiesMut;
 
         (&entities, &replacements)
-            .par_join()
-            .for_each(|(entity, _)| {
+            .best_join()
+            .best_for_each(|(entity, _)| {
                 entities.delete(entity).unwrap();
             });
 
         let replacements = (&entities, &replacements)
-            .par_join()
-            .map(|(entity, replacement)| (entity, replacement.to))
-            .collect();
+            .best_join()
+            .best_map(|(entity, replacement)| (entity, replacement.to))
+            .best_collect();
 
         let visitor = ReplacementEntityVisitor { replacements };
 
-        (&mut elements).par_join().for_each(|element| {
+        (&mut elements).best_join().best_for_each(|element| {
             element.accept_mut(&visitor);
         });
 
-        (&mut layouts).par_join().for_each(|layout| {
+        (&mut layouts).best_join().best_for_each(|layout| {
             layout.accept_mut(&visitor);
         });
 
-        (&mut symbols).par_join().for_each(|symbol| {
+        (&mut symbols).best_join().best_for_each(|symbol| {
             symbol.accept_mut(&visitor);
         });
 
-        (&mut types).par_join().for_each(|ty| {
+        (&mut types).best_join().best_for_each(|ty| {
             ty.accept_mut(&visitor);
         });
 
-        (&mut type_errors).par_join().for_each(|type_error| {
+        (&mut type_errors).best_join().best_for_each(|type_error| {
             type_error.accept_mut(&visitor);
         });
     }

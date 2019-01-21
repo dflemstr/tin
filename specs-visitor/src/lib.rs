@@ -22,8 +22,6 @@ use std::collections;
 use std::hash;
 use std::sync;
 
-use rayon::prelude::*;
-
 /// Support for generically visiting all `specs` entities of a type with a
 /// visitor.
 ///
@@ -78,6 +76,46 @@ pub trait EntityVisitorMut: Send + Sync {
     fn visit_entity_mut(&self, entity: &mut specs::Entity);
 }
 
+#[cfg(feature = "parallel")]
+fn for_each<'a, A, I, F>(iter: &'a I, action: F)
+where
+    A: 'a + Send + Sync,
+    I: rayon::iter::IntoParallelRefIterator<'a, Item = A>,
+    F: Fn(A) + Send + Sync,
+{
+    use rayon::iter::ParallelIterator;
+    iter.par_iter().for_each(action)
+}
+
+#[cfg(feature = "parallel")]
+fn for_each_mut<'a, A, I, F>(iter: &'a mut I, action: F)
+where
+    A: 'a + Send + Sync,
+    I: rayon::iter::IntoParallelRefMutIterator<'a, Item = A>,
+    F: Fn(A) + Send + Sync,
+{
+    use rayon::iter::ParallelIterator;
+    iter.par_iter_mut().for_each(action)
+}
+
+#[cfg(not(feature = "parallel"))]
+fn for_each<A, I, F>(iter: I, action: F)
+where
+    I: IntoIterator<Item = A>,
+    F: FnMut(A),
+{
+    iter.into_iter().for_each(action)
+}
+
+#[cfg(not(feature = "parallel"))]
+fn for_each_mut<A, I, F>(iter: I, action: F)
+where
+    I: IntoIterator<Item = A>,
+    F: FnMut(A),
+{
+    iter.into_iter().for_each(action)
+}
+
 impl VisitEntities for specs::Entity {
     fn accept<V>(&self, visitor: &V)
     where
@@ -104,7 +142,7 @@ where
     where
         V: EntityVisitor,
     {
-        self.par_iter().for_each(|element| element.accept(visitor))
+        for_each(self, |element| element.accept(visitor))
     }
 }
 
@@ -116,8 +154,7 @@ where
     where
         V: EntityVisitorMut,
     {
-        self.par_iter_mut()
-            .for_each(|element| element.accept_mut(visitor))
+        for_each_mut(self, |element| element.accept_mut(visitor))
     }
 }
 
@@ -129,7 +166,7 @@ where
     where
         V: EntityVisitor,
     {
-        self.par_iter().for_each(|element| element.accept(visitor))
+        for_each(self, |element| element.accept(visitor))
     }
 }
 
@@ -141,8 +178,7 @@ where
     where
         V: EntityVisitorMut,
     {
-        self.par_iter_mut()
-            .for_each(|element| element.accept_mut(visitor))
+        for_each_mut(self, |element| element.accept_mut(visitor))
     }
 }
 
@@ -179,8 +215,7 @@ where
     where
         V: EntityVisitor,
     {
-        self.par_iter()
-            .for_each(|(_, element)| element.accept(visitor))
+        for_each(self, |(_, element)| element.accept(visitor))
     }
 }
 
@@ -193,8 +228,7 @@ where
     where
         V: EntityVisitorMut,
     {
-        self.par_iter_mut()
-            .for_each(|(_, element)| element.accept_mut(visitor))
+        for_each_mut(self, |(_, element)| element.accept_mut(visitor))
     }
 }
 

@@ -39,16 +39,17 @@ impl<'a> specs::System<'a> for System {
     );
 
     fn run(&mut self, (entities, elements, mut types, mut errors): Self::SystemData) {
-        use specs::prelude::ParallelIterator;
-        use specs::ParJoin;
+        use crate::best_iter::BestIteratorCollect;
+        use crate::best_iter::BestIteratorFlatMap;
+        use crate::best_iter::BestJoin;
 
         loop {
-            let new_types = (&entities, &elements, !&types, !&errors)
-                .par_join()
-                .flat_map(|(entity, element, _, _)| {
+            let new_types: Vec<_> = (&entities, &elements, !&types, !&errors)
+                .best_join()
+                .best_flat_map(|(entity, element, _, _)| {
                     infer_type(element, &types).map(|ty| (entity, ty))
                 })
-                .collect::<Vec<_>>();
+                .best_collect();
             debug!("inferred new types: {:?}", new_types);
             if new_types.is_empty() {
                 break;

@@ -65,6 +65,7 @@ extern crate pretty_assertions;
 use std::fmt;
 
 mod ast;
+mod best_iter;
 mod codegen;
 mod interpreter;
 mod ir;

@@ -21,17 +21,18 @@ impl<'a> specs::System<'a> for System {
     );
 
     fn run(&mut self, (entities, elements, mut layouts): Self::SystemData) {
-        use specs::prelude::ParallelIterator;
-        use specs::ParJoin;
+        use crate::best_iter::BestIteratorCollect;
+        use crate::best_iter::BestIteratorFlatMap;
+        use crate::best_iter::BestJoin;
 
         loop {
-            let new_layouts = (&entities, &elements, !&layouts)
-                .par_join()
-                .flat_map(|(entity, element, _)| {
+            let new_layouts: Vec<_> = (&entities, &elements, !&layouts)
+                .best_join()
+                .best_flat_map(|(entity, element, _)| {
                     self.infer_layout(element, &elements, &layouts)
                         .map(|layout| (entity, layout))
                 })
-                .collect::<Vec<_>>();
+                .best_collect();
             debug!("inferred new layouts: {:?}", new_layouts);
             if new_layouts.is_empty() {
                 break;
