@@ -5,7 +5,7 @@ use std::path;
 fn main() -> Result<(), failure::Error> {
     use std::io::Write;
 
-    println!("cargo:rerun-if-changed=src/parser/tin.lalrpop");
+    println!("cargo:rerun-if-changed=src/syntax/parser/grammar.lalrpop");
     lalrpop::process_root().unwrap();
 
     let out_dir_str = env::var_os("OUT_DIR").unwrap();

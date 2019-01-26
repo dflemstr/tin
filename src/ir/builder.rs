@@ -3,13 +3,13 @@ use std::mem;
 
 use specs;
 
-use crate::ast;
 use crate::ir::component::element;
 use crate::ir::component::location;
 use crate::ir::component::replacement;
 use crate::ir::component::symbol;
 use crate::ir::error;
-use crate::parser;
+use crate::syntax::ast;
+use crate::syntax::parser;
 
 pub struct Builder<'a> {
     world: &'a mut specs::World,
@@ -190,8 +190,8 @@ impl<'a> Builder<'a> {
             ast::NumberValue::I16(n) => element::Number::I16(n),
             ast::NumberValue::I32(n) => element::Number::I32(n),
             ast::NumberValue::I64(n) => element::Number::I64(n),
-            ast::NumberValue::F32(n) => element::Number::F32(n),
-            ast::NumberValue::F64(n) => element::Number::F64(n),
+            ast::NumberValue::F32(n) => element::Number::F32(n.into_inner()),
+            ast::NumberValue::F64(n) => element::Number::F64(n.into_inner()),
             ast::NumberValue::Invalid => panic!("'invalid' AST nodes should not escape the parser"),
         }
     }

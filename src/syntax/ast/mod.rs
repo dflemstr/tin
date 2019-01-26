@@ -46,7 +46,7 @@ pub enum Kind {
 }
 
 /// A complete Tin module.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Module<C> {
     /// This node's AST context.
     pub context: C,
@@ -55,7 +55,7 @@ pub struct Module<C> {
 }
 
 /// An identifier.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Identifier<C> {
     /// This node's AST context.
     pub context: C,
@@ -64,7 +64,7 @@ pub struct Identifier<C> {
 }
 
 /// Any valid expression.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Expression<C> {
     /// A numeric literal.
     NumberLiteral(NumberLiteral<C>),
@@ -94,7 +94,7 @@ pub enum Expression<C> {
 }
 
 /// A numeric literal.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct NumberLiteral<C> {
     /// This node's AST context.
     pub context: C,
@@ -103,7 +103,7 @@ pub struct NumberLiteral<C> {
 }
 
 /// All syntactic number literal value variants.
-#[derive(Clone, Copy, Debug, PartialEq, PartialOrd)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, PartialOrd)]
 pub enum NumberValue {
     /// Unsigned 8-bit integer value.
     U8(u8),
@@ -122,15 +122,15 @@ pub enum NumberValue {
     /// Signed 64-bit integer value.
     I64(i64),
     /// Floating point 32-bit value.
-    F32(f32),
+    F32(ordered_float::OrderedFloat<f32>),
     /// Floating point 64-bit value.
-    F64(f64),
+    F64(ordered_float::OrderedFloat<f64>),
     /// The number value is invalid (e.g. out of bounds).
     Invalid,
 }
 
 /// A string literal.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct StringLiteral<C> {
     /// This node's AST context.
     pub context: C,
@@ -139,7 +139,7 @@ pub struct StringLiteral<C> {
 }
 
 /// All syntactic string literal value variants.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum StringValue {
     /// A plain string.
     String(String),
@@ -148,7 +148,7 @@ pub enum StringValue {
 }
 
 /// A symbol.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Symbol<C> {
     /// This node's AST context.
     pub context: C,
@@ -157,7 +157,7 @@ pub struct Symbol<C> {
 }
 
 /// A tuple expression.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Tuple<C> {
     /// This node's AST context.
     pub context: C,
@@ -166,7 +166,7 @@ pub struct Tuple<C> {
 }
 
 /// A record expression.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Record<C> {
     /// This node's AST context.
     pub context: C,
@@ -204,7 +204,7 @@ pub enum UnOperator {
 }
 
 /// An operator application with one operand.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct UnOp<C> {
     /// This node's AST context.
     pub context: C,
@@ -279,7 +279,7 @@ pub enum BiOperator {
 }
 
 /// An operator application with two operands.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct BiOp<C> {
     /// This node's AST context.
     pub context: C,
@@ -292,7 +292,7 @@ pub struct BiOp<C> {
 }
 
 /// A lambda expression.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Lambda<C> {
     /// This node's AST context.
     pub context: C,
@@ -307,7 +307,7 @@ pub struct Lambda<C> {
 }
 
 /// A valid statement.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Statement<C> {
     /// A statement that defines a new identifier.
     Variable(Variable<C>),
@@ -316,7 +316,7 @@ pub enum Statement<C> {
 }
 
 /// A variable definition.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Variable<C> {
     /// This node's AST context.
     pub context: C,
@@ -327,7 +327,7 @@ pub struct Variable<C> {
 }
 
 /// A field selection expression.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Select<C> {
     /// This node's AST context.
     pub context: C,
@@ -338,7 +338,7 @@ pub struct Select<C> {
 }
 
 /// A function application expression.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Apply<C> {
     /// This node's AST context.
     pub context: C,
@@ -350,7 +350,7 @@ pub struct Apply<C> {
 }
 
 /// A lambda parameter declaration.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Parameter<C> {
     /// This node's AST context.
     pub context: C,

@@ -4,7 +4,7 @@ use std::result;
 use crate::diagnostic;
 use crate::interpreter;
 use crate::ir;
-use crate::parser;
+use crate::syntax::parser;
 
 /// An error that occurs while interacting with Tin.
 #[derive(Clone, Debug, Fail, PartialEq)]
@@ -19,7 +19,7 @@ pub enum Error {
     #[fail(display = "IR error")]
     Ir(#[cause] ir::error::Error),
     /// Parsing the source code failed.
-    #[fail(display = "parser error")]
+    #[fail(display = "syntax error")]
     Parser(#[cause] parser::Error),
 }
 

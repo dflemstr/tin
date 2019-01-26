@@ -3,8 +3,8 @@ use std::fmt;
 
 use specs;
 
-use crate::ast;
-use crate::parser;
+use crate::syntax::ast;
+use crate::syntax::parser;
 
 pub mod builder;
 pub mod component;

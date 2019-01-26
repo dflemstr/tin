@@ -64,12 +64,12 @@ extern crate pretty_assertions;
 
 use std::fmt;
 
-mod ast;
 mod best_iter;
 mod codegen;
 mod interpreter;
 mod ir;
-mod parser;
+mod source;
+mod syntax;
 mod value;
 
 #[cfg(test)]
@@ -87,17 +87,17 @@ pub use crate::error::Result;
 pub struct Tin {
     ir: ir::Ir,
     codemap: codespan::CodeMap,
-    parser: <ast::Module<parser::Context> as parser::Parse>::Parser,
+    parser: <syntax::ast::Module<syntax::parser::Context> as syntax::parser::Parse>::Parser,
 }
 
 impl Tin {
     /// Creates a new instance of the Tin runtime.
     pub fn new() -> Tin {
-        use crate::parser::Parse;
+        use crate::syntax::parser::Parse;
 
         let ir = ir::Ir::new();
         let codemap = codespan::CodeMap::new();
-        let parser = ast::Module::new_parser();
+        let parser = syntax::ast::Module::new_parser();
 
         Tin {
             ir,
@@ -151,7 +151,7 @@ impl Tin {
             .codemap
             .add_filemap(file_name.into(), source.to_owned())
             .span();
-        let module = parser::Parser::parse(&mut self.parser, span, source)?;
+        let module = syntax::parser::Parser::parse(&mut self.parser, span, source)?;
         self.ir.load(&module)?;
 
         Ok(())

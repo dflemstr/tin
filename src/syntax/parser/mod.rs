@@ -3,8 +3,8 @@ use std::num;
 
 use lalrpop_util;
 
-use crate::ast;
 use crate::diagnostic;
+use crate::syntax::ast;
 
 mod util;
 
@@ -15,12 +15,12 @@ lalrpop_mod!(
     #[allow(missing_debug_implementations)]
     #[allow(trivial_numeric_casts)]
     #[allow(unused)]
-    tin,
-    "/parser/tin.rs"
+    grammar,
+    "/syntax/parser/grammar.rs"
 );
 
 /// The context of a parsed AST node.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct Context {
     /// The source code span that this AST was parsed from.
     pub span: codespan::ByteSpan,
@@ -29,7 +29,7 @@ pub struct Context {
 }
 
 /// An error that occurs while parsing Tin.
-#[derive(Clone, Debug, Fail, PartialEq)]
+#[derive(Clone, Debug, Eq, Fail, PartialEq)]
 pub enum Error {
     /// There was an invalid token in the code.
     #[fail(display = "invalid token")]
@@ -167,21 +167,23 @@ fn handle_parse_result<A, T1, T2>(
 macro_rules! parser_impl {
     ($stat:ident, $parser:ident, $result:ty) => {
         lazy_static! {
-            static ref $stat: crate::parser::tin::$parser = { crate::parser::tin::$parser::new() };
+            static ref $stat: crate::syntax::parser::grammar::$parser =
+                { crate::syntax::parser::grammar::$parser::new() };
         }
 
         impl Parse for $result {
-            type Parser = &'static crate::parser::tin::$parser;
+            type Parser = &'static crate::syntax::parser::grammar::$parser;
 
             fn new_parser() -> Self::Parser {
                 &*$stat
             }
         }
 
-        impl Parser<$result> for &'static crate::parser::tin::$parser {
+        impl Parser<$result> for &'static crate::syntax::parser::grammar::$parser {
             fn parse(&mut self, span: codespan::ByteSpan, source: &str) -> Result<$result, Error> {
                 let mut errors = Vec::new();
-                let result = crate::parser::tin::$parser::parse(self, span, &mut errors, source);
+                let result =
+                    crate::syntax::parser::grammar::$parser::parse(self, span, &mut errors, source);
                 handle_parse_result(source, span, result, errors)
             }
         }
@@ -389,8 +391,8 @@ impl diagnostic::Diagnostics for Error {
 mod tests {
     use env_logger;
 
-    use crate::ast;
-    use crate::ast::MapContext;
+    use crate::syntax::ast;
+    use crate::syntax::ast::MapContext;
 
     #[test]
     fn e2e() {
@@ -476,7 +478,7 @@ help: valid tokens at this point: [Comment, IdentifierName]
 
         let expected = Ok(ast::Expression::NumberLiteral(ast::NumberLiteral {
             context: (),
-            value: ast::NumberValue::F64(1.0),
+            value: ast::NumberValue::F64(1.0.into()),
         }));
         let actual = parse_expression("test", r#"1f64"#);
         assert_eq!(expected, actual);
@@ -488,7 +490,7 @@ help: valid tokens at this point: [Comment, IdentifierName]
 
         let expected = Ok(ast::Expression::NumberLiteral(ast::NumberLiteral {
             context: (),
-            value: ast::NumberValue::F64(0.0),
+            value: ast::NumberValue::F64(0.0.into()),
         }));
         let actual = parse_expression("test", r#"f64"#);
         assert_eq!(expected, actual);
@@ -500,7 +502,7 @@ help: valid tokens at this point: [Comment, IdentifierName]
 
         let expected = Ok(ast::Expression::NumberLiteral(ast::NumberLiteral {
             context: (),
-            value: ast::NumberValue::F64(-1.0),
+            value: ast::NumberValue::F64(ordered_float::OrderedFloat::from(-1.0)),
         }));
         let actual = parse_expression("test", r#"-1f64"#);
         assert_eq!(expected, actual);
@@ -512,7 +514,7 @@ help: valid tokens at this point: [Comment, IdentifierName]
 
         let expected = Ok(ast::Expression::NumberLiteral(ast::NumberLiteral {
             context: (),
-            value: ast::NumberValue::F64(0.0),
+            value: ast::NumberValue::F64(ordered_float::OrderedFloat::from(0.0)),
         }));
         let actual = parse_expression("test", r#"0f64"#);
         assert_eq!(expected, actual);
@@ -524,7 +526,7 @@ help: valid tokens at this point: [Comment, IdentifierName]
 
         let expected = Ok(ast::Expression::NumberLiteral(ast::NumberLiteral {
             context: (),
-            value: ast::NumberValue::F64(-0.0),
+            value: ast::NumberValue::F64(ordered_float::OrderedFloat::from(-0.0)),
         }));
         let actual = parse_expression("test", r#"-0f64"#);
         assert_eq!(expected, actual);
@@ -536,7 +538,7 @@ help: valid tokens at this point: [Comment, IdentifierName]
 
         let expected = Ok(ast::Expression::NumberLiteral(ast::NumberLiteral {
             context: (),
-            value: ast::NumberValue::F64(1.5),
+            value: ast::NumberValue::F64(ordered_float::OrderedFloat::from(1.5)),
         }));
         let actual = parse_expression("test", r#"1.5f64"#);
         assert_eq!(expected, actual);
@@ -548,7 +550,7 @@ help: valid tokens at this point: [Comment, IdentifierName]
 
         let expected = Ok(ast::Expression::NumberLiteral(ast::NumberLiteral {
             context: (),
-            value: ast::NumberValue::F64(-1.5),
+            value: ast::NumberValue::F64(ordered_float::OrderedFloat::from(-1.5)),
         }));
         let actual = parse_expression("test", r#"-1.5f64"#);
         assert_eq!(expected, actual);
@@ -560,7 +562,7 @@ help: valid tokens at this point: [Comment, IdentifierName]
 
         let expected = Ok(ast::Expression::NumberLiteral(ast::NumberLiteral {
             context: (),
-            value: ast::NumberValue::F64(1500.0),
+            value: ast::NumberValue::F64(ordered_float::OrderedFloat::from(1500.0)),
         }));
         let actual = parse_expression("test", r#"1.5000e3f64"#);
         assert_eq!(expected, actual);
@@ -572,7 +574,7 @@ help: valid tokens at this point: [Comment, IdentifierName]
 
         let expected = Ok(ast::Expression::NumberLiteral(ast::NumberLiteral {
             context: (),
-            value: ast::NumberValue::F64(-1500.0),
+            value: ast::NumberValue::F64(ordered_float::OrderedFloat::from(-1500.0)),
         }));
         let actual = parse_expression("test", r#"-1.5000e3f64"#);
         assert_eq!(expected, actual);
@@ -584,7 +586,7 @@ help: valid tokens at this point: [Comment, IdentifierName]
 
         let expected = Ok(ast::Expression::NumberLiteral(ast::NumberLiteral {
             context: (),
-            value: ast::NumberValue::F64(1500.0),
+            value: ast::NumberValue::F64(ordered_float::OrderedFloat::from(1500.0)),
         }));
         let actual = parse_expression("test", r#"1.5000E3f64"#);
         assert_eq!(expected, actual);
@@ -596,7 +598,7 @@ help: valid tokens at this point: [Comment, IdentifierName]
 
         let expected = Ok(ast::Expression::NumberLiteral(ast::NumberLiteral {
             context: (),
-            value: ast::NumberValue::F64(-1500.0),
+            value: ast::NumberValue::F64(ordered_float::OrderedFloat::from(-1500.0)),
         }));
         let actual = parse_expression("test", r#"-1.5000E3f64"#);
         assert_eq!(expected, actual);
@@ -608,7 +610,7 @@ help: valid tokens at this point: [Comment, IdentifierName]
 
         let expected = Ok(ast::Expression::NumberLiteral(ast::NumberLiteral {
             context: (),
-            value: ast::NumberValue::F64(0.0015),
+            value: ast::NumberValue::F64(ordered_float::OrderedFloat::from(0.0015)),
         }));
         let actual = parse_expression("test", r#"1.5000e-3f64"#);
         assert_eq!(expected, actual);
@@ -620,7 +622,7 @@ help: valid tokens at this point: [Comment, IdentifierName]
 
         let expected = Ok(ast::Expression::NumberLiteral(ast::NumberLiteral {
             context: (),
-            value: ast::NumberValue::F64(1500.0),
+            value: ast::NumberValue::F64(ordered_float::OrderedFloat::from(1500.0)),
         }));
         let actual = parse_expression("test", r#"1.5000e0003f64"#);
         assert_eq!(expected, actual);
@@ -632,7 +634,7 @@ help: valid tokens at this point: [Comment, IdentifierName]
 
         let expected = Ok(ast::Expression::NumberLiteral(ast::NumberLiteral {
             context: (),
-            value: ast::NumberValue::F64(1500.0),
+            value: ast::NumberValue::F64(ordered_float::OrderedFloat::from(1500.0)),
         }));
         let actual = parse_expression("test", r#"1.5000e+3f64"#);
         assert_eq!(expected, actual);
@@ -644,7 +646,7 @@ help: valid tokens at this point: [Comment, IdentifierName]
 
         let expected = Ok(ast::Expression::NumberLiteral(ast::NumberLiteral {
             context: (),
-            value: ast::NumberValue::F64(1.5),
+            value: ast::NumberValue::F64(ordered_float::OrderedFloat::from(1.5)),
         }));
         let actual = parse_expression("test", r#"1.5000e0f64"#);
         assert_eq!(expected, actual);
@@ -656,7 +658,7 @@ help: valid tokens at this point: [Comment, IdentifierName]
 
         let expected = Ok(ast::Expression::NumberLiteral(ast::NumberLiteral {
             context: (),
-            value: ast::NumberValue::F64(1.5),
+            value: ast::NumberValue::F64(ordered_float::OrderedFloat::from(1.5)),
         }));
         let actual = parse_expression("test", r#"1.5000e+0f64"#);
         assert_eq!(expected, actual);
@@ -707,11 +709,11 @@ help: valid tokens at this point: [Comment, IdentifierName]
             fields: vec![
                 ast::Expression::NumberLiteral(ast::NumberLiteral {
                     context: (),
-                    value: ast::NumberValue::F64(1.0),
+                    value: ast::NumberValue::F64(ordered_float::OrderedFloat::from(1.0)),
                 }),
                 ast::Expression::NumberLiteral(ast::NumberLiteral {
                     context: (),
-                    value: ast::NumberValue::F64(2.0),
+                    value: ast::NumberValue::F64(ordered_float::OrderedFloat::from(2.0)),
                 }),
             ],
         }));
@@ -728,11 +730,11 @@ help: valid tokens at this point: [Comment, IdentifierName]
             fields: vec![
                 ast::Expression::NumberLiteral(ast::NumberLiteral {
                     context: (),
-                    value: ast::NumberValue::F64(1.0),
+                    value: ast::NumberValue::F64(ordered_float::OrderedFloat::from(1.0)),
                 }),
                 ast::Expression::NumberLiteral(ast::NumberLiteral {
                     context: (),
-                    value: ast::NumberValue::F64(2.0),
+                    value: ast::NumberValue::F64(ordered_float::OrderedFloat::from(2.0)),
                 }),
             ],
         }));
@@ -748,7 +750,7 @@ help: valid tokens at this point: [Comment, IdentifierName]
             context: (),
             fields: vec![ast::Expression::NumberLiteral(ast::NumberLiteral {
                 context: (),
-                value: ast::NumberValue::F64(1.0),
+                value: ast::NumberValue::F64(ordered_float::OrderedFloat::from(1.0)),
             })],
         }));
         let actual = parse_expression("test", r#"(1f64,)"#);
@@ -795,7 +797,7 @@ help: valid tokens at this point: ["!", "#$0", "#$1", "#0", "#1", "#^-", "#^0", 
                     },
                     ast::Expression::NumberLiteral(ast::NumberLiteral {
                         context: (),
-                        value: ast::NumberValue::F64(1.0),
+                        value: ast::NumberValue::F64(ordered_float::OrderedFloat::from(1.0)),
                     }),
                 ),
                 (
@@ -830,7 +832,7 @@ help: valid tokens at this point: ["!", "#$0", "#$1", "#0", "#1", "#^-", "#^0", 
                     },
                     ast::Expression::NumberLiteral(ast::NumberLiteral {
                         context: (),
-                        value: ast::NumberValue::F64(1.0),
+                        value: ast::NumberValue::F64(ordered_float::OrderedFloat::from(1.0)),
                     }),
                 ),
                 (
@@ -864,7 +866,7 @@ help: valid tokens at this point: ["!", "#$0", "#$1", "#0", "#1", "#^-", "#^0", 
                 },
                 ast::Expression::NumberLiteral(ast::NumberLiteral {
                     context: (),
-                    value: ast::NumberValue::F64(1.0),
+                    value: ast::NumberValue::F64(ordered_float::OrderedFloat::from(1.0)),
                 }),
             )]
             .into_iter()
@@ -887,7 +889,7 @@ help: valid tokens at this point: ["!", "#$0", "#$1", "#0", "#1", "#^-", "#^0", 
                 },
                 ast::Expression::NumberLiteral(ast::NumberLiteral {
                     context: (),
-                    value: ast::NumberValue::F64(1.0),
+                    value: ast::NumberValue::F64(ordered_float::OrderedFloat::from(1.0)),
                 }),
             )]
             .into_iter()
@@ -1642,7 +1644,7 @@ help: valid tokens at this point: ["!", "#$0", "#$1", "#0", "#1", "#^-", "#^0", 
     }
 
     fn parse_module(name: &'static str, source: &str) -> Result<ast::Module<()>, String> {
-        use crate::parser::Parse;
+        use crate::syntax::parser::Parse;
 
         let mut code_map = codespan::CodeMap::new();
         let span = code_map
@@ -1650,14 +1652,14 @@ help: valid tokens at this point: ["!", "#$0", "#$1", "#0", "#1", "#^-", "#^0", 
             .span();
 
         let mut errors = Vec::new();
-        let result = crate::ast::Module::new_parser().parse(span, &mut errors, source);
+        let result = crate::syntax::ast::Module::new_parser().parse(span, &mut errors, source);
         super::handle_parse_result(source, span, result, errors)
             .map(|r| r.map_context(&mut |_| ()))
             .map_err(|e| crate::diagnostic::to_string(&code_map, &e))
     }
 
     fn parse_expression(name: &'static str, source: &str) -> Result<ast::Expression<()>, String> {
-        use crate::parser::Parse;
+        use crate::syntax::parser::Parse;
 
         let mut code_map = codespan::CodeMap::new();
         let span = code_map
@@ -1665,7 +1667,7 @@ help: valid tokens at this point: ["!", "#$0", "#$1", "#0", "#1", "#^-", "#^0", 
             .span();
 
         let mut errors = Vec::new();
-        let result = crate::ast::Expression::new_parser().parse(span, &mut errors, source);
+        let result = crate::syntax::ast::Expression::new_parser().parse(span, &mut errors, source);
         super::handle_parse_result(source, span, result, errors)
             .map(|r| r.map_context(&mut |_| ()))
             .map_err(|e| crate::diagnostic::to_string(&code_map, &e))

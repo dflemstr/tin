@@ -1,8 +1,8 @@
 use std::char;
 use std::num;
 
-use crate::ast;
-use crate::parser;
+use crate::syntax::ast;
+use crate::syntax::parser;
 
 fn parse_integer_literal<I, P, C, T>(
     span: codespan::ByteSpan,
@@ -34,26 +34,27 @@ where
     }
 }
 
-fn parse_float_literal<I, P, C, T>(
+fn parse_float_literal<F, P, C, T>(
     span: codespan::ByteSpan,
     input: &str,
     errors: &mut Vec<lalrpop_util::ParseError<usize, T, parser::Error>>,
     suffix_len: usize,
-    default: I,
+    default: F,
     parser: P,
     ctor: C,
 ) -> ast::NumberValue
 where
-    P: FnOnce(&str) -> Result<I, num::ParseFloatError>,
-    C: FnOnce(I) -> ast::NumberValue,
+    F: num_traits::float::Float,
+    P: FnOnce(&str) -> Result<F, num::ParseFloatError>,
+    C: FnOnce(ordered_float::OrderedFloat<F>) -> ast::NumberValue,
 {
     let input = &input[..input.len() - suffix_len];
 
     if input.is_empty() {
-        ctor(default)
+        ctor(default.into())
     } else {
         match parser(input) {
-            Ok(value) => ctor(value),
+            Ok(value) => ctor(value.into()),
             Err(cause) => {
                 errors.push(lalrpop_util::ParseError::User {
                     error: parser::Error::IllegalFloatLiteral { token: span, cause },

@@ -1,8 +1,8 @@
 //! AST node context mapping helpers.
 use std::fmt;
 
-use crate::ast;
-use crate::ast::ast_node;
+use crate::syntax::ast;
+use crate::syntax::ast::ast_node;
 
 /// A context mapping over some AST node.
 pub trait MapContext<C1, C2>: ast_node::AstNode<C1> {

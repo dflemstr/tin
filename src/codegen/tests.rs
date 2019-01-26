@@ -2,8 +2,8 @@ use env_logger;
 use failure;
 
 use super::*;
-use crate::ast;
 use crate::ir;
+use crate::syntax::ast;
 use crate::test_util;
 
 #[test]
@@ -345,7 +345,7 @@ main = || -> f32 { a = 2f32; b = 1f32; a - b };
 }
 
 fn compile_module(name: &'static str, source: &str) -> Result<module::Module, failure::Error> {
-    use crate::parser::Parse;
+    use crate::syntax::parser::Parse;
 
     let mut codemap = codespan::CodeMap::new();
     let span = codemap

@@ -1,7 +1,7 @@
 use lalrpop_util;
 
-use crate::ast;
-use crate::parser;
+use crate::syntax::ast;
+use crate::syntax::parser;
 
 grammar<'err>(span: codespan::ByteSpan, errors: &'err mut Vec<lalrpop_util::ParseError<usize, Token<'input>, parser::Error>>);
 

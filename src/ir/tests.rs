@@ -2,7 +2,7 @@ use env_logger;
 use failure;
 
 use super::*;
-use crate::ast;
+use crate::syntax::ast;
 use crate::test_util;
 
 #[test]
@@ -123,7 +123,7 @@ a = || -> u32 {
 }
 
 fn check_module(name: &'static str, source: &str) -> Result<(), String> {
-    use crate::parser::Parse;
+    use crate::syntax::parser::Parse;
 
     let mut codemap = codespan::CodeMap::new();
     let span = codemap
