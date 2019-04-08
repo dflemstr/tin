@@ -1,10 +1,9 @@
 use std::fmt;
 
-use specs::Component;
-use specs::VecStorage;
+mod db;
+mod infer;
 
-#[derive(Clone, Component, Debug, VisitEntities, VisitEntitiesMut)]
-#[storage(VecStorage)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Layout {
     pub size: usize,
     pub alignment: usize,
@@ -12,13 +11,13 @@ pub struct Layout {
     pub unnamed_fields: Vec<Offset>,
 }
 
-#[derive(Clone, Debug, VisitEntities, VisitEntitiesMut)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct NamedField {
     pub field: String,
     pub offset_layout: Offset,
 }
 
-#[derive(Clone, Debug, VisitEntities, VisitEntitiesMut)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Offset {
     pub offset: usize,
     pub layout: Layout,

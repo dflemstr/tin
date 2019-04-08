@@ -54,22 +54,19 @@ extern crate lalrpop_util;
 extern crate lazy_static;
 #[macro_use]
 extern crate log;
-#[macro_use]
-extern crate specs_derive;
-#[macro_use]
-extern crate specs_visitor_derive;
 #[cfg(test)]
 #[macro_use]
 extern crate pretty_assertions;
 
 use std::fmt;
 
-mod best_iter;
-mod codegen;
+// mod codegen;
 mod interpreter;
 mod ir;
+mod layout;
 mod source;
 mod syntax;
+mod ty;
 mod value;
 
 #[cfg(test)]

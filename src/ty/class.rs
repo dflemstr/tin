@@ -1,6 +1,6 @@
 use std::fmt;
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq, VisitEntities, VisitEntitiesMut)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Scalar {
     Symbol,
     Integral(IntegralScalar),
@@ -9,7 +9,7 @@ pub enum Scalar {
     Undefined,
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq, VisitEntities, VisitEntitiesMut)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum IntegralScalar {
     Unsigned,
     Signed,

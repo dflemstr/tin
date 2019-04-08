@@ -5,14 +5,13 @@ use std::fmt;
 use cranelift::codegen;
 use cranelift_module;
 use cranelift_simplejit;
-use specs;
 
 use crate::ir;
 use crate::ir::component::constexpr;
-use crate::ir::component::element;
+use crate::ir::element;
 use crate::ir::component::layout;
-use crate::ir::component::location;
-use crate::ir::component::symbol;
+use crate::ir::location;
+use crate::ir::symbol;
 use crate::ir::component::ty;
 use crate::module;
 
@@ -63,11 +62,6 @@ impl<'a> Codegen<'a> {
 
     /// Compiles the captured IR into a module.
     pub fn compile(&self) -> module::Module {
-        use crate::best_iter::BestIteratorCollect;
-        use crate::best_iter::BestIteratorMap;
-        use crate::best_iter::BestJoin;
-        use specs::Join;
-
         let Codegen {
             ref entities,
             ref constexprs,
@@ -438,10 +432,10 @@ fn declare_variables(
     types: &specs::ReadStorage<ty::Type>,
     ptr_type: Type,
     builder: &mut FunctionBuilder,
-    params: &[specs::Entity],
-    statements: &[specs::Entity],
+    params: &[ir::Entity],
+    statements: &[ir::Entity],
     entry_ebb: Ebb,
-) -> collections::HashMap<specs::Entity, Variable> {
+) -> collections::HashMap<ir::Entity, Variable> {
     let mut next_var = 0;
     let mut variables = collections::HashMap::new();
 
@@ -478,9 +472,9 @@ fn declare_variables_in_element(
     types: &specs::ReadStorage<ty::Type>,
     ptr_type: Type,
     builder: &mut FunctionBuilder,
-    variables: &mut collections::HashMap<specs::Entity, Variable>,
+    variables: &mut collections::HashMap<ir::Entity, Variable>,
     next_var: &mut usize,
-    entity: specs::Entity,
+    entity: ir::Entity,
 ) {
     if let element::Element::Variable(_) = *elements.get(entity).unwrap() {
         declare_variable(types, ptr_type, builder, variables, next_var, entity);
@@ -491,9 +485,9 @@ fn declare_variable(
     types: &specs::ReadStorage<ty::Type>,
     ptr_type: Type,
     builder: &mut FunctionBuilder,
-    variables: &mut collections::HashMap<specs::Entity, Variable>,
+    variables: &mut collections::HashMap<ir::Entity, Variable>,
     next_var: &mut usize,
-    entity: specs::Entity,
+    entity: ir::Entity,
 ) -> Variable {
     *variables.entry(entity).or_insert_with(|| {
         let var = Variable::new(*next_var);

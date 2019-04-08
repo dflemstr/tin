@@ -1,7 +1,7 @@
 use crate::diagnostic;
 use crate::module;
 
-#[derive(Clone, Debug, Fail, PartialEq)]
+#[derive(Clone, Debug, Eq, Fail, PartialEq)]
 pub enum Error {
     #[fail(display = "type conflict: {}", _0)]
     RuntimeTypeConflict(String),

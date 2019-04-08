@@ -1,16 +1,12 @@
 use std::fmt;
 
-use specs::Component;
-use specs::VecStorage;
-
-#[derive(Component, Clone, Debug, VisitEntities, VisitEntitiesMut)]
-#[storage(VecStorage)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Symbol {
     public: bool,
     parts: Vec<Part>,
 }
 
-#[derive(Clone, Debug, VisitEntities, VisitEntitiesMut)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Part {
     Named(String),
     #[allow(unused)]

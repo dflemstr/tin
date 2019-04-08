@@ -1,9 +1,7 @@
 use std::collections;
 
-use specs;
-
-use crate::ir::component::element;
-use crate::ir::component::ty;
+use crate::ir::element;
+use crate::ty;
 use std::ops;
 
 lazy_static! {
@@ -25,49 +23,10 @@ pub struct System;
 #[derive(Clone, Debug)]
 enum Inference<T> {
     Type(T),
-    Error(ty::error::Error<specs::Entity>),
+    Error(ty::error::Error),
 }
 
 type InferenceResult<T> = Option<Inference<T>>;
-
-impl<'a> specs::System<'a> for System {
-    type SystemData = (
-        specs::Entities<'a>,
-        specs::ReadStorage<'a, element::Element>,
-        specs::WriteStorage<'a, ty::Type>,
-        specs::WriteStorage<'a, ty::error::Error<specs::Entity>>,
-    );
-
-    fn run(&mut self, (entities, elements, mut types, mut errors): Self::SystemData) {
-        use crate::best_iter::BestIteratorCollect;
-        use crate::best_iter::BestIteratorFlatMap;
-        use crate::best_iter::BestJoin;
-
-        loop {
-            let new_types: Vec<_> = (&entities, &elements, !&types, !&errors)
-                .best_join()
-                .best_flat_map(|(entity, element, _, _)| {
-                    infer_type(element, &types).map(|ty| (entity, ty))
-                })
-                .best_collect();
-            debug!("inferred new types: {:?}", new_types);
-            if new_types.is_empty() {
-                break;
-            }
-
-            for (entity, inference) in new_types {
-                match inference {
-                    Inference::Type(ty) => {
-                        types.insert(entity, ty).unwrap();
-                    }
-                    Inference::Error(error) => {
-                        errors.insert(entity, error).unwrap();
-                    }
-                }
-            }
-        }
-    }
-}
 
 fn infer_type<D>(
     element: &element::Element,
@@ -140,7 +99,7 @@ fn infer_number_type(number: &element::Number) -> ty::Number {
 }
 
 fn infer_tuple_type<D>(
-    fields: &[specs::Entity],
+    fields: &[ir::Entity],
     types: &specs::Storage<ty::Type, D>,
 ) -> InferenceResult<ty::Type>
 where
@@ -154,7 +113,7 @@ where
 }
 
 fn infer_record_type<D>(
-    fields: &collections::HashMap<String, specs::Entity>,
+    fields: &collections::HashMap<String, ir::Entity>,
     types: &specs::Storage<ty::Type, D>,
 ) -> InferenceResult<ty::Type>
 where
@@ -168,7 +127,7 @@ where
 }
 
 fn infer_un_op_type<D>(
-    operand: specs::Entity,
+    operand: ir::Entity,
     operator: element::UnOperator,
     types: &specs::Storage<ty::Type, D>,
 ) -> InferenceResult<ty::Type>
@@ -203,9 +162,9 @@ where
 }
 
 fn infer_bi_op_type<D>(
-    lhs: specs::Entity,
+    lhs: ir::Entity,
     operator: element::BiOperator,
-    rhs: specs::Entity,
+    rhs: ir::Entity,
     types: &specs::Storage<ty::Type, D>,
 ) -> InferenceResult<ty::Type>
 where
@@ -252,7 +211,7 @@ where
 }
 
 fn infer_variable_type<D>(
-    initializer: specs::Entity,
+    initializer: ir::Entity,
     types: &specs::Storage<ty::Type, D>,
 ) -> InferenceResult<ty::Type>
 where
@@ -262,7 +221,7 @@ where
 }
 
 fn infer_select_type<D>(
-    record: specs::Entity,
+    record: ir::Entity,
     field: &str,
     types: &specs::Storage<ty::Type, D>,
 ) -> InferenceResult<ty::Type>
@@ -315,8 +274,8 @@ where
 }
 
 fn infer_apply_type<D>(
-    function: specs::Entity,
-    parameters: &[specs::Entity],
+    function: ir::Entity,
+    parameters: &[ir::Entity],
     types: &specs::Storage<ty::Type, D>,
 ) -> InferenceResult<ty::Type>
 where
@@ -377,7 +336,7 @@ where
 }
 
 fn infer_parameter_type<D>(
-    signature: specs::Entity,
+    signature: ir::Entity,
     types: &specs::Storage<ty::Type, D>,
 ) -> InferenceResult<ty::Type>
 where
@@ -387,7 +346,7 @@ where
 }
 
 fn infer_capture_type<D>(
-    capture: specs::Entity,
+    capture: ir::Entity,
     types: &specs::Storage<ty::Type, D>,
 ) -> InferenceResult<ty::Type>
 where
@@ -397,9 +356,9 @@ where
 }
 
 fn infer_closure_type<D>(
-    parameters: &[specs::Entity],
-    signature: specs::Entity,
-    result: specs::Entity,
+    parameters: &[ir::Entity],
+    signature: ir::Entity,
+    result: ir::Entity,
     types: &specs::Storage<ty::Type, D>,
 ) -> InferenceResult<ty::Type>
 where
@@ -445,7 +404,7 @@ where
 }
 
 fn infer_module_type<D>(
-    variables: &collections::HashMap<String, specs::Entity>,
+    variables: &collections::HashMap<String, ir::Entity>,
     types: &specs::Storage<ty::Type, D>,
 ) -> InferenceResult<ty::Type>
 where
@@ -459,9 +418,9 @@ where
 }
 
 fn if_eq_then(
-    lhs_entity: specs::Entity,
+    lhs_entity: ir::Entity,
     lhs: &ty::Type,
-    rhs_entity: specs::Entity,
+    rhs_entity: ir::Entity,
     rhs: &ty::Type,
     result: &ty::Type,
 ) -> Inference<ty::Type> {
@@ -481,9 +440,9 @@ fn if_eq_then(
 }
 
 fn bool_op(
-    lhs_entity: specs::Entity,
+    lhs_entity: ir::Entity,
     lhs: &ty::Type,
-    rhs_entity: specs::Entity,
+    rhs_entity: ir::Entity,
     rhs: &ty::Type,
 ) -> Inference<ty::Type> {
     if *lhs == *BOOL_TYPE {
@@ -514,9 +473,9 @@ fn bool_op(
 }
 
 fn or_op(
-    lhs_entity: specs::Entity,
+    lhs_entity: ir::Entity,
     lhs: &ty::Type,
-    rhs_entity: specs::Entity,
+    rhs_entity: ir::Entity,
     rhs: &ty::Type,
 ) -> Inference<ty::Type> {
     if let ty::Type::Union(u) = lhs {
@@ -563,11 +522,7 @@ fn or_op(
     }
 }
 
-fn if_integral_then(
-    entity: specs::Entity,
-    ty: &ty::Type,
-    result: &ty::Type,
-) -> Inference<ty::Type> {
+fn if_integral_then(entity: ir::Entity, ty: &ty::Type, result: &ty::Type) -> Inference<ty::Type> {
     match ty.scalar_class() {
         ty::class::Scalar::Integral(_) => Inference::Type(result.clone()),
         _ => Inference::Error(ty::error::Error {
@@ -582,9 +537,9 @@ fn if_integral_then(
 }
 
 fn if_integral_and_eq_then(
-    lhs_entity: specs::Entity,
+    lhs_entity: ir::Entity,
     lhs: &ty::Type,
-    rhs_entity: specs::Entity,
+    rhs_entity: ir::Entity,
     rhs: &ty::Type,
     expected: &ty::Type,
     result: &ty::Type,
@@ -619,11 +574,7 @@ fn if_integral_and_eq_then(
     }
 }
 
-fn if_fractional_then(
-    entity: specs::Entity,
-    ty: &ty::Type,
-    result: &ty::Type,
-) -> Inference<ty::Type> {
+fn if_fractional_then(entity: ir::Entity, ty: &ty::Type, result: &ty::Type) -> Inference<ty::Type> {
     match ty.scalar_class() {
         ty::class::Scalar::Fractional => Inference::Type(result.clone()),
         _ => Inference::Error(ty::error::Error {

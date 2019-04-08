@@ -1,9 +1,8 @@
 use std::cmp;
 use std::collections;
 
-use specs;
-
-use crate::ir::component::element;
+use crate::ir;
+use crate::ir::element;
 use crate::module;
 use crate::value;
 
@@ -11,12 +10,9 @@ pub mod error;
 #[macro_use]
 mod macros;
 
-pub fn eval<'a, F>(
-    element: &element::Element,
-    lookup: F,
-) -> Result<Option<value::Value>, error::Error>
+pub fn eval<F>(element: &element::Element, lookup: F) -> Result<Option<value::Value>, error::Error>
 where
-    F: Fn(specs::Entity) -> Option<&'a value::Value>,
+    F: Fn(ir::Entity) -> Option<value::Value>,
 {
     match element {
         element::Element::Number(v) => Ok(Some(value::Value::number(eval_number(v)))),
@@ -26,7 +22,7 @@ where
         }
         element::Element::Tuple(element::Tuple { ref fields }) => Ok(fields
             .iter()
-            .map(|f| lookup(*f).cloned())
+            .map(|f| lookup(*f))
             .collect::<Option<Vec<_>>>()
             .map(|fields| value::Value::tuple(value::Tuple { fields }))),
         element::Element::Record(element::Record { ref fields }) => Ok(fields
@@ -41,7 +37,7 @@ where
             lookup(*lhs).and_then(|lhs| lookup(*rhs).map(|rhs| eval_bi_op(&lhs, *operator, &rhs))),
         ),
         element::Element::Variable(element::Variable { initializer, .. }) => {
-            Ok(lookup(*initializer).cloned())
+            Ok(lookup(*initializer))
         }
         element::Element::Select(element::Select { record, field }) => {
             transpose(lookup(*record).map(|record| match record.case() {
@@ -133,25 +129,25 @@ fn eval_bi_op(
         element::BiOperator::Sub => match_number_value!("-", (lhs, rhs), |l, r| int: Ok(
             (l.wrapping_sub(*r)).into()
         ), frac: Ok(
-            (l - r).into()
+            (l.into_inner() - r.into_inner()).into()
         )),
         element::BiOperator::Mul => match_number_value!("*", (lhs, rhs), |l, r| int: Ok(
             (l.wrapping_mul(*r)).into()
         ), frac: Ok(
-            (l * r).into()
+            (l.into_inner() * r.into_inner()).into()
         )),
         element::BiOperator::Div => match_number_value!("/", (lhs, rhs), |l, r| int: if *r == 0 {
             Err(error::Error::EvaluationError(module::Error::new(module::ErrorKind::IntegerDivisonByZero)))
         } else {
             Ok((l.wrapping_div(*r)).into())
-        }, frac: Ok((l / r).into()
+        }, frac: Ok((l.into_inner() / r.into_inner()).into()
         )),
         element::BiOperator::Rem => match_number_value!("%", (lhs, rhs), |l, r| int: if *r == 0 {
             Err(error::Error::EvaluationError(module::Error::new(module::ErrorKind::IntegerDivisonByZero)))
         } else {
             Ok((l.wrapping_rem(*r)).into())
         }, frac: Ok(
-            (l % r).into()
+            (l.into_inner() % r.into_inner()).into()
         )),
         element::BiOperator::And => bool_op("&", lhs, rhs, |l, r| l & r),
         element::BiOperator::BAnd => {
@@ -316,7 +312,7 @@ fn add(lhs: &value::Value, rhs: &value::Value) -> Result<value::Value, error::Er
             }
         }
         (value::Case::Number(lhs), value::Case::Number(rhs)) => {
-            match_number!("+", (lhs, rhs), |l, r| int: Ok((l.wrapping_add(*r)).into()), frac: Ok((l + r).into()))
+            match_number!("+", (lhs, rhs), |l, r| int: Ok((l.wrapping_add(*r)).into()), frac: Ok((l.into_inner() + r.into_inner()).into()))
         }
         other => Err(error::Error::RuntimeTypeConflict(format!(
             "operation + not supported on values {:?}",

@@ -14,7 +14,7 @@ pub struct Module {
 }
 
 /// An error that may happen at runtime.
-#[derive(Clone, Debug, Fail, PartialEq)]
+#[derive(Clone, Debug, Eq, Fail, PartialEq)]
 #[fail(display = "{}{}", kind, backtrace)]
 pub struct Error {
     kind: ErrorKind,
@@ -22,20 +22,20 @@ pub struct Error {
 }
 
 /// A trace, for example a backtrace for an error.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Trace {
     frames: Vec<Frame>,
 }
 
 /// A call stack frame within a [`Trace`].
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Frame {
     name: String,
     location: Point,
 }
 
 /// A specific code point, with a file, line and column.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Point {
     path: String,
     line: u32,
@@ -43,7 +43,7 @@ pub struct Point {
 }
 
 /// The various kinds of allowed errors.
-#[derive(Clone, Copy, Debug, PartialEq, Primitive)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Primitive)]
 pub enum ErrorKind {
     /// An unknown error has occurred.
     ///

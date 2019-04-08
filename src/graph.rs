@@ -6,13 +6,12 @@ use std::borrow;
 use std::fmt;
 
 use dot;
-use specs;
 
 use crate::ir;
-use crate::ir::component::element;
-use crate::ir::component::layout;
-use crate::ir::component::symbol;
-use crate::ir::component::ty;
+use crate::ir::element;
+use crate::ir::symbol;
+use crate::layout;
+use crate::ty;
 
 /// A graph representation of IR.
 pub struct Graph<'a> {
@@ -25,7 +24,7 @@ pub struct Graph<'a> {
 
 /// A node in the IR graph.
 #[derive(Clone, Copy, Debug)]
-pub struct Node(specs::Entity);
+pub struct Node(ir::Entity);
 
 /// An edge in the IR graph.
 #[derive(Clone, Copy, Debug)]
@@ -78,8 +77,6 @@ impl<'a> Graph<'a> {
 
 impl<'a> dot::GraphWalk<'a, Node, Edge<'a>> for Graph<'a> {
     fn nodes(&'a self) -> borrow::Cow<'a, [Node]> {
-        use specs::Join;
-
         borrow::Cow::Owned(
             self.entities
                 .join()
@@ -95,8 +92,6 @@ impl<'a> dot::GraphWalk<'a, Node, Edge<'a>> for Graph<'a> {
     }
 
     fn edges(&'a self) -> borrow::Cow<'a, [Edge<'a>]> {
-        use specs::Join;
-
         let mut edges = Vec::new();
 
         for entity in self.entities.join() {

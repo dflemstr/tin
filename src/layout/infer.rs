@@ -1,10 +1,9 @@
 use std::collections;
 use std::usize;
 
-use specs;
-
-use crate::ir::component::element;
-use crate::ir::component::layout;
+use crate::ir;
+use crate::ir::element;
+use crate::layout;
 use std::ops;
 
 pub struct System {
@@ -13,53 +12,16 @@ pub struct System {
 
 const BOOL_LAYOUT: layout::Layout = layout::Layout::scalar(1);
 
-impl<'a> specs::System<'a> for System {
-    type SystemData = (
-        specs::Entities<'a>,
-        specs::ReadStorage<'a, element::Element>,
-        specs::WriteStorage<'a, layout::Layout>,
-    );
-
-    fn run(&mut self, (entities, elements, mut layouts): Self::SystemData) {
-        use crate::best_iter::BestIteratorCollect;
-        use crate::best_iter::BestIteratorFlatMap;
-        use crate::best_iter::BestJoin;
-
-        loop {
-            let new_layouts: Vec<_> = (&entities, &elements, !&layouts)
-                .best_join()
-                .best_flat_map(|(entity, element, _)| {
-                    self.infer_layout(element, &elements, &layouts)
-                        .map(|layout| (entity, layout))
-                })
-                .best_collect();
-            debug!("inferred new layouts: {:?}", new_layouts);
-            if new_layouts.is_empty() {
-                break;
-            }
-
-            for (entity, layout) in new_layouts {
-                layouts.insert(entity, layout).unwrap();
-            }
-        }
-    }
-}
-
 impl System {
     pub fn new(ptr_size: usize) -> System {
         System { ptr_size }
     }
 
-    fn infer_layout<DE, DL>(
+    fn infer_layout(
         &self,
         element: &element::Element,
-        elements: &specs::Storage<element::Element, DE>,
-        layouts: &specs::Storage<layout::Layout, DL>,
-    ) -> Option<layout::Layout>
-    where
-        DE: ops::Deref<Target = specs::storage::MaskedStorage<element::Element>>,
-        DL: ops::Deref<Target = specs::storage::MaskedStorage<layout::Layout>>,
-    {
+        db: impl layout::db::LayoutDb,
+    ) -> Option<layout::Layout> {
         match *element {
             element::Element::Number(ref n) => self.infer_number_layout(n),
             element::Element::String(_) => Some(layout::Layout::scalar(self.ptr_size)),
@@ -114,14 +76,11 @@ impl System {
         }
     }
 
-    fn infer_tuple_layout<D>(
+    fn infer_tuple_layout(
         &self,
-        fields: &[specs::Entity],
-        layouts: &specs::Storage<layout::Layout, D>,
-    ) -> Option<layout::Layout>
-    where
-        D: ops::Deref<Target = specs::storage::MaskedStorage<layout::Layout>>,
-    {
+        fields: &[ir::Entity],
+        db: impl layout::db::LayoutDb,
+    ) -> Option<layout::Layout> {
         if let Some(mut layouts) = fields
             .iter()
             .enumerate()
@@ -155,14 +114,11 @@ impl System {
         }
     }
 
-    fn infer_record_layout<D>(
+    fn infer_record_layout(
         &self,
-        fields: &collections::HashMap<String, specs::Entity>,
-        layouts: &specs::Storage<layout::Layout, D>,
-    ) -> Option<layout::Layout>
-    where
-        D: ops::Deref<Target = specs::storage::MaskedStorage<layout::Layout>>,
-    {
+        fields: &collections::HashMap<String, ir::Entity>,
+        db: impl layout::db::LayoutDb,
+    ) -> Option<layout::Layout> {
         if let Some(mut layouts) = fields
             .iter()
             .map(|(n, f)| layouts.get(*f).map(|l| (n, l)))
@@ -198,15 +154,12 @@ impl System {
         }
     }
 
-    fn infer_un_op_layout<D>(
+    fn infer_un_op_layout(
         &self,
         operator: element::UnOperator,
-        operand: specs::Entity,
-        layouts: &specs::Storage<layout::Layout, D>,
-    ) -> Option<layout::Layout>
-    where
-        D: ops::Deref<Target = specs::storage::MaskedStorage<layout::Layout>>,
-    {
+        operand: ir::Entity,
+        db: impl layout::db::LayoutDb,
+    ) -> Option<layout::Layout> {
         let operand = layouts.get(operand).cloned();
 
         match operator {
@@ -223,16 +176,13 @@ impl System {
         }
     }
 
-    fn infer_bi_op_layout<D>(
+    fn infer_bi_op_layout(
         &self,
-        lhs: specs::Entity,
+        lhs: ir::Entity,
         operator: element::BiOperator,
-        rhs: specs::Entity,
-        layouts: &specs::Storage<layout::Layout, D>,
-    ) -> Option<layout::Layout>
-    where
-        D: ops::Deref<Target = specs::storage::MaskedStorage<layout::Layout>>,
-    {
+        rhs: ir::Entity,
+        db: impl layout::db::LayoutDb,
+    ) -> Option<layout::Layout> {
         let lhs = layouts.get(lhs).cloned();
         let rhs = layouts.get(rhs).cloned();
 
@@ -277,28 +227,20 @@ impl System {
         }
     }
 
-    fn infer_variable_layout<D>(
+    fn infer_variable_layout(
         &self,
-        initializer: specs::Entity,
-        layouts: &specs::Storage<layout::Layout, D>,
-    ) -> Option<layout::Layout>
-    where
-        D: ops::Deref<Target = specs::storage::MaskedStorage<layout::Layout>>,
-    {
+        initializer: ir::Entity,
+        db: impl layout::db::LayoutDb,
+    ) -> Option<layout::Layout> {
         layouts.get(initializer).cloned()
     }
 
-    fn infer_select_layout<DE, DL>(
+    fn infer_select_layout(
         &self,
-        record: specs::Entity,
+        record: ir::Entity,
         field: &str,
-        elements: &specs::Storage<element::Element, DE>,
-        layouts: &specs::Storage<layout::Layout, DL>,
-    ) -> Option<layout::Layout>
-    where
-        DE: ops::Deref<Target = specs::storage::MaskedStorage<element::Element>>,
-        DL: ops::Deref<Target = specs::storage::MaskedStorage<layout::Layout>>,
-    {
+        db: impl layout::db::LayoutDb,
+    ) -> Option<layout::Layout> {
         match elements.get(record) {
             None => None,
             Some(t) => match t {
@@ -314,15 +256,12 @@ impl System {
         }
     }
 
-    fn infer_apply_layout<D>(
+    fn infer_apply_layout(
         &self,
-        _function: specs::Entity,
-        _parameters: &[specs::Entity],
-        _layouts: &specs::Storage<layout::Layout, D>,
-    ) -> Option<layout::Layout>
-    where
-        D: ops::Deref<Target = specs::storage::MaskedStorage<layout::Layout>>,
-    {
+        _function: ir::Entity,
+        _parameters: &[ir::Entity],
+        _db: impl layout::db::LayoutDb,
+    ) -> Option<layout::Layout> {
         // TODO
         None
         /*
@@ -368,36 +307,27 @@ impl System {
         */
     }
 
-    fn infer_parameter_layout<D>(
+    fn infer_parameter_layout(
         &self,
-        signature: specs::Entity,
-        layouts: &specs::Storage<layout::Layout, D>,
-    ) -> Option<layout::Layout>
-    where
-        D: ops::Deref<Target = specs::storage::MaskedStorage<layout::Layout>>,
-    {
+        signature: ir::Entity,
+        db: impl layout::db::LayoutDb,
+    ) -> Option<layout::Layout> {
         layouts.get(signature).cloned()
     }
 
-    fn infer_capture_layout<D>(
+    fn infer_capture_layout(
         &self,
-        capture: specs::Entity,
-        layouts: &specs::Storage<layout::Layout, D>,
-    ) -> Option<layout::Layout>
-    where
-        D: ops::Deref<Target = specs::storage::MaskedStorage<layout::Layout>>,
-    {
+        capture: ir::Entity,
+        db: impl layout::db::LayoutDb,
+    ) -> Option<layout::Layout> {
         layouts.get(capture).cloned()
     }
 
-    fn infer_closure_layout<D>(
+    fn infer_closure_layout(
         &self,
-        captures: &collections::HashMap<String, specs::Entity>,
-        layouts: &specs::Storage<layout::Layout, D>,
-    ) -> Option<layout::Layout>
-    where
-        D: ops::Deref<Target = specs::storage::MaskedStorage<layout::Layout>>,
-    {
+        captures: &collections::HashMap<String, ir::Entity>,
+        db: impl layout::db::LayoutDb,
+    ) -> Option<layout::Layout> {
         if let Some(mut capture_layouts) = captures
             .iter()
             .map(|(n, f)| layouts.get(*f).map(|l| (n, l)))
@@ -444,14 +374,11 @@ impl System {
         }
     }
 
-    fn infer_module_layout<D>(
+    fn infer_module_layout(
         &self,
-        _variables: &collections::HashMap<String, specs::Entity>,
-        _layouts: &specs::Storage<layout::Layout, D>,
-    ) -> Option<layout::Layout>
-    where
-        D: ops::Deref<Target = specs::storage::MaskedStorage<layout::Layout>>,
-    {
+        _variables: &collections::HashMap<String, ir::Entity>,
+        db: impl layout::db::LayoutDb,
+    ) -> Option<layout::Layout> {
         // TODO
         None
         /*

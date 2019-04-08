@@ -35,10 +35,10 @@ lazy_static! {
     };
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Value(sync::Arc<Case>);
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Case {
     Number(Number),
     String(String),
@@ -47,7 +47,7 @@ pub enum Case {
     Record(Record),
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, PartialOrd)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, PartialOrd)]
 pub enum Number {
     U8(u8),
     U16(u16),
@@ -57,8 +57,8 @@ pub enum Number {
     I16(i16),
     I32(i32),
     I64(i64),
-    F32(f32),
-    F64(f64),
+    F32(ordered_float::OrderedFloat<f32>),
+    F64(ordered_float::OrderedFloat<f64>),
 }
 
 #[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
@@ -66,12 +66,12 @@ pub struct Symbol {
     pub label: String,
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Tuple {
     pub fields: Vec<Value>,
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Record {
     pub fields: collections::HashMap<String, Value>,
 }
@@ -173,13 +173,13 @@ impl From<i64> for Value {
 
 impl From<f32> for Value {
     fn from(v: f32) -> Self {
-        Value::new(Case::Number(Number::F32(v)))
+        Value::new(Case::Number(Number::F32(ordered_float::OrderedFloat(v))))
     }
 }
 
 impl From<f64> for Value {
     fn from(v: f64) -> Self {
-        Value::new(Case::Number(Number::F64(v)))
+        Value::new(Case::Number(Number::F64(ordered_float::OrderedFloat(v))))
     }
 }
 

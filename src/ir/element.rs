@@ -1,13 +1,9 @@
 use std::collections;
 use std::fmt;
 
-use specs;
+use crate::ir;
 
-use specs::Component;
-use specs::VecStorage;
-
-#[derive(Component, Debug, VisitEntities, VisitEntitiesMut)]
-#[storage(VecStorage)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Element {
     Number(Number),
     String(String),
@@ -25,7 +21,7 @@ pub enum Element {
     Module(Module),
 }
 
-#[derive(Clone, Copy, Debug, VisitEntities, VisitEntitiesMut)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Number {
     U8(u8),
     U16(u16),
@@ -35,27 +31,27 @@ pub enum Number {
     I16(i16),
     I32(i32),
     I64(i64),
-    F32(f32),
-    F64(f64),
+    F32(ordered_float::OrderedFloat<f32>),
+    F64(ordered_float::OrderedFloat<f64>),
 }
 
-#[derive(Debug, VisitEntities, VisitEntitiesMut)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Symbol {
     pub label: String,
 }
 
-#[derive(Debug, VisitEntities, VisitEntitiesMut)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Tuple {
-    pub fields: Vec<specs::Entity>,
+    pub fields: Vec<ir::Entity>,
 }
 
-#[derive(Debug, VisitEntities, VisitEntitiesMut)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Record {
-    pub fields: collections::HashMap<String, specs::Entity>,
+    pub fields: collections::HashMap<String, ir::Entity>,
 }
 
 /// An unary operator.
-#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd, VisitEntities, VisitEntitiesMut)]
+#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub enum UnOperator {
     /// Logical not.
     Not,
@@ -84,16 +80,16 @@ pub enum UnOperator {
 }
 
 /// An operator application with one operand.
-#[derive(Clone, Copy, Debug, PartialEq, VisitEntities, VisitEntitiesMut)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct UnOp {
     /// The unary operator that is being applied.
     pub operator: UnOperator,
     /// The operand to the operator.
-    pub operand: specs::Entity,
+    pub operand: ir::Entity,
 }
 
 /// A binary operator.
-#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd, VisitEntities, VisitEntitiesMut)]
+#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub enum BiOperator {
     /// The equal-to operator.
     Eq,
@@ -157,58 +153,58 @@ pub enum BiOperator {
 }
 
 /// An operator application with two operands.
-#[derive(Clone, Copy, Debug, PartialEq, VisitEntities, VisitEntitiesMut)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct BiOp {
     /// The left-hand-side operand of the operator.
-    pub lhs: specs::Entity,
+    pub lhs: ir::Entity,
     /// The binary operator that is being applied.
     pub operator: BiOperator,
     /// The right-hand-side operand of the operator.
-    pub rhs: specs::Entity,
+    pub rhs: ir::Entity,
 }
 
-#[derive(Debug, VisitEntities, VisitEntitiesMut)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Variable {
     pub name: String,
-    pub initializer: specs::Entity,
+    pub initializer: ir::Entity,
 }
 
-#[derive(Debug, VisitEntities, VisitEntitiesMut)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Select {
-    pub record: specs::Entity,
+    pub record: ir::Entity,
     pub field: String,
 }
 
-#[derive(Debug, VisitEntities, VisitEntitiesMut)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Apply {
-    pub function: specs::Entity,
-    pub parameters: Vec<specs::Entity>,
+    pub function: ir::Entity,
+    pub parameters: Vec<ir::Entity>,
 }
 
-#[derive(Debug, VisitEntities, VisitEntitiesMut)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Parameter {
     pub name: String,
-    pub signature: specs::Entity,
+    pub signature: ir::Entity,
 }
 
-#[derive(Debug, VisitEntities, VisitEntitiesMut)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Capture {
     pub name: String,
-    pub captured: specs::Entity,
+    pub captured: ir::Entity,
 }
 
-#[derive(Debug, VisitEntities, VisitEntitiesMut)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Closure {
-    pub captures: collections::HashMap<String, specs::Entity>,
-    pub parameters: Vec<specs::Entity>,
-    pub statements: Vec<specs::Entity>,
-    pub signature: specs::Entity,
-    pub result: specs::Entity,
+    pub captures: collections::HashMap<String, ir::Entity>,
+    pub parameters: Vec<ir::Entity>,
+    pub statements: Vec<ir::Entity>,
+    pub signature: ir::Entity,
+    pub result: ir::Entity,
 }
 
-#[derive(Debug, VisitEntities, VisitEntitiesMut)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Module {
-    pub variables: collections::HashMap<String, specs::Entity>,
+    pub variables: collections::HashMap<String, ir::Entity>,
 }
 
 impl fmt::Display for UnOperator {

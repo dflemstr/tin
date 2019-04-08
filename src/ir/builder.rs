@@ -1,27 +1,32 @@
 use std::collections;
 use std::mem;
 
-use specs;
-
-use crate::ir::component::element;
-use crate::ir::component::location;
-use crate::ir::component::replacement;
-use crate::ir::component::symbol;
+use crate::ir;
+use crate::ir::element;
 use crate::ir::error;
+use crate::ir::location;
+use crate::ir::symbol;
+use crate::ir::world;
 use crate::syntax::ast;
 use crate::syntax::parser;
 
-pub struct Builder<'a> {
-    world: &'a mut specs::World,
+pub struct Builder<W>
+where
+    W: world::World,
+{
+    world: W,
     symbol: Vec<symbol::Part>,
-    current_scope: collections::HashMap<String, specs::Entity>,
-    scopes: Vec<collections::HashMap<String, specs::Entity>>,
-    current_captures: collections::HashMap<String, specs::Entity>,
-    captures: Vec<collections::HashMap<String, specs::Entity>>,
+    current_scope: collections::HashMap<String, ir::Entity>,
+    scopes: Vec<collections::HashMap<String, ir::Entity>>,
+    current_captures: collections::HashMap<String, ir::Entity>,
+    captures: Vec<collections::HashMap<String, ir::Entity>>,
 }
 
-impl<'a> Builder<'a> {
-    pub fn new(world: &'a mut specs::World) -> Builder<'a> {
+impl<W> Builder<W>
+where
+    W: world::World,
+{
+    pub fn new(world: W) -> Builder<W> {
         let symbol = Vec::new();
         let current_scope = collections::HashMap::new();
         let scopes = Vec::new();
@@ -40,14 +45,12 @@ impl<'a> Builder<'a> {
 
     pub fn add_module(
         &mut self,
-        entity: specs::Entity,
+        entity: ir::Entity,
         ast: &ast::Module<parser::Context>,
     ) -> Result<(), error::Error> {
-        use specs::world::Builder;
-
         let mut variables = collections::HashMap::new();
         for variable in &ast.variables {
-            let var_entity = self.world.create_entity().build();
+            let var_entity = self.world.create_entity();
 
             self.current_scope
                 .insert(variable.name.value.clone(), var_entity);
@@ -60,30 +63,21 @@ impl<'a> Builder<'a> {
             self.add_variable(variables[name], variable)?;
         }
 
+        self.world.set_element(
+            entity,
+            element::Element::Module(element::Module { variables }),
+        );
         self.world
-            .write_storage()
-            .insert(
-                entity,
-                element::Element::Module(element::Module { variables }),
-            )
-            .unwrap();
-
+            .set_symbol(entity, symbol::Symbol::new(self.symbol.clone()));
         self.world
-            .write_storage()
-            .insert(entity, symbol::Symbol::new(self.symbol.clone()))
-            .unwrap();
-
-        self.world
-            .write_storage()
-            .insert(entity, location::Location(ast.context.span))
-            .unwrap();
+            .set_location(entity, location::Location(ast.context.span));
 
         Ok(())
     }
 
     fn add_identifier(
         &mut self,
-        entity: specs::Entity,
+        entity: ir::Entity,
         identifier: &ast::Identifier<parser::Context>,
     ) -> Result<(), error::Error> {
         let name = &identifier.value;
@@ -95,24 +89,17 @@ impl<'a> Builder<'a> {
                 .flat_map(|scope| scope.get(name).cloned().into_iter())
                 .next()
                 .map(|e| {
-                    use specs::world::Builder;
-
-                    let capture = self.world.create_entity().build();
-                    self.world
-                        .write_storage()
-                        .insert(
-                            capture,
-                            element::Element::Capture(element::Capture {
-                                name: name.clone(),
-                                captured: e,
-                            }),
-                        )
-                        .unwrap();
+                    let capture = self.world.create_entity();
+                    self.world.set_element(
+                        capture,
+                        element::Element::Capture(element::Capture {
+                            name: name.clone(),
+                            captured: e,
+                        }),
+                    );
 
                     self.world
-                        .write_storage()
-                        .insert(capture, location::Location(identifier.context.span))
-                        .unwrap();
+                        .set_location(capture, location::Location(identifier.context.span));
 
                     self.current_captures.insert(name.clone(), capture);
 
@@ -125,22 +112,17 @@ impl<'a> Builder<'a> {
             location: identifier.context.span,
         })?;
 
-        self.world
-            .write_storage()
-            .insert(entity, replacement::Replacement { to: definition })
-            .unwrap();
+        self.world.replace(entity, definition);
 
         self.world
-            .write_storage()
-            .insert(entity, location::Location(identifier.context.span))
-            .unwrap();
+            .set_location(entity, location::Location(identifier.context.span));
 
         Ok(())
     }
 
     fn add_expression(
         &mut self,
-        entity: specs::Entity,
+        entity: ir::Entity,
         expression: &ast::Expression<parser::Context>,
     ) -> Result<(), error::Error> {
         match *expression {
@@ -161,213 +143,155 @@ impl<'a> Builder<'a> {
 
     fn add_number(
         &mut self,
-        entity: specs::Entity,
+        entity: ir::Entity,
         number: &ast::NumberLiteral<parser::Context>,
     ) -> Result<(), error::Error> {
-        self.world
-            .write_storage()
-            .insert(
-                entity,
-                element::Element::Number(Builder::from_ast_number(number.value)),
-            )
-            .unwrap();
+        self.world.set_element(
+            entity,
+            element::Element::Number(translate_number(number.value)),
+        );
 
         self.world
-            .write_storage()
-            .insert(entity, location::Location(number.context.span))
-            .unwrap();
+            .set_location(entity, location::Location(number.context.span));
 
         Ok(())
     }
 
-    fn from_ast_number(number: ast::NumberValue) -> element::Number {
-        match number {
-            ast::NumberValue::U8(n) => element::Number::U8(n),
-            ast::NumberValue::U16(n) => element::Number::U16(n),
-            ast::NumberValue::U32(n) => element::Number::U32(n),
-            ast::NumberValue::U64(n) => element::Number::U64(n),
-            ast::NumberValue::I8(n) => element::Number::I8(n),
-            ast::NumberValue::I16(n) => element::Number::I16(n),
-            ast::NumberValue::I32(n) => element::Number::I32(n),
-            ast::NumberValue::I64(n) => element::Number::I64(n),
-            ast::NumberValue::F32(n) => element::Number::F32(n.into_inner()),
-            ast::NumberValue::F64(n) => element::Number::F64(n.into_inner()),
-            ast::NumberValue::Invalid => panic!("'invalid' AST nodes should not escape the parser"),
-        }
-    }
-
     fn add_string(
         &mut self,
-        entity: specs::Entity,
+        entity: ir::Entity,
         string: &ast::StringLiteral<parser::Context>,
     ) -> Result<(), error::Error> {
-        self.world
-            .write_storage()
-            .insert(
-                entity,
-                element::Element::String(match string.value {
-                    ast::StringValue::String(ref s) => s.clone(),
-                    ast::StringValue::Invalid => {
-                        panic!("'invalid' AST nodes should not escape the parser")
-                    }
-                }),
-            )
-            .unwrap();
+        self.world.set_element(
+            entity,
+            element::Element::String(match string.value {
+                ast::StringValue::String(ref s) => s.clone(),
+                ast::StringValue::Invalid => {
+                    panic!("'invalid' AST nodes should not escape the parser")
+                }
+            }),
+        );
 
         self.world
-            .write_storage()
-            .insert(entity, location::Location(string.context.span))
-            .unwrap();
+            .set_location(entity, location::Location(string.context.span));
 
         Ok(())
     }
 
     fn add_tuple(
         &mut self,
-        entity: specs::Entity,
+        entity: ir::Entity,
         tuple: &ast::Tuple<parser::Context>,
     ) -> Result<(), error::Error> {
-        use specs::world::Builder;
-
         let fields = tuple
             .fields
             .iter()
             .map(|f| {
-                let e = self.world.create_entity().build();
+                let e = self.world.create_entity();
                 self.add_expression(e, f)?;
                 Ok(e)
             })
             .collect::<Result<_, error::Error>>()?;
 
         self.world
-            .write_storage()
-            .insert(entity, element::Element::Tuple(element::Tuple { fields }))
-            .unwrap();
+            .set_element(entity, element::Element::Tuple(element::Tuple { fields }));
 
         self.world
-            .write_storage()
-            .insert(entity, location::Location(tuple.context.span))
-            .unwrap();
+            .set_location(entity, location::Location(tuple.context.span));
 
         Ok(())
     }
 
     fn add_symbol(
         &mut self,
-        entity: specs::Entity,
+        entity: ir::Entity,
         symbol: &ast::Symbol<parser::Context>,
     ) -> Result<(), error::Error> {
         let label = symbol.label.clone();
 
         self.world
-            .write_storage()
-            .insert(entity, element::Element::Symbol(element::Symbol { label }))
-            .unwrap();
+            .set_element(entity, element::Element::Symbol(element::Symbol { label }));
 
         self.world
-            .write_storage()
-            .insert(entity, location::Location(symbol.context.span))
-            .unwrap();
+            .set_location(entity, location::Location(symbol.context.span));
 
         Ok(())
     }
 
     fn add_record(
         &mut self,
-        entity: specs::Entity,
+        entity: ir::Entity,
         record: &ast::Record<parser::Context>,
     ) -> Result<(), error::Error> {
-        use specs::world::Builder;
-
         let fields = record
             .fields
             .iter()
             .map(|(i, e)| {
-                let en = self.world.create_entity().build();
+                let en = self.world.create_entity();
                 self.add_expression(en, e)?;
                 Ok((i.value.clone(), en))
             })
             .collect::<Result<_, error::Error>>()?;
 
         self.world
-            .write_storage()
-            .insert(entity, element::Element::Record(element::Record { fields }))
-            .unwrap();
+            .set_element(entity, element::Element::Record(element::Record { fields }));
 
         self.world
-            .write_storage()
-            .insert(entity, location::Location(record.context.span))
-            .unwrap();
+            .set_location(entity, location::Location(record.context.span));
 
         Ok(())
     }
 
     fn add_un_op(
         &mut self,
-        entity: specs::Entity,
+        entity: ir::Entity,
         un_op: &ast::UnOp<parser::Context>,
     ) -> Result<(), error::Error> {
-        use specs::world::Builder;
+        let operator = translate_un_operator(un_op.operator);
 
-        let operator = self::Builder::translate_un_operator(un_op.operator);
-
-        let operand = self.world.create_entity().build();
+        let operand = self.world.create_entity();
         self.add_expression(operand, &*un_op.operand)?;
 
-        self.world
-            .write_storage()
-            .insert(
-                entity,
-                element::Element::UnOp(element::UnOp { operator, operand }),
-            )
-            .unwrap();
+        self.world.set_element(
+            entity,
+            element::Element::UnOp(element::UnOp { operator, operand }),
+        );
 
         self.world
-            .write_storage()
-            .insert(entity, location::Location(un_op.context.span))
-            .unwrap();
+            .set_location(entity, location::Location(un_op.context.span));
 
         Ok(())
     }
 
     fn add_bi_op(
         &mut self,
-        entity: specs::Entity,
+        entity: ir::Entity,
         bi_op: &ast::BiOp<parser::Context>,
     ) -> Result<(), error::Error> {
-        use specs::world::Builder;
-
-        let lhs = self.world.create_entity().build();
+        let lhs = self.world.create_entity();
         self.add_expression(lhs, &*bi_op.lhs)?;
 
-        let operator = self::Builder::translate_bi_operator(bi_op.operator);
+        let operator = translate_bi_operator(bi_op.operator);
 
-        let rhs = self.world.create_entity().build();
+        let rhs = self.world.create_entity();
         self.add_expression(rhs, &*bi_op.rhs)?;
 
-        self.world
-            .write_storage()
-            .insert(
-                entity,
-                element::Element::BiOp(element::BiOp { lhs, operator, rhs }),
-            )
-            .unwrap();
+        self.world.set_element(
+            entity,
+            element::Element::BiOp(element::BiOp { lhs, operator, rhs }),
+        );
 
         self.world
-            .write_storage()
-            .insert(entity, location::Location(bi_op.context.span))
-            .unwrap();
+            .set_location(entity, location::Location(bi_op.context.span));
 
         Ok(())
     }
 
     fn add_lambda(
         &mut self,
-        entity: specs::Entity,
+        entity: ir::Entity,
         lambda: &ast::Lambda<parser::Context>,
     ) -> Result<(), error::Error> {
-        use specs::world::Builder;
-
         // TODO generate unique symbol for anonymous lambdas
 
         self.push_scope(Some(lambda.parameters.len()), None);
@@ -376,7 +300,7 @@ impl<'a> Builder<'a> {
             .parameters
             .iter()
             .map(|p| {
-                let e = self.world.create_entity().build();
+                let e = self.world.create_entity();
                 self.add_parameter(e, p)?;
                 Ok(e)
             })
@@ -393,7 +317,7 @@ impl<'a> Builder<'a> {
             .statements
             .iter()
             .map(|s| {
-                let e = self.world.create_entity().build();
+                let e = self.world.create_entity();
 
                 match s {
                     ast::Statement::Variable(ref variable) => {
@@ -409,40 +333,33 @@ impl<'a> Builder<'a> {
             })
             .collect::<Result<Vec<_>, error::Error>>()?;
 
-        let signature = self.world.create_entity().build();
+        let signature = self.world.create_entity();
         self.add_expression(signature, &*lambda.signature)?;
 
         let result = if let Some(ref result) = lambda.result {
-            let e = self.world.create_entity().build();
+            let e = self.world.create_entity();
             self.add_expression(e, &*result)?;
             e
         } else {
             signature
         };
 
-        self.world
-            .write_storage()
-            .insert(
-                entity,
-                element::Element::Closure(element::Closure {
-                    captures: self.current_captures.clone(),
-                    parameters,
-                    statements,
-                    signature,
-                    result,
-                }),
-            )
-            .unwrap();
+        self.world.set_element(
+            entity,
+            element::Element::Closure(element::Closure {
+                captures: self.current_captures.clone(),
+                parameters,
+                statements,
+                signature,
+                result,
+            }),
+        );
 
         self.world
-            .write_storage()
-            .insert(entity, symbol::Symbol::new(self.symbol.clone()))
-            .unwrap();
+            .set_symbol(entity, symbol::Symbol::new(self.symbol.clone()));
 
         self.world
-            .write_storage()
-            .insert(entity, location::Location(lambda.context.span))
-            .unwrap();
+            .set_location(entity, location::Location(lambda.context.span));
 
         self.pop_scope();
 
@@ -451,36 +368,27 @@ impl<'a> Builder<'a> {
 
     fn add_variable(
         &mut self,
-        entity: specs::Entity,
+        entity: ir::Entity,
         variable: &ast::Variable<parser::Context>,
     ) -> Result<(), error::Error> {
-        use specs::world::Builder;
-
         self.symbol
             .push(symbol::Part::Named(variable.name.value.clone()));
 
         let name = variable.name.value.clone();
-        let initializer = self.world.create_entity().build();
+        let initializer = self.world.create_entity();
 
         self.add_expression(initializer, &variable.initializer)?;
 
-        self.world
-            .write_storage()
-            .insert(
-                entity,
-                element::Element::Variable(element::Variable { name, initializer }),
-            )
-            .unwrap();
+        self.world.set_element(
+            entity,
+            element::Element::Variable(element::Variable { name, initializer }),
+        );
 
         self.world
-            .write_storage()
-            .insert(entity, symbol::Symbol::new(self.symbol.clone()))
-            .unwrap();
+            .set_symbol(entity, symbol::Symbol::new(self.symbol.clone()));
 
         self.world
-            .write_storage()
-            .insert(entity, location::Location(variable.context.span))
-            .unwrap();
+            .set_location(entity, location::Location(variable.context.span));
 
         self.symbol.pop();
 
@@ -489,94 +397,73 @@ impl<'a> Builder<'a> {
 
     fn add_select(
         &mut self,
-        entity: specs::Entity,
+        entity: ir::Entity,
         select: &ast::Select<parser::Context>,
     ) -> Result<(), error::Error> {
-        use specs::world::Builder;
-
-        let record = self.world.create_entity().build();
+        let record = self.world.create_entity();
         self.add_expression(record, &*select.record)?;
 
         let field = select.field.value.clone();
 
-        self.world
-            .write_storage()
-            .insert(
-                entity,
-                element::Element::Select(element::Select { record, field }),
-            )
-            .unwrap();
+        self.world.set_element(
+            entity,
+            element::Element::Select(element::Select { record, field }),
+        );
 
         self.world
-            .write_storage()
-            .insert(entity, location::Location(select.context.span))
-            .unwrap();
+            .set_location(entity, location::Location(select.context.span));
 
         Ok(())
     }
 
     fn add_apply(
         &mut self,
-        entity: specs::Entity,
+        entity: ir::Entity,
         apply: &ast::Apply<parser::Context>,
     ) -> Result<(), error::Error> {
-        use specs::world::Builder;
-
-        let function = self.world.create_entity().build();
+        let function = self.world.create_entity();
         self.add_expression(function, &*apply.function)?;
 
         let parameters = apply
             .parameters
             .iter()
             .map(|p| {
-                let e = self.world.create_entity().build();
+                let e = self.world.create_entity();
                 self.add_expression(e, p)?;
                 Ok(e)
             })
             .collect::<Result<_, error::Error>>()?;
 
-        self.world
-            .write_storage()
-            .insert(
-                entity,
-                element::Element::Apply(element::Apply {
-                    function,
-                    parameters,
-                }),
-            )
-            .unwrap();
+        self.world.set_element(
+            entity,
+            element::Element::Apply(element::Apply {
+                function,
+                parameters,
+            }),
+        );
 
         self.world
-            .write_storage()
-            .insert(entity, location::Location(apply.context.span))
-            .unwrap();
+            .set_location(entity, location::Location(apply.context.span));
 
         Ok(())
     }
 
     fn add_parameter(
         &mut self,
-        entity: specs::Entity,
+        entity: ir::Entity,
         parameter: &ast::Parameter<parser::Context>,
     ) -> Result<(), error::Error> {
-        use specs::world::Builder;
-
         let name = parameter.name.value.clone();
-        let signature = self.world.create_entity().build();
+        let signature = self.world.create_entity();
         self.add_expression(signature, &parameter.signature)?;
 
-        self.world
-            .write_storage()
-            .insert(
-                entity,
-                element::Element::Parameter(element::Parameter { name, signature }),
-            )
-            .unwrap();
+        self.world.set_element(
+            entity,
+            element::Element::Parameter(element::Parameter { name, signature }),
+        );
 
         self.world
-            .write_storage()
-            .insert(entity, location::Location(parameter.context.span))
-            .unwrap();
+            .set_location(entity, location::Location(parameter.context.span));
 
         Ok(())
     }
@@ -602,52 +489,68 @@ impl<'a> Builder<'a> {
         self.current_scope = self.scopes.pop().unwrap();
         self.current_captures = self.captures.pop().unwrap();
     }
+}
 
-    fn translate_un_operator(un_operator: ast::UnOperator) -> element::UnOperator {
-        match un_operator {
-            ast::UnOperator::Not => element::UnOperator::Not,
-            ast::UnOperator::BNot => element::UnOperator::BNot,
-            ast::UnOperator::Cl0 => element::UnOperator::Cl0,
-            ast::UnOperator::Cl1 => element::UnOperator::Cl1,
-            ast::UnOperator::Cls => element::UnOperator::Cls,
-            ast::UnOperator::Ct0 => element::UnOperator::Ct0,
-            ast::UnOperator::Ct1 => element::UnOperator::Ct1,
-            ast::UnOperator::C0 => element::UnOperator::C0,
-            ast::UnOperator::C1 => element::UnOperator::C1,
-            ast::UnOperator::Sqrt => element::UnOperator::Sqrt,
-        }
+fn translate_number(number: ast::NumberValue) -> element::Number {
+    match number {
+        ast::NumberValue::U8(n) => element::Number::U8(n),
+        ast::NumberValue::U16(n) => element::Number::U16(n),
+        ast::NumberValue::U32(n) => element::Number::U32(n),
+        ast::NumberValue::U64(n) => element::Number::U64(n),
+        ast::NumberValue::I8(n) => element::Number::I8(n),
+        ast::NumberValue::I16(n) => element::Number::I16(n),
+        ast::NumberValue::I32(n) => element::Number::I32(n),
+        ast::NumberValue::I64(n) => element::Number::I64(n),
+        ast::NumberValue::F32(n) => element::Number::F32(n),
+        ast::NumberValue::F64(n) => element::Number::F64(n),
+        ast::NumberValue::Invalid => panic!("'invalid' AST nodes should not escape the parser"),
     }
+}
 
-    fn translate_bi_operator(bi_operator: ast::BiOperator) -> element::BiOperator {
-        match bi_operator {
-            ast::BiOperator::Eq => element::BiOperator::Eq,
-            ast::BiOperator::Ne => element::BiOperator::Ne,
-            ast::BiOperator::Lt => element::BiOperator::Lt,
-            ast::BiOperator::Ge => element::BiOperator::Ge,
-            ast::BiOperator::Gt => element::BiOperator::Gt,
-            ast::BiOperator::Le => element::BiOperator::Le,
-            ast::BiOperator::Cmp => element::BiOperator::Cmp,
-            ast::BiOperator::Add => element::BiOperator::Add,
-            ast::BiOperator::Sub => element::BiOperator::Sub,
-            ast::BiOperator::Mul => element::BiOperator::Mul,
-            ast::BiOperator::Div => element::BiOperator::Div,
-            ast::BiOperator::Rem => element::BiOperator::Rem,
-            ast::BiOperator::And => element::BiOperator::And,
-            ast::BiOperator::BAnd => element::BiOperator::BAnd,
-            ast::BiOperator::Or => element::BiOperator::Or,
-            ast::BiOperator::BOr => element::BiOperator::BOr,
-            ast::BiOperator::Xor => element::BiOperator::Xor,
-            ast::BiOperator::BXor => element::BiOperator::BXor,
-            ast::BiOperator::AndNot => element::BiOperator::AndNot,
-            ast::BiOperator::BAndNot => element::BiOperator::BAndNot,
-            ast::BiOperator::OrNot => element::BiOperator::OrNot,
-            ast::BiOperator::BOrNot => element::BiOperator::BOrNot,
-            ast::BiOperator::XorNot => element::BiOperator::XorNot,
-            ast::BiOperator::BXorNot => element::BiOperator::BXorNot,
-            ast::BiOperator::RotL => element::BiOperator::RotL,
-            ast::BiOperator::RotR => element::BiOperator::RotR,
-            ast::BiOperator::ShL => element::BiOperator::ShL,
-            ast::BiOperator::ShR => element::BiOperator::ShR,
-        }
+fn translate_un_operator(un_operator: ast::UnOperator) -> element::UnOperator {
+    match un_operator {
+        ast::UnOperator::Not => element::UnOperator::Not,
+        ast::UnOperator::BNot => element::UnOperator::BNot,
+        ast::UnOperator::Cl0 => element::UnOperator::Cl0,
+        ast::UnOperator::Cl1 => element::UnOperator::Cl1,
+        ast::UnOperator::Cls => element::UnOperator::Cls,
+        ast::UnOperator::Ct0 => element::UnOperator::Ct0,
+        ast::UnOperator::Ct1 => element::UnOperator::Ct1,
+        ast::UnOperator::C0 => element::UnOperator::C0,
+        ast::UnOperator::C1 => element::UnOperator::C1,
+        ast::UnOperator::Sqrt => element::UnOperator::Sqrt,
+    }
+}
+
+fn translate_bi_operator(bi_operator: ast::BiOperator) -> element::BiOperator {
+    match bi_operator {
+        ast::BiOperator::Eq => element::BiOperator::Eq,
+        ast::BiOperator::Ne => element::BiOperator::Ne,
+        ast::BiOperator::Lt => element::BiOperator::Lt,
+        ast::BiOperator::Ge => element::BiOperator::Ge,
+        ast::BiOperator::Gt => element::BiOperator::Gt,
+        ast::BiOperator::Le => element::BiOperator::Le,
+        ast::BiOperator::Cmp => element::BiOperator::Cmp,
+        ast::BiOperator::Add => element::BiOperator::Add,
+        ast::BiOperator::Sub => element::BiOperator::Sub,
+        ast::BiOperator::Mul => element::BiOperator::Mul,
+        ast::BiOperator::Div => element::BiOperator::Div,
+        ast::BiOperator::Rem => element::BiOperator::Rem,
+        ast::BiOperator::And => element::BiOperator::And,
+        ast::BiOperator::BAnd => element::BiOperator::BAnd,
+        ast::BiOperator::Or => element::BiOperator::Or,
+        ast::BiOperator::BOr => element::BiOperator::BOr,
+        ast::BiOperator::Xor => element::BiOperator::Xor,
+        ast::BiOperator::BXor => element::BiOperator::BXor,
+        ast::BiOperator::AndNot => element::BiOperator::AndNot,
+        ast::BiOperator::BAndNot => element::BiOperator::BAndNot,
+        ast::BiOperator::OrNot => element::BiOperator::OrNot,
+        ast::BiOperator::BOrNot => element::BiOperator::BOrNot,
+        ast::BiOperator::XorNot => element::BiOperator::XorNot,
+        ast::BiOperator::BXorNot => element::BiOperator::BXorNot,
+        ast::BiOperator::RotL => element::BiOperator::RotL,
+        ast::BiOperator::RotR => element::BiOperator::RotR,
+        ast::BiOperator::ShL => element::BiOperator::ShL,
+        ast::BiOperator::ShR => element::BiOperator::ShR,
     }
 }

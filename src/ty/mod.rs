@@ -1,14 +1,11 @@
 use std::collections;
 use std::fmt;
 
-use specs::Component;
-use specs::VecStorage;
-
 pub mod class;
 pub mod error;
+pub mod infer;
 
-#[derive(Component, Clone, Debug, Eq, PartialEq, VisitEntities, VisitEntitiesMut)]
-#[storage(VecStorage)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Type {
     Number(Number),
     String,
@@ -19,7 +16,7 @@ pub enum Type {
     Function(Function),
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq, VisitEntities, VisitEntitiesMut)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Number {
     U8,
     U16,
@@ -33,27 +30,27 @@ pub enum Number {
     F64,
 }
 
-#[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd, VisitEntities, VisitEntitiesMut)]
+#[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub struct Symbol {
     pub label: String,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq, VisitEntities, VisitEntitiesMut)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Tuple {
     pub fields: Vec<Type>,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq, VisitEntities, VisitEntitiesMut)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Union {
     pub alternatives: Vec<Symbol>,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq, VisitEntities, VisitEntitiesMut)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Record {
     pub fields: collections::HashMap<String, Type>,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq, VisitEntities, VisitEntitiesMut)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Function {
     pub parameters: Vec<Type>,
     pub result: Box<Type>,

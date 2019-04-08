@@ -1,8 +1,6 @@
 use std::collections;
 use std::fmt;
 
-use specs;
-
 use cranelift::prelude::*;
 use cranelift_module;
 use cranelift_simplejit;
@@ -11,10 +9,10 @@ use crate::codegen::abi_type;
 use crate::codegen::builtin;
 use crate::codegen::util;
 use crate::ir::component::constexpr;
-use crate::ir::component::element;
+use crate::ir::element;
 use crate::ir::component::layout;
-use crate::ir::component::location;
-use crate::ir::component::symbol;
+use crate::ir::location;
+use crate::ir::symbol;
 use crate::ir::component::ty;
 use crate::module;
 use crate::value;
@@ -34,7 +32,7 @@ where
     ptr_type: Type,
     error_throw_ebb: Ebb,
     error_unwind_ebb: Ebb,
-    variables: &'a collections::HashMap<specs::Entity, Variable>,
+    variables: &'a collections::HashMap<ir::Entity, Variable>,
     defined_strings: &'a mut collections::HashMap<String, cranelift_module::DataId>,
     codemap: &'a codespan::CodeMap,
 }
@@ -53,7 +51,7 @@ impl<'a, 'f> Translator<'a, 'f> {
         ptr_type: Type,
         error_throw_ebb: Ebb,
         error_unwind_ebb: Ebb,
-        variables: &'a collections::HashMap<specs::Entity, Variable>,
+        variables: &'a collections::HashMap<ir::Entity, Variable>,
         defined_strings: &'a mut collections::HashMap<String, cranelift_module::DataId>,
         codemap: &'a codespan::CodeMap,
     ) -> Self {
@@ -75,7 +73,7 @@ impl<'a, 'f> Translator<'a, 'f> {
         }
     }
 
-    pub fn exec_element(&mut self, entity: specs::Entity, element: &element::Element) {
+    pub fn exec_element(&mut self, entity: ir::Entity, element: &element::Element) {
         if let element::Element::Variable(ref v) = element {
             self.exec_variable(entity, v);
         } else {
@@ -83,13 +81,13 @@ impl<'a, 'f> Translator<'a, 'f> {
         }
     }
 
-    pub fn exec_variable(&mut self, entity: specs::Entity, variable: &element::Variable) {
+    pub fn exec_variable(&mut self, entity: ir::Entity, variable: &element::Variable) {
         let initializer_element = self.elements.get(variable.initializer).unwrap();
         let value = self.eval_element(variable.initializer, initializer_element);
         self.builder.def_var(self.variables[&entity], value);
     }
 
-    pub fn eval_element(&mut self, entity: specs::Entity, element: &element::Element) -> Value {
+    pub fn eval_element(&mut self, entity: ir::Entity, element: &element::Element) -> Value {
         if let Some(constexpr) = self.constexprs.get(entity) {
             self.eval_constexpr(entity, constexpr)
         } else {
@@ -115,7 +113,7 @@ impl<'a, 'f> Translator<'a, 'f> {
         }
     }
 
-    fn eval_constexpr(&mut self, entity: specs::Entity, constexpr: &constexpr::Constexpr) -> Value {
+    fn eval_constexpr(&mut self, entity: ir::Entity, constexpr: &constexpr::Constexpr) -> Value {
         if let value::Case::Number(ref n) = *constexpr.value.case() {
             match *n {
                 value::Number::U8(ref v) => self.builder.ins().iconst(types::I8, i64::from(*v)),
@@ -133,8 +131,14 @@ impl<'a, 'f> Translator<'a, 'f> {
                 value::Number::I16(ref v) => self.builder.ins().iconst(types::I16, i64::from(*v)),
                 value::Number::I32(ref v) => self.builder.ins().iconst(types::I32, i64::from(*v)),
                 value::Number::I64(ref v) => self.builder.ins().iconst(types::I64, *v),
-                value::Number::F32(ref v) => self.builder.ins().f32const(Ieee32::with_float(*v)),
-                value::Number::F64(ref v) => self.builder.ins().f64const(Ieee64::with_float(*v)),
+                value::Number::F32(ref v) => self
+                    .builder
+                    .ins()
+                    .f32const(Ieee32::with_float(v.into_inner())),
+                value::Number::F64(ref v) => self
+                    .builder
+                    .ins()
+                    .f64const(Ieee64::with_float(v.into_inner())),
             }
         } else {
             let ty = self.types.get(entity).unwrap();
@@ -160,7 +164,7 @@ impl<'a, 'f> Translator<'a, 'f> {
     #[cfg_attr(feature = "cargo-clippy", allow(clippy::cast_possible_wrap))]
     pub fn eval_number_value(
         &mut self,
-        _entity: specs::Entity,
+        _entity: ir::Entity,
         number_value: &element::Number,
     ) -> Value {
         match *number_value {
@@ -172,12 +176,18 @@ impl<'a, 'f> Translator<'a, 'f> {
             element::Number::I16(v) => self.builder.ins().iconst(types::I16, i64::from(v)),
             element::Number::I32(v) => self.builder.ins().iconst(types::I32, i64::from(v)),
             element::Number::I64(v) => self.builder.ins().iconst(types::I64, v),
-            element::Number::F32(v) => self.builder.ins().f32const(Ieee32::with_float(v)),
-            element::Number::F64(v) => self.builder.ins().f64const(Ieee64::with_float(v)),
+            element::Number::F32(v) => self
+                .builder
+                .ins()
+                .f32const(Ieee32::with_float(v.into_inner())),
+            element::Number::F64(v) => self
+                .builder
+                .ins()
+                .f64const(Ieee64::with_float(v.into_inner())),
         }
     }
 
-    pub fn eval_string_value(&mut self, entity: specs::Entity, _string_value: &str) -> Value {
+    pub fn eval_string_value(&mut self, entity: ir::Entity, _string_value: &str) -> Value {
         // TODO: create data symbol
         let symbol = self
             .module
@@ -198,7 +208,7 @@ impl<'a, 'f> Translator<'a, 'f> {
         feature = "cargo-clippy",
         allow(clippy::cast_possible_truncation, clippy::cast_possible_wrap)
     )]
-    pub fn eval_tuple(&mut self, entity: specs::Entity, tuple: &element::Tuple) -> Value {
+    pub fn eval_tuple(&mut self, entity: ir::Entity, tuple: &element::Tuple) -> Value {
         let layout = self.layouts.get(entity).unwrap();
         let alloc_size = self.builder.ins().iconst(self.ptr_type, layout.size as i64);
         let alloc_align = self
@@ -221,7 +231,7 @@ impl<'a, 'f> Translator<'a, 'f> {
         result
     }
 
-    pub fn eval_record(&mut self, entity: specs::Entity, record: &element::Record) -> Value {
+    pub fn eval_record(&mut self, entity: ir::Entity, record: &element::Record) -> Value {
         let layout = self.layouts.get(entity).unwrap();
 
         #[cfg_attr(
@@ -259,7 +269,7 @@ impl<'a, 'f> Translator<'a, 'f> {
         result
     }
 
-    pub fn eval_un_op(&mut self, _entity: specs::Entity, un_op: &element::UnOp) -> Value {
+    pub fn eval_un_op(&mut self, _entity: ir::Entity, un_op: &element::UnOp) -> Value {
         let element::UnOp { operator, operand } = un_op;
         let operand = *operand;
 
@@ -289,7 +299,7 @@ impl<'a, 'f> Translator<'a, 'f> {
         }
     }
 
-    pub fn eval_bi_op(&mut self, entity: specs::Entity, bi_op: &element::BiOp) -> Value {
+    pub fn eval_bi_op(&mut self, entity: ir::Entity, bi_op: &element::BiOp) -> Value {
         let element::BiOp { lhs, operator, rhs } = bi_op;
         let lhs = *lhs;
         let rhs = *rhs;
@@ -377,11 +387,11 @@ impl<'a, 'f> Translator<'a, 'f> {
         }
     }
 
-    pub fn eval_variable(&mut self, entity: specs::Entity, _variable: &element::Variable) -> Value {
+    pub fn eval_variable(&mut self, entity: ir::Entity, _variable: &element::Variable) -> Value {
         self.builder.use_var(self.variables[&entity])
     }
 
-    pub fn eval_select(&mut self, _entity: specs::Entity, select: &element::Select) -> Value {
+    pub fn eval_select(&mut self, _entity: ir::Entity, select: &element::Select) -> Value {
         let record_layout = self.layouts.get(select.record).unwrap();
         let record_type = match self.types.get(select.record).unwrap() {
             ty::Type::Record(r) => r,
@@ -418,13 +428,13 @@ impl<'a, 'f> Translator<'a, 'f> {
 
     pub fn eval_parameter(
         &mut self,
-        entity: specs::Entity,
+        entity: ir::Entity,
         _parameter: &element::Parameter,
     ) -> Value {
         self.builder.use_var(self.variables[&entity])
     }
 
-    pub fn eval_apply(&mut self, entity: specs::Entity, apply: &element::Apply) -> Value {
+    pub fn eval_apply(&mut self, entity: ir::Entity, apply: &element::Apply) -> Value {
         let mut sig = self.module.make_signature();
 
         for parameter in &apply.parameters {
@@ -473,19 +483,19 @@ impl<'a, 'f> Translator<'a, 'f> {
         result
     }
 
-    pub fn eval_capture(&mut self, entity: specs::Entity, _capture: &element::Capture) -> Value {
+    pub fn eval_capture(&mut self, entity: ir::Entity, _capture: &element::Capture) -> Value {
         self.builder.use_var(self.variables[&entity])
     }
 
-    pub fn eval_closure(&mut self, _entity: specs::Entity, _closure: &element::Closure) -> Value {
+    pub fn eval_closure(&mut self, _entity: ir::Entity, _closure: &element::Closure) -> Value {
         unimplemented!()
     }
 
-    pub fn eval_module(&mut self, _entity: specs::Entity, _module: &element::Module) -> Value {
+    pub fn eval_module(&mut self, _entity: ir::Entity, _module: &element::Module) -> Value {
         unimplemented!()
     }
 
-    pub fn error_if_zero(&mut self, entity: specs::Entity, value: Value, kind: module::ErrorKind) {
+    pub fn error_if_zero(&mut self, entity: ir::Entity, value: Value, kind: module::ErrorKind) {
         use num_traits::cast::ToPrimitive;
 
         let kind = self
@@ -535,7 +545,7 @@ impl<'a, 'f> Translator<'a, 'f> {
         (filename, filename_len, line, col)
     }
 
-    fn get_symbol(&self, entity: specs::Entity) -> Option<&symbol::Symbol> {
+    fn get_symbol(&self, entity: ir::Entity) -> Option<&symbol::Symbol> {
         if let Some(symbol) = self.symbols.get(entity) {
             Some(symbol)
         } else if let Some(element) = self.elements.get(entity) {
