@@ -1,6 +1,6 @@
 use std::fmt;
+use std::sync;
 
-use crate::diagnostic;
 use crate::ir;
 use crate::ty;
 use crate::ty::class;
@@ -8,7 +8,7 @@ use crate::ty::class;
 #[derive(Clone, Debug, Eq, Fail, PartialEq)]
 pub struct Error {
     pub expected: ExpectedType,
-    pub actual: ty::Type,
+    pub actual: sync::Arc<ty::Type>,
     pub main_entity: ir::Entity,
     pub aux_entities: Vec<AuxEntity>,
 }
@@ -21,7 +21,7 @@ pub struct AuxEntity {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum ExpectedType {
-    Specific(ty::Type),
+    Specific(sync::Arc<ty::Type>),
     ScalarClass(class::Scalar),
     AnyOf(Vec<ExpectedType>),
     Union,
@@ -60,6 +60,7 @@ impl fmt::Display for ExpectedType {
     }
 }
 
+/*
 impl diagnostic::Diagnostics for Error {
     fn to_diagnostics(&self, builder: &mut diagnostic::DiagnosticsBuilder) {
         builder.add_label(codespan_reporting::Label {
@@ -85,3 +86,4 @@ impl diagnostic::Diagnostics for Error {
         builder.add_diagnostic(codespan_reporting::Severity::Error, None, &self.to_string());
     }
 }
+*/

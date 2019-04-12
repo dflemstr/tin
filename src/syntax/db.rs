@@ -4,7 +4,7 @@ use std::sync;
 use crate::source;
 use crate::syntax;
 
-#[salsa::query_group(SyntaxStorage)]
+#[salsa::query_group(Syntax)]
 pub trait SyntaxDb: salsa::Database + source::db::SourceDb {
     /// Parses the file into an AST module.
     fn parse(

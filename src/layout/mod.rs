@@ -1,6 +1,6 @@
 use std::fmt;
 
-mod db;
+pub mod db;
 mod infer;
 
 #[derive(Clone, Debug, Eq, PartialEq)]

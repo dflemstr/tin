@@ -1,11 +1,13 @@
 use std::collections;
+use std::result;
+use std::sync;
 
+use crate::ir;
 use crate::ir::element;
 use crate::ty;
-use std::ops;
 
 lazy_static! {
-    static ref BOOL_TYPE: ty::Type = {
+    static ref BOOL_TYPE: sync::Arc<ty::Type> = {
         let alternatives = vec![
             ty::Symbol {
                 label: "f".to_owned(),
@@ -14,71 +16,57 @@ lazy_static! {
                 label: "t".to_owned(),
             },
         ];
-        ty::Type::Union(ty::Union { alternatives })
+        sync::Arc::new(ty::Type::Union(ty::Union { alternatives }))
     };
 }
 
 pub struct System;
 
-#[derive(Clone, Debug)]
-enum Inference<T> {
-    Type(T),
-    Error(ty::error::Error),
-}
+type Result<T> = result::Result<sync::Arc<T>, ty::error::Error>;
 
-type InferenceResult<T> = Option<Inference<T>>;
-
-fn infer_type<D>(
-    element: &element::Element,
-    types: &specs::Storage<ty::Type, D>,
-) -> InferenceResult<ty::Type>
-where
-    D: ops::Deref<Target = specs::storage::MaskedStorage<ty::Type>>,
-{
+fn infer_type(element: &element::Element, db: impl ty::db::TyDb) -> Result<ty::Type> {
     match *element {
         element::Element::Number(ref n) => {
-            Some(Inference::Type(ty::Type::Number(infer_number_type(n))))
+            Ok(sync::Arc::new(ty::Type::Number(infer_number_type(n))))
         }
-        element::Element::String(_) => Some(Inference::Type(ty::Type::String)),
+        element::Element::String(_) => Ok(sync::Arc::new(ty::Type::String)),
         element::Element::Symbol(element::Symbol { ref label }) => {
-            Some(Inference::Type(ty::Type::Symbol(ty::Symbol {
+            Ok(sync::Arc::new(ty::Type::Symbol(ty::Symbol {
                 label: label.clone(),
             })))
         }
-        element::Element::Tuple(element::Tuple { ref fields }) => infer_tuple_type(fields, types),
-        element::Element::Record(element::Record { ref fields }) => {
-            infer_record_type(fields, types)
-        }
+        element::Element::Tuple(element::Tuple { ref fields }) => infer_tuple_type(fields, db),
+        element::Element::Record(element::Record { ref fields }) => infer_record_type(fields, db),
         element::Element::UnOp(element::UnOp { operand, operator }) => {
-            infer_un_op_type(operand, operator, types)
+            infer_un_op_type(operand, operator, db)
         }
         element::Element::BiOp(element::BiOp { lhs, operator, rhs }) => {
-            infer_bi_op_type(lhs, operator, rhs, types)
+            infer_bi_op_type(lhs, operator, rhs, db)
         }
         element::Element::Variable(element::Variable { initializer, .. }) => {
-            infer_variable_type(initializer, types)
+            infer_variable_type(initializer, db)
         }
         element::Element::Select(element::Select { record, ref field }) => {
-            infer_select_type(record, field, types)
+            infer_select_type(record, field, db)
         }
         element::Element::Apply(element::Apply {
             function,
             ref parameters,
-        }) => infer_apply_type(function, parameters, types),
+        }) => infer_apply_type(function, parameters, db),
         element::Element::Parameter(element::Parameter { signature, .. }) => {
-            infer_parameter_type(signature, types)
+            infer_parameter_type(signature, db)
         }
         element::Element::Capture(element::Capture { captured, .. }) => {
-            infer_capture_type(captured, types)
+            infer_capture_type(captured, db)
         }
         element::Element::Closure(element::Closure {
             ref parameters,
             signature,
             result,
             ..
-        }) => infer_closure_type(parameters, signature, result, types),
+        }) => infer_closure_type(parameters, signature, result, db),
         element::Element::Module(element::Module { ref variables }) => {
-            infer_module_type(variables, types)
+            infer_module_type(variables, db)
         }
     }
 }
@@ -98,56 +86,45 @@ fn infer_number_type(number: &element::Number) -> ty::Number {
     }
 }
 
-fn infer_tuple_type<D>(
-    fields: &[ir::Entity],
-    types: &specs::Storage<ty::Type, D>,
-) -> InferenceResult<ty::Type>
-where
-    D: ops::Deref<Target = specs::storage::MaskedStorage<ty::Type>>,
-{
-    fields
+fn infer_tuple_type(fields: &[ir::Entity], db: impl ty::db::TyDb) -> Result<ty::Type> {
+    let fields = fields
         .iter()
-        .map(|f| types.get(*f).cloned())
-        .collect::<Option<Vec<_>>>()
-        .map(|fields| Inference::Type(ty::Type::Tuple(ty::Tuple { fields })))
+        .map(|f| db.entity_type(*f))
+        .collect::<result::Result<Vec<_>, ty::error::Error>>()?;
+    Ok(sync::Arc::new(ty::Type::Tuple(ty::Tuple { fields })))
 }
 
-fn infer_record_type<D>(
+fn infer_record_type(
     fields: &collections::HashMap<String, ir::Entity>,
-    types: &specs::Storage<ty::Type, D>,
-) -> InferenceResult<ty::Type>
-where
-    D: ops::Deref<Target = specs::storage::MaskedStorage<ty::Type>>,
-{
-    fields
+    db: impl ty::db::TyDb,
+) -> Result<ty::Type> {
+    let fields = fields
         .iter()
-        .map(|(k, v)| types.get(*v).map(|t| (k.clone(), t.clone())))
-        .collect::<Option<collections::HashMap<_, _>>>()
-        .map(|fields| Inference::Type(ty::Type::Record(ty::Record { fields })))
+        .map(|(k, v)| Ok((k.clone(), db.entity_type(*v)?)))
+        .collect::<result::Result<collections::HashMap<_, _>, ty::error::Error>>()?;
+    Ok(sync::Arc::new(ty::Type::Record(ty::Record { fields })))
 }
 
-fn infer_un_op_type<D>(
+fn infer_un_op_type(
     operand: ir::Entity,
     operator: element::UnOperator,
-    types: &specs::Storage<ty::Type, D>,
-) -> InferenceResult<ty::Type>
-where
-    D: ops::Deref<Target = specs::storage::MaskedStorage<ty::Type>>,
-{
-    types.get(operand).map(|ty| match operator {
+    db: impl ty::db::TyDb,
+) -> Result<ty::Type> {
+    let ty = db.entity_type(operand)?;
+    match operator {
         element::UnOperator::Not => {
-            if *ty == *BOOL_TYPE {
-                Inference::Type(BOOL_TYPE.clone())
+            if ty == *BOOL_TYPE {
+                Ok(BOOL_TYPE.clone())
             } else {
-                Inference::Error(ty::error::Error {
+                Err(ty::error::Error {
                     expected: ty::error::ExpectedType::Specific(BOOL_TYPE.clone()),
-                    actual: ty.clone(),
+                    actual: ty,
                     main_entity: operand,
                     aux_entities: vec![],
                 })
             }
         }
-        element::UnOperator::BNot => if_integral_then(operand, ty, ty),
+        element::UnOperator::BNot => if_integral_then(operand, &ty, ty.clone()),
         element::UnOperator::Cl0
         | element::UnOperator::Cl1
         | element::UnOperator::Cls
@@ -155,279 +132,221 @@ where
         | element::UnOperator::Ct1
         | element::UnOperator::C0
         | element::UnOperator::C1 => {
-            if_integral_then(operand, ty, &ty::Type::Number(ty::Number::U32))
+            if_integral_then(operand, &ty, sync::Arc::new(ty::Type::Number(ty::Number::U32)))
         }
-        element::UnOperator::Sqrt => if_fractional_then(operand, ty, ty),
-    })
+        element::UnOperator::Sqrt => if_fractional_then(operand, &ty, ty.clone()),
+    }
 }
 
-fn infer_bi_op_type<D>(
+fn infer_bi_op_type(
     lhs: ir::Entity,
     operator: element::BiOperator,
     rhs: ir::Entity,
-    types: &specs::Storage<ty::Type, D>,
-) -> InferenceResult<ty::Type>
-where
-    D: ops::Deref<Target = specs::storage::MaskedStorage<ty::Type>>,
-{
+    db: impl ty::db::TyDb,
+) -> Result<ty::Type> {
     // TODO: check scalar type semantics so e.g. records can't be divided.
-    match (types.get(lhs), types.get(rhs)) {
-        (Some(lhs_ty), Some(rhs_ty)) => {
-            let result = match operator {
-                element::BiOperator::Eq
-                | element::BiOperator::Ne
-                | element::BiOperator::Lt
-                | element::BiOperator::Ge
-                | element::BiOperator::Gt
-                | element::BiOperator::Le => if_eq_then(lhs, lhs_ty, rhs, rhs_ty, &*BOOL_TYPE),
-                element::BiOperator::Cmp => unimplemented!(),
-                element::BiOperator::Add
-                | element::BiOperator::Sub
-                | element::BiOperator::Mul
-                | element::BiOperator::Div
-                | element::BiOperator::Rem
-                // TODO: don't allow floats
-                | element::BiOperator::BAnd
-                | element::BiOperator::BOr
-                | element::BiOperator::BXor
-                | element::BiOperator::BAndNot
-                | element::BiOperator::BOrNot
-                | element::BiOperator::BXorNot => if_eq_then(lhs, lhs_ty, rhs, rhs_ty, lhs_ty),
-                element::BiOperator::Or => or_op(lhs, lhs_ty, rhs, rhs_ty),
-                element::BiOperator::And |element::BiOperator::Xor |element::BiOperator::AndNot |element::BiOperator::OrNot | element::BiOperator::XorNot => bool_op(lhs, lhs_ty, rhs, rhs_ty),
-                element::BiOperator::RotL | element::BiOperator::RotR |element::BiOperator::ShL |element::BiOperator::ShR => if_integral_and_eq_then(
-                    lhs,
-                    lhs_ty,
-                    rhs,
-                    rhs_ty,
-                    &ty::Type::Number(ty::Number::U32),
-                    lhs_ty,
-                ),
-            };
-            Some(result)
-        }
-        _ => None,
+    let lhs_ty = db.entity_type(lhs)?;
+    let rhs_ty = db.entity_type(rhs)?;
+    match operator {
+        element::BiOperator::Eq
+        | element::BiOperator::Ne
+        | element::BiOperator::Lt
+        | element::BiOperator::Ge
+        | element::BiOperator::Gt
+        | element::BiOperator::Le => if_eq_then(lhs, &lhs_ty, rhs, &rhs_ty, &BOOL_TYPE),
+        element::BiOperator::Cmp => unimplemented!(),
+        element::BiOperator::Add
+        | element::BiOperator::Sub
+        | element::BiOperator::Mul
+        | element::BiOperator::Div
+        | element::BiOperator::Rem
+        // TODO: don't allow floats
+        | element::BiOperator::BAnd
+        | element::BiOperator::BOr
+        | element::BiOperator::BXor
+        | element::BiOperator::BAndNot
+        | element::BiOperator::BOrNot
+        | element::BiOperator::BXorNot => if_eq_then(lhs, &lhs_ty, rhs, &rhs_ty, &lhs_ty),
+        element::BiOperator::Or => or_op(lhs, &lhs_ty, rhs, &rhs_ty),
+        element::BiOperator::And | element::BiOperator::Xor | element::BiOperator::AndNot | element::BiOperator::OrNot | element::BiOperator::XorNot => bool_op(lhs, &lhs_ty, rhs, &rhs_ty),
+        element::BiOperator::RotL | element::BiOperator::RotR | element::BiOperator::ShL | element::BiOperator::ShR => if_integral_and_eq_then(
+            lhs,
+            &lhs_ty,
+            rhs,
+            &rhs_ty,
+            &sync::Arc::new(ty::Type::Number(ty::Number::U32)),
+            lhs_ty.clone(),
+        ),
     }
 }
 
-fn infer_variable_type<D>(
-    initializer: ir::Entity,
-    types: &specs::Storage<ty::Type, D>,
-) -> InferenceResult<ty::Type>
-where
-    D: ops::Deref<Target = specs::storage::MaskedStorage<ty::Type>>,
-{
-    types.get(initializer).cloned().map(Inference::Type)
+fn infer_variable_type(initializer: ir::Entity, db: impl ty::db::TyDb) -> Result<ty::Type> {
+    db.entity_type(initializer)
 }
 
-fn infer_select_type<D>(
-    record: ir::Entity,
-    field: &str,
-    types: &specs::Storage<ty::Type, D>,
-) -> InferenceResult<ty::Type>
-where
-    D: ops::Deref<Target = specs::storage::MaskedStorage<ty::Type>>,
-{
-    match types.get(record) {
-        None => None,
-        Some(t) => match t {
-            ty::Type::Record(ty::Record { ref fields }) => {
-                if let Some(t) = fields.get(field) {
-                    Some(Inference::Type(t.clone()))
-                } else {
-                    let mut expected_fields = collections::HashMap::new();
-                    expected_fields.insert(
-                        field.to_owned(),
-                        ty::Type::Symbol(ty::Symbol {
-                            label: "something".to_owned(),
-                        }),
-                    );
-                    Some(Inference::Error(ty::error::Error {
-                        expected: ty::error::ExpectedType::Specific(ty::Type::Record(ty::Record {
-                            fields: expected_fields,
-                        })),
-                        actual: t.clone(),
-                        main_entity: record,
-                        aux_entities: vec![],
-                    }))
-                }
-            }
-            something => {
+fn infer_select_type(record: ir::Entity, field: &str, db: impl ty::db::TyDb) -> Result<ty::Type> {
+    let record_ty = db.entity_type(record)?;
+    match *record_ty {
+        ty::Type::Record(ty::Record { ref fields }) => {
+            if let Some(t) = fields.get(field) {
+                Ok(t.clone())
+            } else {
                 let mut expected_fields = collections::HashMap::new();
                 expected_fields.insert(
                     field.to_owned(),
-                    ty::Type::Symbol(ty::Symbol {
+                    sync::Arc::new(ty::Type::Symbol(ty::Symbol {
                         label: "something".to_owned(),
-                    }),
-                );
-                Some(Inference::Error(ty::error::Error {
-                    expected: ty::error::ExpectedType::Specific(ty::Type::Record(ty::Record {
-                        fields: expected_fields,
                     })),
-                    actual: something.clone(),
+                );
+                Err(ty::error::Error {
+                    expected: ty::error::ExpectedType::Specific(sync::Arc::new(ty::Type::Record(
+                        ty::Record {
+                            fields: expected_fields,
+                        },
+                    ))),
+                    actual: record_ty.clone(),
                     main_entity: record,
                     aux_entities: vec![],
-                }))
+                })
             }
-        },
+        }
+        _ => {
+            let mut expected_fields = collections::HashMap::new();
+            expected_fields.insert(
+                field.to_owned(),
+                sync::Arc::new(ty::Type::Symbol(ty::Symbol {
+                    label: "something".to_owned(),
+                })),
+            );
+            Err(ty::error::Error {
+                expected: ty::error::ExpectedType::Specific(sync::Arc::new(ty::Type::Record(
+                    ty::Record {
+                        fields: expected_fields,
+                    },
+                ))),
+                actual: record_ty,
+                main_entity: record,
+                aux_entities: vec![],
+            })
+        }
     }
 }
 
-fn infer_apply_type<D>(
+fn infer_apply_type(
     function: ir::Entity,
     parameters: &[ir::Entity],
-    types: &specs::Storage<ty::Type, D>,
-) -> InferenceResult<ty::Type>
-where
-    D: ops::Deref<Target = specs::storage::MaskedStorage<ty::Type>>,
-{
-    match types.get(function) {
-        None => {
-            trace!("inference failure: missing function type for apply");
-            None
-        }
-        Some(f) => match f {
-            ty::Type::Function(ty::Function {
-                parameters: ref formal_parameters,
-                result,
-            }) => {
-                if let Some(parameters) = parameters
-                    .iter()
-                    .map(|p| types.get(*p).cloned())
-                    .collect::<Option<Vec<_>>>()
-                {
-                    if parameters == *formal_parameters {
-                        Some(Inference::Type((**result).clone()))
-                    } else {
-                        // TODO: create a diff of expected and actual parameters
-                        Some(Inference::Error(ty::error::Error {
-                            expected: ty::error::ExpectedType::Specific(ty::Type::Function(
-                                ty::Function {
-                                    parameters,
-                                    result: Box::new(ty::Type::Symbol(ty::Symbol {
-                                        label: "something".to_owned(),
-                                    })),
-                                },
-                            )),
-                            actual: f.clone(),
-                            main_entity: function,
-                            aux_entities: vec![],
-                        }))
-                    }
-                } else {
-                    None
-                }
+    db: impl ty::db::TyDb,
+) -> Result<ty::Type> {
+    let function_ty = db.entity_type(function)?;
+    match *function_ty {
+        ty::Type::Function(ty::Function {
+            parameters: ref formal_parameters,
+            ref result,
+        }) => {
+            let parameters = parameters
+                .iter()
+                .map(|p| db.entity_type(*p))
+                .collect::<result::Result<Vec<_>, ty::error::Error>>()?;
+
+            if parameters == *formal_parameters {
+                Ok(result.clone())
+            } else {
+                // TODO: create a diff of expected and actual parameters
+                Err(ty::error::Error {
+                    expected: ty::error::ExpectedType::Specific(sync::Arc::new(
+                        ty::Type::Function(ty::Function {
+                            parameters,
+                            result: sync::Arc::new(ty::Type::Symbol(ty::Symbol {
+                                label: "something".to_owned(),
+                            })),
+                        }),
+                    )),
+                    actual: function_ty.clone(),
+                    main_entity: function,
+                    aux_entities: vec![],
+                })
             }
-            something => Some(Inference::Error(ty::error::Error {
-                expected: ty::error::ExpectedType::Specific(ty::Type::Function(ty::Function {
-                    parameters: vec![ty::Type::Symbol(ty::Symbol {
+        }
+        _ => Err(ty::error::Error {
+            expected: ty::error::ExpectedType::Specific(sync::Arc::new(ty::Type::Function(
+                ty::Function {
+                    parameters: vec![sync::Arc::new(ty::Type::Symbol(ty::Symbol {
                         label: "something".to_owned(),
-                    })],
-                    result: Box::new(ty::Type::Symbol(ty::Symbol {
+                    }))],
+                    result: sync::Arc::new(ty::Type::Symbol(ty::Symbol {
                         label: "something".to_owned(),
                     })),
-                })),
-                actual: something.clone(),
-                main_entity: function,
-                aux_entities: vec![],
-            })),
-        },
+                },
+            ))),
+            actual: function_ty,
+            main_entity: function,
+            aux_entities: vec![],
+        }),
     }
 }
 
-fn infer_parameter_type<D>(
-    signature: ir::Entity,
-    types: &specs::Storage<ty::Type, D>,
-) -> InferenceResult<ty::Type>
-where
-    D: ops::Deref<Target = specs::storage::MaskedStorage<ty::Type>>,
-{
-    types.get(signature).cloned().map(Inference::Type)
+fn infer_parameter_type(signature: ir::Entity, db: impl ty::db::TyDb) -> Result<ty::Type> {
+    db.entity_type(signature)
 }
 
-fn infer_capture_type<D>(
-    capture: ir::Entity,
-    types: &specs::Storage<ty::Type, D>,
-) -> InferenceResult<ty::Type>
-where
-    D: ops::Deref<Target = specs::storage::MaskedStorage<ty::Type>>,
-{
-    types.get(capture).cloned().map(Inference::Type)
+fn infer_capture_type(capture: ir::Entity, db: impl ty::db::TyDb) -> Result<ty::Type> {
+    db.entity_type(capture)
 }
 
-fn infer_closure_type<D>(
+fn infer_closure_type(
     parameters: &[ir::Entity],
     signature: ir::Entity,
     result: ir::Entity,
-    types: &specs::Storage<ty::Type, D>,
-) -> InferenceResult<ty::Type>
-where
-    D: ops::Deref<Target = specs::storage::MaskedStorage<ty::Type>>,
-{
-    if let Some(parameters) = parameters
+    db: impl ty::db::TyDb,
+) -> Result<ty::Type> {
+    let parameters = parameters
         .iter()
-        .map(|p| types.get(*p).cloned())
-        .collect::<Option<Vec<_>>>()
-    {
-        if let Some(result_ty) = types.get(result) {
-            if let Some(signature_ty) = types.get(signature) {
-                if signature_ty == result_ty {
-                    let result = Box::new(signature_ty.clone());
-                    Some(Inference::Type(ty::Type::Function(ty::Function {
-                        parameters,
-                        result,
-                    })))
-                } else {
-                    Some(Inference::Error(ty::error::Error {
-                        expected: ty::error::ExpectedType::Specific(signature_ty.clone()),
-                        actual: result_ty.clone(),
-                        main_entity: result,
-                        aux_entities: vec![ty::error::AuxEntity {
-                            entity: signature,
-                            label: format!("declared return type is `{}`", signature_ty),
-                        }],
-                    }))
-                }
-            } else {
-                trace!("inference failure: no signature for closure");
-                None
-            }
-        } else {
-            trace!("inference failure: missing signature type for closure, and no inferrable result type");
-            None
-        }
+        .map(|p| db.entity_type(*p))
+        .collect::<result::Result<Vec<_>, ty::error::Error>>()?;
+    let result_ty = db.entity_type(result)?;
+    let signature_ty = db.entity_type(signature)?;
+
+    if signature_ty == result_ty {
+        let result = signature_ty.clone();
+        Ok(sync::Arc::new(ty::Type::Function(ty::Function {
+            parameters,
+            result,
+        })))
     } else {
-        trace!("inference failure: missing parameter type(s) for closure");
-        // TODO: implement surjective type inference
-        None
+        Err(ty::error::Error {
+            expected: ty::error::ExpectedType::Specific(signature_ty.clone()),
+            actual: result_ty.clone(),
+            main_entity: result,
+            aux_entities: vec![ty::error::AuxEntity {
+                entity: signature,
+                label: format!("declared return type is `{}`", signature_ty),
+            }],
+        })
     }
 }
 
-fn infer_module_type<D>(
+fn infer_module_type(
     variables: &collections::HashMap<String, ir::Entity>,
-    types: &specs::Storage<ty::Type, D>,
-) -> InferenceResult<ty::Type>
-where
-    D: ops::Deref<Target = specs::storage::MaskedStorage<ty::Type>>,
-{
-    variables
+    db: impl ty::db::TyDb,
+) -> Result<ty::Type> {
+    let fields = variables
         .iter()
-        .map(|(k, v)| types.get(*v).map(|t| (k.clone(), t.clone())))
-        .collect::<Option<collections::HashMap<_, _>>>()
-        .map(|fields| Inference::Type(ty::Type::Record(ty::Record { fields })))
+        .map(|(k, v)| Ok((k.clone(), db.entity_type(*v)?)))
+        .collect::<result::Result<_, ty::error::Error>>()?;
+    Ok(sync::Arc::new(ty::Type::Record(ty::Record { fields })))
 }
 
 fn if_eq_then(
     lhs_entity: ir::Entity,
-    lhs: &ty::Type,
+    lhs: &sync::Arc<ty::Type>,
     rhs_entity: ir::Entity,
-    rhs: &ty::Type,
-    result: &ty::Type,
-) -> Inference<ty::Type> {
+    rhs: &sync::Arc<ty::Type>,
+    result: &sync::Arc<ty::Type>,
+) -> Result<ty::Type> {
     if lhs == rhs {
-        Inference::Type(result.clone())
+        Ok(result.clone())
     } else {
-        Inference::Error(ty::error::Error {
+        Err(ty::error::Error {
             expected: ty::error::ExpectedType::Specific(lhs.clone()),
             actual: rhs.clone(),
             main_entity: rhs_entity,
@@ -441,15 +360,15 @@ fn if_eq_then(
 
 fn bool_op(
     lhs_entity: ir::Entity,
-    lhs: &ty::Type,
+    lhs: &sync::Arc<ty::Type>,
     rhs_entity: ir::Entity,
-    rhs: &ty::Type,
-) -> Inference<ty::Type> {
+    rhs: &sync::Arc<ty::Type>,
+) -> Result<ty::Type> {
     if *lhs == *BOOL_TYPE {
         if *rhs == *BOOL_TYPE {
-            Inference::Type(BOOL_TYPE.clone())
+            Ok(BOOL_TYPE.clone())
         } else {
-            Inference::Error(ty::error::Error {
+            Err(ty::error::Error {
                 expected: ty::error::ExpectedType::Specific(BOOL_TYPE.clone()),
                 actual: rhs.clone(),
                 main_entity: rhs_entity,
@@ -460,7 +379,7 @@ fn bool_op(
             })
         }
     } else {
-        Inference::Error(ty::error::Error {
+        Err(ty::error::Error {
             expected: ty::error::ExpectedType::Specific(BOOL_TYPE.clone()),
             actual: lhs.clone(),
             main_entity: lhs_entity,
@@ -474,15 +393,15 @@ fn bool_op(
 
 fn or_op(
     lhs_entity: ir::Entity,
-    lhs: &ty::Type,
+    lhs: &sync::Arc<ty::Type>,
     rhs_entity: ir::Entity,
-    rhs: &ty::Type,
-) -> Inference<ty::Type> {
-    if let ty::Type::Union(u) = lhs {
-        if let ty::Type::Symbol(ref symbol) = rhs {
-            Inference::Type(ty::Type::Union(u.clone().with(symbol)))
+    rhs: &sync::Arc<ty::Type>,
+) -> Result<ty::Type> {
+    if let ty::Type::Union(ref u) = **lhs {
+        if let ty::Type::Symbol(ref symbol) = **rhs {
+            Ok(sync::Arc::new(ty::Type::Union(u.clone().with(symbol))))
         } else {
-            Inference::Error(ty::error::Error {
+            Err(ty::error::Error {
                 expected: ty::error::ExpectedType::ScalarClass(ty::class::Scalar::Symbol),
                 actual: rhs.clone(),
                 main_entity: rhs_entity,
@@ -494,9 +413,9 @@ fn or_op(
         }
     } else if *lhs == *BOOL_TYPE {
         if *rhs == *BOOL_TYPE {
-            Inference::Type(BOOL_TYPE.clone())
+            Ok(BOOL_TYPE.clone())
         } else {
-            Inference::Error(ty::error::Error {
+            Err(ty::error::Error {
                 expected: ty::error::ExpectedType::Specific(BOOL_TYPE.clone()),
                 actual: rhs.clone(),
                 main_entity: rhs_entity,
@@ -507,7 +426,7 @@ fn or_op(
             })
         }
     } else {
-        Inference::Error(ty::error::Error {
+        Err(ty::error::Error {
             expected: ty::error::ExpectedType::AnyOf(vec![
                 ty::error::ExpectedType::Specific(BOOL_TYPE.clone()),
                 ty::error::ExpectedType::Union,
@@ -522,10 +441,14 @@ fn or_op(
     }
 }
 
-fn if_integral_then(entity: ir::Entity, ty: &ty::Type, result: &ty::Type) -> Inference<ty::Type> {
+fn if_integral_then(
+    entity: ir::Entity,
+    ty: &sync::Arc<ty::Type>,
+    result: sync::Arc<ty::Type>,
+) -> Result<ty::Type> {
     match ty.scalar_class() {
-        ty::class::Scalar::Integral(_) => Inference::Type(result.clone()),
-        _ => Inference::Error(ty::error::Error {
+        ty::class::Scalar::Integral(_) => Ok(result),
+        _ => Err(ty::error::Error {
             expected: ty::error::ExpectedType::ScalarClass(ty::class::Scalar::Integral(
                 ty::class::IntegralScalar::Any,
             )),
@@ -538,18 +461,18 @@ fn if_integral_then(entity: ir::Entity, ty: &ty::Type, result: &ty::Type) -> Inf
 
 fn if_integral_and_eq_then(
     lhs_entity: ir::Entity,
-    lhs: &ty::Type,
+    lhs: &sync::Arc<ty::Type>,
     rhs_entity: ir::Entity,
-    rhs: &ty::Type,
-    expected: &ty::Type,
-    result: &ty::Type,
-) -> Inference<ty::Type> {
+    rhs: &sync::Arc<ty::Type>,
+    expected: &sync::Arc<ty::Type>,
+    result: sync::Arc<ty::Type>,
+) -> Result<ty::Type> {
     match lhs.scalar_class() {
         ty::class::Scalar::Integral(_) => {
             if rhs == expected {
-                Inference::Type(result.clone())
+                Ok(result)
             } else {
-                Inference::Error(ty::error::Error {
+                Err(ty::error::Error {
                     expected: ty::error::ExpectedType::Specific(expected.clone()),
                     actual: rhs.clone(),
                     main_entity: rhs_entity,
@@ -560,7 +483,7 @@ fn if_integral_and_eq_then(
                 })
             }
         }
-        _ => Inference::Error(ty::error::Error {
+        _ => Err(ty::error::Error {
             expected: ty::error::ExpectedType::ScalarClass(ty::class::Scalar::Integral(
                 ty::class::IntegralScalar::Any,
             )),
@@ -574,10 +497,14 @@ fn if_integral_and_eq_then(
     }
 }
 
-fn if_fractional_then(entity: ir::Entity, ty: &ty::Type, result: &ty::Type) -> Inference<ty::Type> {
+fn if_fractional_then(
+    entity: ir::Entity,
+    ty: &sync::Arc<ty::Type>,
+    result: sync::Arc<ty::Type>,
+) -> Result<ty::Type> {
     match ty.scalar_class() {
-        ty::class::Scalar::Fractional => Inference::Type(result.clone()),
-        _ => Inference::Error(ty::error::Error {
+        ty::class::Scalar::Fractional => Ok(result),
+        _ => Err(ty::error::Error {
             expected: ty::error::ExpectedType::ScalarClass(ty::class::Scalar::Fractional),
             actual: ty.clone(),
             main_entity: entity,

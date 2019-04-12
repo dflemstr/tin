@@ -29,7 +29,10 @@
 //! # Ok(())
 //! # }
 //! ```
-#![deny(nonstandard_style, warnings, unused)]
+#![feature(const_fn, const_vec_new)]
+
+// #![deny(nonstandard_style, warnings, unused)]
+#![deny(nonstandard_style)]
 #![deny(
     missing_docs,
     missing_debug_implementations,
@@ -40,7 +43,6 @@
     unused_import_braces,
     unused_qualifications
 )]
-#![feature(const_vec_new)]
 #![cfg_attr(feature = "cargo-clippy", deny(clippy::all, clippy::pedantic))]
 #![cfg_attr(feature = "cargo-clippy", allow(clippy::use_self))]
 
@@ -52,8 +54,6 @@ extern crate failure;
 extern crate lalrpop_util;
 #[macro_use]
 extern crate lazy_static;
-#[macro_use]
-extern crate log;
 #[cfg(test)]
 #[macro_use]
 extern crate pretty_assertions;
@@ -61,6 +61,7 @@ extern crate pretty_assertions;
 use std::fmt;
 
 // mod codegen;
+mod db;
 mod interpreter;
 mod ir;
 mod layout;
@@ -69,12 +70,12 @@ mod syntax;
 mod ty;
 mod value;
 
-#[cfg(test)]
-mod test_util;
+//#[cfg(test)]
+//mod test_util;
 
 pub mod diagnostic;
 pub mod error;
-pub mod graph;
+// pub mod graph;
 pub mod module;
 
 pub use crate::error::Error;
@@ -82,27 +83,18 @@ pub use crate::error::Result;
 
 /// An instance of the Tin runtime.
 pub struct Tin {
-    ir: ir::Ir,
-    codemap: codespan::CodeMap,
-    parser: <syntax::ast::Module<syntax::parser::Context> as syntax::parser::Parse>::Parser,
+    db: db::Db,
 }
 
 impl Tin {
     /// Creates a new instance of the Tin runtime.
     pub fn new() -> Tin {
-        use crate::syntax::parser::Parse;
+        let db = db::Db::new();
 
-        let ir = ir::Ir::new();
-        let codemap = codespan::CodeMap::new();
-        let parser = syntax::ast::Module::new_parser();
-
-        Tin {
-            ir,
-            codemap,
-            parser,
-        }
+        Tin { db }
     }
 
+    /*
     /// Loads the specified source code as a module.
     ///
     /// # Errors
@@ -197,6 +189,7 @@ impl Tin {
     pub fn codemap(&self) -> &codespan::CodeMap {
         &self.codemap
     }
+    */
 }
 
 impl Default for Tin {

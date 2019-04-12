@@ -1,10 +1,10 @@
 use std::collections;
+use std::sync;
 use std::usize;
 
 use crate::ir;
 use crate::ir::element;
 use crate::layout;
-use std::ops;
 
 pub struct System {
     ptr_size: usize,
@@ -21,57 +21,61 @@ impl System {
         &self,
         element: &element::Element,
         db: impl layout::db::LayoutDb,
-    ) -> Option<layout::Layout> {
+    ) -> sync::Arc<layout::Layout> {
         match *element {
             element::Element::Number(ref n) => self.infer_number_layout(n),
-            element::Element::String(_) => Some(layout::Layout::scalar(self.ptr_size)),
-            element::Element::Symbol(_) => Some(layout::Layout::zero()),
+            element::Element::String(_) => sync::Arc::new(layout::Layout::scalar(self.ptr_size)),
+            element::Element::Symbol(_) => sync::Arc::new(layout::Layout::zero()),
             element::Element::Tuple(element::Tuple { ref fields }) => {
-                self.infer_tuple_layout(fields, layouts)
+                self.infer_tuple_layout(fields, db)
             }
             element::Element::Record(element::Record { ref fields }) => {
-                self.infer_record_layout(fields, layouts)
+                self.infer_record_layout(fields, db)
             }
             element::Element::UnOp(element::UnOp { operator, operand }) => {
-                self.infer_un_op_layout(operator, operand, layouts)
+                self.infer_un_op_layout(operator, operand, db)
             }
             element::Element::BiOp(element::BiOp { lhs, operator, rhs }) => {
-                self.infer_bi_op_layout(lhs, operator, rhs, layouts)
+                self.infer_bi_op_layout(lhs, operator, rhs, db)
             }
             element::Element::Variable(element::Variable { initializer, .. }) => {
-                self.infer_variable_layout(initializer, layouts)
+                self.infer_variable_layout(initializer, db)
             }
             element::Element::Select(element::Select { record, ref field }) => {
-                self.infer_select_layout(record, field, elements, layouts)
+                self.infer_select_layout(record, field, db)
             }
             element::Element::Apply(element::Apply {
                 function,
                 ref parameters,
-            }) => self.infer_apply_layout(function, parameters, layouts),
+            }) => self.infer_apply_layout(function, parameters, db),
             element::Element::Parameter(element::Parameter { signature, .. }) => {
-                self.infer_parameter_layout(signature, layouts)
+                self.infer_parameter_layout(signature, db)
             }
             element::Element::Capture(element::Capture { captured, .. }) => {
-                self.infer_capture_layout(captured, layouts)
+                self.infer_capture_layout(captured, db)
             }
             element::Element::Closure(element::Closure { ref captures, .. }) => {
-                self.infer_closure_layout(captures, layouts)
+                self.infer_closure_layout(captures, db)
             }
             element::Element::Module(element::Module { ref variables }) => {
-                self.infer_module_layout(variables, layouts)
+                self.infer_module_layout(variables, db)
             }
         }
     }
 
-    fn infer_number_layout(&self, number: &element::Number) -> Option<layout::Layout> {
+    fn infer_number_layout(&self, number: &element::Number) -> sync::Arc<layout::Layout> {
         match *number {
-            element::Number::U8(_) | element::Number::I8(_) => Some(layout::Layout::scalar(1)),
-            element::Number::U16(_) | element::Number::I16(_) => Some(layout::Layout::scalar(2)),
+            element::Number::U8(_) | element::Number::I8(_) => {
+                sync::Arc::new(layout::Layout::scalar(1))
+            }
+            element::Number::U16(_) | element::Number::I16(_) => {
+                sync::Arc::new(layout::Layout::scalar(2))
+            }
             element::Number::U32(_) | element::Number::I32(_) | element::Number::F32(_) => {
-                Some(layout::Layout::scalar(4))
+                sync::Arc::new(layout::Layout::scalar(4))
             }
             element::Number::U64(_) | element::Number::I64(_) | element::Number::F64(_) => {
-                Some(layout::Layout::scalar(8))
+                sync::Arc::new(layout::Layout::scalar(8))
             }
         }
     }
@@ -80,37 +84,34 @@ impl System {
         &self,
         fields: &[ir::Entity],
         db: impl layout::db::LayoutDb,
-    ) -> Option<layout::Layout> {
-        if let Some(mut layouts) = fields
+    ) -> sync::Arc<layout::Layout> {
+        let mut layouts = fields
             .iter()
             .enumerate()
-            .map(|(i, f)| layouts.get(*f).map(|l| (i, l)))
-            .collect::<Option<Vec<_>>>()
-        {
-            if layouts.is_empty() {
-                Some(layout::Layout::zero())
-            } else {
-                layouts.sort_unstable_by_key(|(i, l)| (usize::max_value() - l.size, *i));
-                let alignment = layouts.iter().map(|(_, l)| l.alignment).max().unwrap();
-                let mut size = 0;
+            .map(|(i, f)| (i, db.entity_layout(*f)))
+            .collect::<Vec<_>>();
 
-                let mut unnamed_fields = vec![layout::Offset::zero(); layouts.len()];
-
-                for (i, layout) in layouts {
-                    let offset = align_up(size, layout.alignment);
-                    size = offset + layout.size;
-                    let layout = layout.clone();
-                    unnamed_fields[i] = layout::Offset { offset, layout };
-                }
-
-                Some(layout::Layout::unnamed_fields(
-                    size,
-                    alignment,
-                    unnamed_fields,
-                ))
-            }
+        if layouts.is_empty() {
+            sync::Arc::new(layout::Layout::zero())
         } else {
-            None
+            layouts.sort_unstable_by_key(|(i, l)| (usize::max_value() - l.size, *i));
+            let alignment = layouts.iter().map(|(_, l)| l.alignment).max().unwrap();
+            let mut size = 0;
+
+            let mut unnamed_fields = vec![layout::Offset::zero(); layouts.len()];
+
+            for (i, layout) in layouts {
+                let offset = align_up(size, layout.alignment);
+                size = offset + layout.size;
+                let layout = (*layout).clone();
+                unnamed_fields[i] = layout::Offset { offset, layout };
+            }
+
+            sync::Arc::new(layout::Layout::unnamed_fields(
+                size,
+                alignment,
+                unnamed_fields,
+            ))
         }
     }
 
@@ -118,39 +119,36 @@ impl System {
         &self,
         fields: &collections::HashMap<String, ir::Entity>,
         db: impl layout::db::LayoutDb,
-    ) -> Option<layout::Layout> {
-        if let Some(mut layouts) = fields
+    ) -> sync::Arc<layout::Layout> {
+        let mut layouts = fields
             .iter()
-            .map(|(n, f)| layouts.get(*f).map(|l| (n, l)))
-            .collect::<Option<Vec<_>>>()
-        {
-            if layouts.is_empty() {
-                Some(layout::Layout::zero())
-            } else {
-                layouts.sort_unstable_by_key(|(n, l)| (usize::max_value() - l.size, n.as_str()));
-                let alignment = layouts.iter().map(|(_, l)| l.alignment).max().unwrap();
-                let mut size = 0;
+            .map(|(n, f)| (n, db.entity_layout(*f)))
+            .collect::<Vec<_>>();
 
-                let named_fields = layouts
-                    .into_iter()
-                    .map(|(field, layout)| {
-                        let offset = align_up(size, layout.alignment);
-                        size = offset + layout.size;
-                        let field = field.clone();
-                        let layout = layout.clone();
-                        let offset_layout = layout::Offset { offset, layout };
-
-                        layout::NamedField {
-                            field,
-                            offset_layout,
-                        }
-                    })
-                    .collect::<Vec<_>>();
-
-                Some(layout::Layout::named_fields(size, alignment, named_fields))
-            }
+        if layouts.is_empty() {
+            sync::Arc::new(layout::Layout::zero())
         } else {
-            None
+            layouts.sort_unstable_by_key(|(n, l)| (usize::max_value() - l.size, n.as_str()));
+            let alignment = layouts.iter().map(|(_, l)| l.alignment).max().unwrap();
+            let mut size = 0;
+
+            let named_fields = layouts
+                .into_iter()
+                .map(|(field, layout)| {
+                    let offset = align_up(size, layout.alignment);
+                    size = offset + layout.size;
+                    let field = field.clone();
+                    let layout = (*layout).clone();
+                    let offset_layout = layout::Offset { offset, layout };
+
+                    layout::NamedField {
+                        field,
+                        offset_layout,
+                    }
+                })
+                .collect::<Vec<_>>();
+
+            sync::Arc::new(layout::Layout::named_fields(size, alignment, named_fields))
         }
     }
 
@@ -159,11 +157,9 @@ impl System {
         operator: element::UnOperator,
         operand: ir::Entity,
         db: impl layout::db::LayoutDb,
-    ) -> Option<layout::Layout> {
-        let operand = layouts.get(operand).cloned();
-
+    ) -> sync::Arc<layout::Layout> {
         match operator {
-            element::UnOperator::Not => Some(BOOL_LAYOUT),
+            element::UnOperator::Not => sync::Arc::new(BOOL_LAYOUT),
             element::UnOperator::BNot
             | element::UnOperator::Cl0
             | element::UnOperator::Cl1
@@ -172,7 +168,7 @@ impl System {
             | element::UnOperator::Ct1
             | element::UnOperator::C0
             | element::UnOperator::C1
-            | element::UnOperator::Sqrt => operand,
+            | element::UnOperator::Sqrt => db.entity_layout(operand),
         }
     }
 
@@ -182,17 +178,16 @@ impl System {
         operator: element::BiOperator,
         rhs: ir::Entity,
         db: impl layout::db::LayoutDb,
-    ) -> Option<layout::Layout> {
-        let lhs = layouts.get(lhs).cloned();
-        let rhs = layouts.get(rhs).cloned();
+    ) -> sync::Arc<layout::Layout> {
+        let lhs = db.entity_layout(lhs);
+        let rhs = db.entity_layout(rhs);
 
-        if let (Some(lhs), Some(rhs)) = (lhs.as_ref(), rhs.as_ref()) {
-            if lhs.size != rhs.size {
-                return None;
-            }
-            if lhs.alignment != rhs.alignment {
-                return None;
-            }
+        if lhs.size != rhs.size {
+            unreachable!()
+        }
+
+        if lhs.alignment != rhs.alignment {
+            unreachable!()
         }
 
         match operator {
@@ -207,7 +202,7 @@ impl System {
             | element::BiOperator::Xor
             | element::BiOperator::AndNot
             | element::BiOperator::OrNot
-            | element::BiOperator::XorNot => Some(BOOL_LAYOUT),
+            | element::BiOperator::XorNot => sync::Arc::new(BOOL_LAYOUT),
             element::BiOperator::Cmp => unimplemented!(),
             element::BiOperator::Add
             | element::BiOperator::Sub
@@ -231,8 +226,8 @@ impl System {
         &self,
         initializer: ir::Entity,
         db: impl layout::db::LayoutDb,
-    ) -> Option<layout::Layout> {
-        layouts.get(initializer).cloned()
+    ) -> sync::Arc<layout::Layout> {
+        db.entity_layout(initializer)
     }
 
     fn infer_select_layout(
@@ -240,19 +235,16 @@ impl System {
         record: ir::Entity,
         field: &str,
         db: impl layout::db::LayoutDb,
-    ) -> Option<layout::Layout> {
-        match elements.get(record) {
-            None => None,
-            Some(t) => match t {
-                element::Element::Record(element::Record { ref fields }) => {
-                    if let Some(f) = fields.get(field) {
-                        layouts.get(*f).cloned()
-                    } else {
-                        None
-                    }
+    ) -> sync::Arc<layout::Layout> {
+        match *db.entity_element(record) {
+            element::Element::Record(element::Record { ref fields }) => {
+                if let Some(f) = fields.get(field) {
+                    db.entity_layout(*f)
+                } else {
+                    panic!("field does not exist")
                 }
-                _ => None,
-            },
+            }
+            _ => panic!("entity is not a record"),
         }
     }
 
@@ -261,9 +253,9 @@ impl System {
         _function: ir::Entity,
         _parameters: &[ir::Entity],
         _db: impl layout::db::LayoutDb,
-    ) -> Option<layout::Layout> {
+    ) -> sync::Arc<layout::Layout> {
         // TODO
-        None
+        unimplemented!()
         /*
         match types.get(function) {
             None => {
@@ -311,76 +303,71 @@ impl System {
         &self,
         signature: ir::Entity,
         db: impl layout::db::LayoutDb,
-    ) -> Option<layout::Layout> {
-        layouts.get(signature).cloned()
+    ) -> sync::Arc<layout::Layout> {
+        db.entity_layout(signature)
     }
 
     fn infer_capture_layout(
         &self,
         capture: ir::Entity,
         db: impl layout::db::LayoutDb,
-    ) -> Option<layout::Layout> {
-        layouts.get(capture).cloned()
+    ) -> sync::Arc<layout::Layout> {
+        db.entity_layout(capture)
     }
 
     fn infer_closure_layout(
         &self,
         captures: &collections::HashMap<String, ir::Entity>,
         db: impl layout::db::LayoutDb,
-    ) -> Option<layout::Layout> {
-        if let Some(mut capture_layouts) = captures
+    ) -> sync::Arc<layout::Layout> {
+        let mut capture_layouts = captures
             .iter()
-            .map(|(n, f)| layouts.get(*f).map(|l| (n, l)))
-            .collect::<Option<Vec<_>>>()
-        {
-            let unnamed_fields = vec![layout::Offset {
-                offset: 0,
-                layout: layout::Layout::scalar(self.ptr_size),
-            }];
+            .map(|(n, f)| (n, db.entity_layout(*f)))
+            .collect::<Vec<_>>();
+        let unnamed_fields = vec![layout::Offset {
+            offset: 0,
+            layout: layout::Layout::scalar(self.ptr_size),
+        }];
 
-            capture_layouts
-                .sort_unstable_by_key(|(n, l)| (usize::max_value() - l.size, n.as_str()));
-            let alignment = capture_layouts
-                .iter()
-                .map(|(_, l)| l.alignment)
-                .max()
-                .unwrap_or(self.ptr_size);
-            let mut size = self.ptr_size;
+        capture_layouts.sort_unstable_by_key(|(n, l)| (usize::max_value() - l.size, n.as_str()));
+        let alignment = capture_layouts
+            .iter()
+            .map(|(_, l)| l.alignment)
+            .max()
+            .unwrap_or(self.ptr_size);
+        let mut size = self.ptr_size;
 
-            let named_fields = capture_layouts
-                .into_iter()
-                .map(|(field, layout)| {
-                    let offset = align_up(size, layout.alignment);
-                    size = offset + layout.size;
-                    let field = field.clone();
-                    let layout = layout.clone();
-                    let offset_layout = layout::Offset { offset, layout };
+        let named_fields = capture_layouts
+            .into_iter()
+            .map(|(field, layout)| {
+                let offset = align_up(size, layout.alignment);
+                size = offset + layout.size;
+                let field = field.clone();
+                let layout = (*layout).clone();
+                let offset_layout = layout::Offset { offset, layout };
 
-                    layout::NamedField {
-                        field,
-                        offset_layout,
-                    }
-                })
-                .collect::<Vec<_>>();
-
-            Some(layout::Layout {
-                size,
-                alignment,
-                named_fields,
-                unnamed_fields,
+                layout::NamedField {
+                    field,
+                    offset_layout,
+                }
             })
-        } else {
-            None
-        }
+            .collect::<Vec<_>>();
+
+        sync::Arc::new(layout::Layout {
+            size,
+            alignment,
+            named_fields,
+            unnamed_fields,
+        })
     }
 
     fn infer_module_layout(
         &self,
         _variables: &collections::HashMap<String, ir::Entity>,
         db: impl layout::db::LayoutDb,
-    ) -> Option<layout::Layout> {
+    ) -> sync::Arc<layout::Layout> {
         // TODO
-        None
+        unimplemented!()
         /*
         variables
             .iter()

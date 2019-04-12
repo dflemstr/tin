@@ -1,19 +1,20 @@
 use std::cmp;
 use std::collections;
 
-use crate::ir;
+use crate::interpreter;
 use crate::ir::element;
 use crate::module;
 use crate::value;
 
+pub mod db;
 pub mod error;
 #[macro_use]
 mod macros;
 
-pub fn eval<F>(element: &element::Element, lookup: F) -> Result<Option<value::Value>, error::Error>
-where
-    F: Fn(ir::Entity) -> Option<value::Value>,
-{
+pub fn eval(
+    element: &element::Element,
+    db: &impl interpreter::db::InterpreterDb,
+) -> Result<Option<value::Value>, error::Error> {
     match element {
         element::Element::Number(v) => Ok(Some(value::Value::number(eval_number(v)))),
         element::Element::String(ref v) => Ok(Some(value::Value::string(v.as_str()))),
@@ -22,25 +23,31 @@ where
         }
         element::Element::Tuple(element::Tuple { ref fields }) => Ok(fields
             .iter()
-            .map(|f| lookup(*f))
-            .collect::<Option<Vec<_>>>()
+            .map(|f| db.entity_value(*f))
+            .collect::<Result<Option<Vec<_>>, error::Error>>()?
             .map(|fields| value::Value::tuple(value::Tuple { fields }))),
         element::Element::Record(element::Record { ref fields }) => Ok(fields
             .iter()
-            .map(|(k, f)| lookup(*f).map(|v| (k.clone(), v.clone())))
-            .collect::<Option<collections::HashMap<_, _>>>()
+            .map(|(k, f)| Ok(db.entity_value(*f)?.map(|v| (k.clone(), v))))
+            .collect::<Result<Option<collections::HashMap<_, _>>, error::Error>>()?
             .map(|fields| value::Value::record(value::Record { fields }))),
-        element::Element::UnOp(element::UnOp { operator, operand }) => {
-            transpose(lookup(*operand).map(|operand| eval_un_op(*operator, &operand)))
-        }
-        element::Element::BiOp(element::BiOp { lhs, operator, rhs }) => transpose(
-            lookup(*lhs).and_then(|lhs| lookup(*rhs).map(|rhs| eval_bi_op(&lhs, *operator, &rhs))),
+        element::Element::UnOp(element::UnOp { operator, operand }) => transpose(
+            db.entity_value(*operand)?
+                .map(|operand| eval_un_op(*operator, &operand)),
         ),
+        element::Element::BiOp(element::BiOp { lhs, operator, rhs }) => {
+            let lhs_value = db.entity_value(*lhs)?;
+            let rhs_value = db.entity_value(*rhs)?;
+            match (lhs_value, rhs_value) {
+                (Some(ref lhs), Some(ref rhs)) => eval_bi_op(lhs, *operator, rhs).map(Some),
+                _ => Ok(None),
+            }
+        }
         element::Element::Variable(element::Variable { initializer, .. }) => {
-            Ok(lookup(*initializer))
+            db.entity_value(*initializer)
         }
         element::Element::Select(element::Select { record, field }) => {
-            transpose(lookup(*record).map(|record| match record.case() {
+            transpose(db.entity_value(*record)?.map(|record| match record.case() {
                 value::Case::Record(r) => Ok(r.fields[field].clone()),
                 other => Err(error::Error::RuntimeTypeConflict(format!(
                     "not a record: {:?}",

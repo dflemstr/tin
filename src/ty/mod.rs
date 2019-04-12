@@ -1,7 +1,9 @@
 use std::collections;
 use std::fmt;
+use std::sync;
 
 pub mod class;
+pub mod db;
 pub mod error;
 pub mod infer;
 
@@ -37,7 +39,7 @@ pub struct Symbol {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Tuple {
-    pub fields: Vec<Type>,
+    pub fields: Vec<sync::Arc<Type>>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -47,13 +49,13 @@ pub struct Union {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Record {
-    pub fields: collections::HashMap<String, Type>,
+    pub fields: collections::HashMap<String, sync::Arc<Type>>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Function {
-    pub parameters: Vec<Type>,
-    pub result: Box<Type>,
+    pub parameters: Vec<sync::Arc<Type>>,
+    pub result: sync::Arc<Type>,
 }
 
 impl Type {

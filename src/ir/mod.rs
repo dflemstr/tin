@@ -1,9 +1,5 @@
 //! Intermediate representation variables for the compiler and interpreter.
 use std::collections;
-use std::fmt;
-
-use crate::syntax::ast;
-use crate::syntax::parser;
 
 pub mod builder;
 pub mod db;

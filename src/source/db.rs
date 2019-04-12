@@ -4,7 +4,7 @@ use std::sync;
 
 use crate::source;
 
-#[salsa::query_group(SourceStorage)]
+#[salsa::query_group(Source)]
 pub trait SourceDb: salsa::Database {
     /// Text of the file.
     #[salsa::input]
