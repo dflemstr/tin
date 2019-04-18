@@ -6,20 +6,6 @@ use crate::ir;
 use crate::ir::element;
 use crate::ty;
 
-lazy_static! {
-    static ref BOOL_TYPE: sync::Arc<ty::Type> = {
-        let alternatives = vec![
-            ty::Symbol {
-                label: "f".to_owned(),
-            },
-            ty::Symbol {
-                label: "t".to_owned(),
-            },
-        ];
-        sync::Arc::new(ty::Type::Union(ty::Union { alternatives }))
-    };
-}
-
 pub struct System;
 
 type Result<T> = result::Result<sync::Arc<T>, ty::error::Error>;
@@ -32,7 +18,7 @@ fn infer_type(element: &element::Element, db: impl ty::db::TyDb) -> Result<ty::T
         element::Element::String(_) => Ok(sync::Arc::new(ty::Type::String)),
         element::Element::Symbol(element::Symbol { ref label }) => {
             Ok(sync::Arc::new(ty::Type::Symbol(ty::Symbol {
-                label: label.clone(),
+                label: *label,
             })))
         }
         element::Element::Tuple(element::Tuple { ref fields }) => infer_tuple_type(fields, db),
@@ -46,7 +32,7 @@ fn infer_type(element: &element::Element, db: impl ty::db::TyDb) -> Result<ty::T
         element::Element::Variable(element::Variable { initializer, .. }) => {
             infer_variable_type(initializer, db)
         }
-        element::Element::Select(element::Select { record, ref field }) => {
+        element::Element::Select(element::Select { record, field }) => {
             infer_select_type(record, field, db)
         }
         element::Element::Apply(element::Apply {
@@ -95,12 +81,12 @@ fn infer_tuple_type(fields: &[ir::Entity], db: impl ty::db::TyDb) -> Result<ty::
 }
 
 fn infer_record_type(
-    fields: &collections::HashMap<String, ir::Entity>,
+    fields: &collections::HashMap<ir::Ident, ir::Entity>,
     db: impl ty::db::TyDb,
 ) -> Result<ty::Type> {
     let fields = fields
         .iter()
-        .map(|(k, v)| Ok((k.clone(), db.entity_type(*v)?)))
+        .map(|(k, v)| Ok((*k, db.entity_type(*v)?)))
         .collect::<result::Result<collections::HashMap<_, _>, ty::error::Error>>()?;
     Ok(sync::Arc::new(ty::Type::Record(ty::Record { fields })))
 }
@@ -113,11 +99,12 @@ fn infer_un_op_type(
     let ty = db.entity_type(operand)?;
     match operator {
         element::UnOperator::Not => {
-            if ty == *BOOL_TYPE {
-                Ok(BOOL_TYPE.clone())
+            let bool_type = db.bool_type();
+            if ty == bool_type {
+                Ok(bool_type)
             } else {
                 Err(ty::error::Error {
-                    expected: ty::error::ExpectedType::Specific(BOOL_TYPE.clone()),
+                    expected: ty::error::ExpectedType::Specific(bool_type),
                     actual: ty,
                     main_entity: operand,
                     aux_entities: vec![],
@@ -131,9 +118,11 @@ fn infer_un_op_type(
         | element::UnOperator::Ct0
         | element::UnOperator::Ct1
         | element::UnOperator::C0
-        | element::UnOperator::C1 => {
-            if_integral_then(operand, &ty, sync::Arc::new(ty::Type::Number(ty::Number::U32)))
-        }
+        | element::UnOperator::C1 => if_integral_then(
+            operand,
+            &ty,
+            sync::Arc::new(ty::Type::Number(ty::Number::U32)),
+        ),
         element::UnOperator::Sqrt => if_fractional_then(operand, &ty, ty.clone()),
     }
 }
@@ -153,7 +142,7 @@ fn infer_bi_op_type(
         | element::BiOperator::Lt
         | element::BiOperator::Ge
         | element::BiOperator::Gt
-        | element::BiOperator::Le => if_eq_then(lhs, &lhs_ty, rhs, &rhs_ty, &BOOL_TYPE),
+        | element::BiOperator::Le => if_eq_then(lhs, &lhs_ty, rhs, &rhs_ty, &db.bool_type(), db),
         element::BiOperator::Cmp => unimplemented!(),
         element::BiOperator::Add
         | element::BiOperator::Sub
@@ -166,9 +155,9 @@ fn infer_bi_op_type(
         | element::BiOperator::BXor
         | element::BiOperator::BAndNot
         | element::BiOperator::BOrNot
-        | element::BiOperator::BXorNot => if_eq_then(lhs, &lhs_ty, rhs, &rhs_ty, &lhs_ty),
-        element::BiOperator::Or => or_op(lhs, &lhs_ty, rhs, &rhs_ty),
-        element::BiOperator::And | element::BiOperator::Xor | element::BiOperator::AndNot | element::BiOperator::OrNot | element::BiOperator::XorNot => bool_op(lhs, &lhs_ty, rhs, &rhs_ty),
+        | element::BiOperator::BXorNot => if_eq_then(lhs, &lhs_ty, rhs, &rhs_ty, &lhs_ty, db),
+        element::BiOperator::Or => or_op(lhs, &lhs_ty, rhs, &rhs_ty, db),
+        element::BiOperator::And | element::BiOperator::Xor | element::BiOperator::AndNot | element::BiOperator::OrNot | element::BiOperator::XorNot => bool_op(lhs, &lhs_ty, rhs, &rhs_ty, db),
         element::BiOperator::RotL | element::BiOperator::RotR | element::BiOperator::ShL | element::BiOperator::ShR => if_integral_and_eq_then(
             lhs,
             &lhs_ty,
@@ -184,20 +173,19 @@ fn infer_variable_type(initializer: ir::Entity, db: impl ty::db::TyDb) -> Result
     db.entity_type(initializer)
 }
 
-fn infer_select_type(record: ir::Entity, field: &str, db: impl ty::db::TyDb) -> Result<ty::Type> {
+fn infer_select_type(
+    record: ir::Entity,
+    field: ir::Ident,
+    db: impl ty::db::TyDb,
+) -> Result<ty::Type> {
     let record_ty = db.entity_type(record)?;
     match *record_ty {
         ty::Type::Record(ty::Record { ref fields }) => {
-            if let Some(t) = fields.get(field) {
+            if let Some(t) = fields.get(&field) {
                 Ok(t.clone())
             } else {
                 let mut expected_fields = collections::HashMap::new();
-                expected_fields.insert(
-                    field.to_owned(),
-                    sync::Arc::new(ty::Type::Symbol(ty::Symbol {
-                        label: "something".to_owned(),
-                    })),
-                );
+                expected_fields.insert(field.to_owned(), sync::Arc::new(ty::Type::Placeholder));
                 Err(ty::error::Error {
                     expected: ty::error::ExpectedType::Specific(sync::Arc::new(ty::Type::Record(
                         ty::Record {
@@ -212,12 +200,7 @@ fn infer_select_type(record: ir::Entity, field: &str, db: impl ty::db::TyDb) -> 
         }
         _ => {
             let mut expected_fields = collections::HashMap::new();
-            expected_fields.insert(
-                field.to_owned(),
-                sync::Arc::new(ty::Type::Symbol(ty::Symbol {
-                    label: "something".to_owned(),
-                })),
-            );
+            expected_fields.insert(field.to_owned(), sync::Arc::new(ty::Type::Placeholder));
             Err(ty::error::Error {
                 expected: ty::error::ExpectedType::Specific(sync::Arc::new(ty::Type::Record(
                     ty::Record {
@@ -256,9 +239,7 @@ fn infer_apply_type(
                     expected: ty::error::ExpectedType::Specific(sync::Arc::new(
                         ty::Type::Function(ty::Function {
                             parameters,
-                            result: sync::Arc::new(ty::Type::Symbol(ty::Symbol {
-                                label: "something".to_owned(),
-                            })),
+                            result: sync::Arc::new(ty::Type::Placeholder),
                         }),
                     )),
                     actual: function_ty.clone(),
@@ -270,12 +251,8 @@ fn infer_apply_type(
         _ => Err(ty::error::Error {
             expected: ty::error::ExpectedType::Specific(sync::Arc::new(ty::Type::Function(
                 ty::Function {
-                    parameters: vec![sync::Arc::new(ty::Type::Symbol(ty::Symbol {
-                        label: "something".to_owned(),
-                    }))],
-                    result: sync::Arc::new(ty::Type::Symbol(ty::Symbol {
-                        label: "something".to_owned(),
-                    })),
+                    parameters: vec![sync::Arc::new(ty::Type::Placeholder)],
+                    result: sync::Arc::new(ty::Type::Placeholder),
                 },
             ))),
             actual: function_ty,
@@ -326,12 +303,12 @@ fn infer_closure_type(
 }
 
 fn infer_module_type(
-    variables: &collections::HashMap<String, ir::Entity>,
+    variables: &collections::HashMap<ir::Ident, ir::Entity>,
     db: impl ty::db::TyDb,
 ) -> Result<ty::Type> {
     let fields = variables
         .iter()
-        .map(|(k, v)| Ok((k.clone(), db.entity_type(*v)?)))
+        .map(|(k, v)| Ok((*k, db.entity_type(*v)?)))
         .collect::<result::Result<_, ty::error::Error>>()?;
     Ok(sync::Arc::new(ty::Type::Record(ty::Record { fields })))
 }
@@ -342,6 +319,7 @@ fn if_eq_then(
     rhs_entity: ir::Entity,
     rhs: &sync::Arc<ty::Type>,
     result: &sync::Arc<ty::Type>,
+    db: impl ty::db::TyDb,
 ) -> Result<ty::Type> {
     if lhs == rhs {
         Ok(result.clone())
@@ -363,13 +341,15 @@ fn bool_op(
     lhs: &sync::Arc<ty::Type>,
     rhs_entity: ir::Entity,
     rhs: &sync::Arc<ty::Type>,
+    db: impl ty::db::TyDb,
 ) -> Result<ty::Type> {
-    if *lhs == *BOOL_TYPE {
-        if *rhs == *BOOL_TYPE {
-            Ok(BOOL_TYPE.clone())
+    let bool_type = db.bool_type();
+    if *lhs == bool_type {
+        if *rhs == bool_type {
+            Ok(bool_type)
         } else {
             Err(ty::error::Error {
-                expected: ty::error::ExpectedType::Specific(BOOL_TYPE.clone()),
+                expected: ty::error::ExpectedType::Specific(bool_type),
                 actual: rhs.clone(),
                 main_entity: rhs_entity,
                 aux_entities: vec![ty::error::AuxEntity {
@@ -380,7 +360,7 @@ fn bool_op(
         }
     } else {
         Err(ty::error::Error {
-            expected: ty::error::ExpectedType::Specific(BOOL_TYPE.clone()),
+            expected: ty::error::ExpectedType::Specific(bool_type),
             actual: lhs.clone(),
             main_entity: lhs_entity,
             aux_entities: vec![ty::error::AuxEntity {
@@ -396,7 +376,9 @@ fn or_op(
     lhs: &sync::Arc<ty::Type>,
     rhs_entity: ir::Entity,
     rhs: &sync::Arc<ty::Type>,
+    db: impl ty::db::TyDb,
 ) -> Result<ty::Type> {
+    let bool_type = db.bool_type();
     if let ty::Type::Union(ref u) = **lhs {
         if let ty::Type::Symbol(ref symbol) = **rhs {
             Ok(sync::Arc::new(ty::Type::Union(u.clone().with(symbol))))
@@ -411,12 +393,12 @@ fn or_op(
                 }],
             })
         }
-    } else if *lhs == *BOOL_TYPE {
-        if *rhs == *BOOL_TYPE {
-            Ok(BOOL_TYPE.clone())
+    } else if *lhs == bool_type {
+        if *rhs == bool_type {
+            Ok(bool_type)
         } else {
             Err(ty::error::Error {
-                expected: ty::error::ExpectedType::Specific(BOOL_TYPE.clone()),
+                expected: ty::error::ExpectedType::Specific(bool_type),
                 actual: rhs.clone(),
                 main_entity: rhs_entity,
                 aux_entities: vec![ty::error::AuxEntity {
@@ -428,7 +410,7 @@ fn or_op(
     } else {
         Err(ty::error::Error {
             expected: ty::error::ExpectedType::AnyOf(vec![
-                ty::error::ExpectedType::Specific(BOOL_TYPE.clone()),
+                ty::error::ExpectedType::Specific(bool_type),
                 ty::error::ExpectedType::Union,
             ]),
             actual: lhs.clone(),

@@ -6,6 +6,8 @@
 //!
 //! To generically interact with the context of a node, the [`AstNode`] trait can be used.  All of
 //! the contexts of an entire AST can additionally be transformed using the [`MapContext`] trait.
+use std::sync;
+
 mod ast_node;
 mod map_context;
 
@@ -50,8 +52,8 @@ pub enum Kind {
 pub struct Module<C> {
     /// This node's AST context.
     pub context: C,
-    /// Variable variables that are part of this module, in declaration order.
-    pub variables: Vec<Variable<C>>,
+    /// Variables that are part of this module, in declaration order.
+    pub variables: Vec<sync::Arc<Variable<C>>>,
 }
 
 /// An identifier.
@@ -60,7 +62,7 @@ pub struct Identifier<C> {
     /// This node's AST context.
     pub context: C,
     /// The raw string name of the identifier.
-    pub value: String,
+    pub value: sync::Arc<String>,
 }
 
 /// Any valid expression.
@@ -153,7 +155,7 @@ pub struct Symbol<C> {
     /// This node's AST context.
     pub context: C,
     /// The label of the symbol.
-    pub label: String,
+    pub label: sync::Arc<String>,
 }
 
 /// A tuple expression.
@@ -162,7 +164,7 @@ pub struct Tuple<C> {
     /// This node's AST context.
     pub context: C,
     /// The fields of the tuple, in declaration order.
-    pub fields: Vec<Expression<C>>,
+    pub fields: Vec<sync::Arc<Expression<C>>>,
 }
 
 /// A record expression.
@@ -171,7 +173,7 @@ pub struct Record<C> {
     /// This node's AST context.
     pub context: C,
     /// The fields of the record, in declaration order.
-    pub fields: Vec<(Identifier<C>, Expression<C>)>,
+    pub fields: Vec<(sync::Arc<Identifier<C>>, sync::Arc<Expression<C>>)>,
 }
 
 /// An unary operator.
@@ -211,7 +213,7 @@ pub struct UnOp<C> {
     /// The unary operator that is being applied.
     pub operator: UnOperator,
     /// The operand to the operator.
-    pub operand: Box<Expression<C>>,
+    pub operand: sync::Arc<Expression<C>>,
 }
 
 /// A binary operator.
@@ -284,11 +286,11 @@ pub struct BiOp<C> {
     /// This node's AST context.
     pub context: C,
     /// The left-hand-side operand of the operator.
-    pub lhs: Box<Expression<C>>,
+    pub lhs: sync::Arc<Expression<C>>,
     /// The binary operator that is being applied.
     pub operator: BiOperator,
     /// The right-hand-side operand of the operator.
-    pub rhs: Box<Expression<C>>,
+    pub rhs: sync::Arc<Expression<C>>,
 }
 
 /// A lambda expression.
@@ -297,13 +299,13 @@ pub struct Lambda<C> {
     /// This node's AST context.
     pub context: C,
     /// The parameters of the lambda.
-    pub parameters: Vec<Parameter<C>>,
+    pub parameters: Vec<sync::Arc<Parameter<C>>>,
     /// The signature of the result of the lambda.
-    pub signature: Box<Expression<C>>,
+    pub signature: sync::Arc<Expression<C>>,
     /// The statements that constitute the lambda body.
-    pub statements: Vec<Statement<C>>,
+    pub statements: Vec<sync::Arc<Statement<C>>>,
     /// The result ("return value") of the lambda.
-    pub result: Option<Box<Expression<C>>>,
+    pub result: Option<sync::Arc<Expression<C>>>,
 }
 
 /// A valid statement.
@@ -321,9 +323,9 @@ pub struct Variable<C> {
     /// This node's AST context.
     pub context: C,
     /// The name of the variable.
-    pub name: Identifier<C>,
+    pub name: sync::Arc<Identifier<C>>,
     /// The initializer expression of the variable.
-    pub initializer: Expression<C>,
+    pub initializer: sync::Arc<Expression<C>>,
 }
 
 /// A field selection expression.
@@ -332,9 +334,9 @@ pub struct Select<C> {
     /// This node's AST context.
     pub context: C,
     /// The expression to select from; should evaluate to a record.
-    pub record: Box<Expression<C>>,
+    pub record: sync::Arc<Expression<C>>,
     /// The field to select.
-    pub field: Identifier<C>,
+    pub field: sync::Arc<Identifier<C>>,
 }
 
 /// A function application expression.
@@ -343,10 +345,10 @@ pub struct Apply<C> {
     /// This node's AST context.
     pub context: C,
     /// The expression to apply; should evaluate to a function.
-    pub function: Box<Expression<C>>,
+    pub function: sync::Arc<Expression<C>>,
     /// The parameters to pass in to the function; should match the function's accepted number of
     /// arguments.
-    pub parameters: Vec<Expression<C>>,
+    pub parameters: Vec<sync::Arc<Expression<C>>>,
 }
 
 /// A lambda parameter declaration.
@@ -355,7 +357,7 @@ pub struct Parameter<C> {
     /// This node's AST context.
     pub context: C,
     /// The name of the parameter.
-    pub name: Identifier<C>,
-    /// The signature of the parameter, if any.
-    pub signature: Expression<C>,
+    pub name: sync::Arc<Identifier<C>>,
+    /// The signature of the parameter.
+    pub signature: sync::Arc<Expression<C>>,
 }

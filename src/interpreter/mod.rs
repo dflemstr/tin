@@ -18,8 +18,8 @@ pub fn eval(
     match element {
         element::Element::Number(v) => Ok(Some(value::Value::number(eval_number(v)))),
         element::Element::String(ref v) => Ok(Some(value::Value::string(v.as_str()))),
-        element::Element::Symbol(element::Symbol { ref label }) => {
-            Ok(Some(value::Value::symbol(label.as_str())))
+        element::Element::Symbol(element::Symbol { label }) => {
+            Ok(Some(value::Value::symbol(db.lookup_ident(*label))))
         }
         element::Element::Tuple(element::Tuple { ref fields }) => Ok(fields
             .iter()
@@ -28,7 +28,7 @@ pub fn eval(
             .map(|fields| value::Value::tuple(value::Tuple { fields }))),
         element::Element::Record(element::Record { ref fields }) => Ok(fields
             .iter()
-            .map(|(k, f)| Ok(db.entity_value(*f)?.map(|v| (k.clone(), v))))
+            .map(|(k, f)| Ok(db.entity_value(*f)?.map(|v| (db.lookup_ident(*k), v))))
             .collect::<Result<Option<collections::HashMap<_, _>>, error::Error>>()?
             .map(|fields| value::Value::record(value::Record { fields }))),
         element::Element::UnOp(element::UnOp { operator, operand }) => transpose(
@@ -48,7 +48,7 @@ pub fn eval(
         }
         element::Element::Select(element::Select { record, field }) => {
             transpose(db.entity_value(*record)?.map(|record| match record.case() {
-                value::Case::Record(r) => Ok(r.fields[field].clone()),
+                value::Case::Record(r) => Ok(r.fields[&db.lookup_ident(*field)].clone()),
                 other => Err(error::Error::RuntimeTypeConflict(format!(
                     "not a record: {:?}",
                     other

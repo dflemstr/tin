@@ -16,10 +16,11 @@ where
 {
     world: W,
     symbol: Vec<symbol::Part>,
-    current_scope: collections::HashMap<String, ir::Entity>,
-    scopes: Vec<collections::HashMap<String, ir::Entity>>,
-    current_captures: collections::HashMap<String, ir::Entity>,
-    captures: Vec<collections::HashMap<String, ir::Entity>>,
+    current_closure: Option<ir::Entity>,
+    current_scope: collections::HashMap<ir::Ident, ir::Entity>,
+    scopes: Vec<collections::HashMap<ir::Ident, ir::Entity>>,
+    current_captures: collections::HashMap<ir::Ident, ir::Entity>,
+    captures: Vec<collections::HashMap<ir::Ident, ir::Entity>>,
 }
 
 impl<W> Builder<W>
@@ -45,22 +46,25 @@ where
 
     pub fn add_module(
         &mut self,
+        db: impl ir::db::IrDb,
         entity: ir::Entity,
         ast: &ast::Module<parser::Context>,
     ) -> Result<(), error::Error> {
         let mut variables = collections::HashMap::new();
+
         for variable in &ast.variables {
-            let var_entity = self.world.create_entity();
+            let ident = db.ident(variable.name.value.clone());
+            let var_entity = db.entity(Some(entity), ident);
 
             self.current_scope
-                .insert(variable.name.value.clone(), var_entity);
+                .insert(ident, var_entity);
 
-            variables.insert(variable.name.value.clone(), var_entity);
+            variables.insert(ident, var_entity);
         }
 
         for variable in &ast.variables {
-            let name = &variable.name.value;
-            self.add_variable(variables[name], variable)?;
+            let ident = db.ident(variable.name.value.clone());
+            self.add_variable(db, variables[&ident], variable)?;
         }
 
         self.world.set_element(
@@ -77,23 +81,24 @@ where
 
     fn add_identifier(
         &mut self,
+        db: impl ir::db::IrDb,
         entity: ir::Entity,
         identifier: &ast::Identifier<parser::Context>,
     ) -> Result<(), error::Error> {
-        let name = &identifier.value;
+        let ident = db.ident(identifier.value.clone());
 
-        let definition = self.current_scope.get(name).cloned().or_else(|| {
+        let definition = self.current_scope.get(&ident).cloned().or_else(|| {
             self.scopes
                 .iter()
                 .rev()
-                .flat_map(|scope| scope.get(name).cloned().into_iter())
+                .flat_map(|scope| scope.get(&ident).cloned().into_iter())
                 .next()
                 .map(|e| {
-                    let capture = self.world.create_entity();
+                    let capture = db.child_entity(entity, ident);
                     self.world.set_element(
                         capture,
                         element::Element::Capture(element::Capture {
-                            name: name.clone(),
+                            name: ident,
                             captured: e,
                         }),
                     );
@@ -122,27 +127,29 @@ where
 
     fn add_expression(
         &mut self,
+        db: impl ir::db::IrDb,
         entity: ir::Entity,
         expression: &ast::Expression<parser::Context>,
     ) -> Result<(), error::Error> {
         match *expression {
-            ast::Expression::NumberLiteral(ref v) => self.add_number(entity, v),
-            ast::Expression::StringLiteral(ref v) => self.add_string(entity, v),
-            ast::Expression::Symbol(ref v) => self.add_symbol(entity, v),
-            ast::Expression::Tuple(ref v) => self.add_tuple(entity, v),
-            ast::Expression::Record(ref v) => self.add_record(entity, v),
-            ast::Expression::UnOp(ref v) => self.add_un_op(entity, v),
-            ast::Expression::BiOp(ref v) => self.add_bi_op(entity, v),
-            ast::Expression::Identifier(ref v) => self.add_identifier(entity, v),
-            ast::Expression::Lambda(ref v) => self.add_lambda(entity, v),
-            ast::Expression::Select(ref v) => self.add_select(entity, v),
-            ast::Expression::Apply(ref v) => self.add_apply(entity, v),
+            ast::Expression::NumberLiteral(ref v) => self.add_number(db, entity, v),
+            ast::Expression::StringLiteral(ref v) => self.add_string(db, entity, v),
+            ast::Expression::Symbol(ref v) => self.add_symbol(db, entity, v),
+            ast::Expression::Tuple(ref v) => self.add_tuple(db, entity, v),
+            ast::Expression::Record(ref v) => self.add_record(db, entity, v),
+            ast::Expression::UnOp(ref v) => self.add_un_op(db, entity, v),
+            ast::Expression::BiOp(ref v) => self.add_bi_op(db, entity, v),
+            ast::Expression::Identifier(ref v) => self.add_identifier(db, entity, v),
+            ast::Expression::Lambda(ref v) => self.add_lambda(db, entity, v),
+            ast::Expression::Select(ref v) => self.add_select(db, entity, v),
+            ast::Expression::Apply(ref v) => self.add_apply(db, entity, v),
             ast::Expression::Unknown => panic!("'unknown' AST nodes should not escape the parser"),
         }
     }
 
     fn add_number(
         &mut self,
+        db: impl ir::db::IrDb,
         entity: ir::Entity,
         number: &ast::NumberLiteral<parser::Context>,
     ) -> Result<(), error::Error> {
@@ -159,6 +166,7 @@ where
 
     fn add_string(
         &mut self,
+        db: impl ir::db::IrDb,
         entity: ir::Entity,
         string: &ast::StringLiteral<parser::Context>,
     ) -> Result<(), error::Error> {
@@ -180,6 +188,7 @@ where
 
     fn add_tuple(
         &mut self,
+        db: impl ir::db::IrDb,
         entity: ir::Entity,
         tuple: &ast::Tuple<parser::Context>,
     ) -> Result<(), error::Error> {
@@ -204,6 +213,7 @@ where
 
     fn add_symbol(
         &mut self,
+        db: impl ir::db::IrDb,
         entity: ir::Entity,
         symbol: &ast::Symbol<parser::Context>,
     ) -> Result<(), error::Error> {
@@ -220,6 +230,7 @@ where
 
     fn add_record(
         &mut self,
+        db: impl ir::db::IrDb,
         entity: ir::Entity,
         record: &ast::Record<parser::Context>,
     ) -> Result<(), error::Error> {
@@ -244,6 +255,7 @@ where
 
     fn add_un_op(
         &mut self,
+        db: impl ir::db::IrDb,
         entity: ir::Entity,
         un_op: &ast::UnOp<parser::Context>,
     ) -> Result<(), error::Error> {
@@ -265,6 +277,7 @@ where
 
     fn add_bi_op(
         &mut self,
+        db: impl ir::db::IrDb,
         entity: ir::Entity,
         bi_op: &ast::BiOp<parser::Context>,
     ) -> Result<(), error::Error> {
@@ -289,6 +302,7 @@ where
 
     fn add_lambda(
         &mut self,
+        db: impl ir::db::IrDb,
         entity: ir::Entity,
         lambda: &ast::Lambda<parser::Context>,
     ) -> Result<(), error::Error> {
@@ -368,6 +382,7 @@ where
 
     fn add_variable(
         &mut self,
+        db: impl ir::db::IrDb,
         entity: ir::Entity,
         variable: &ast::Variable<parser::Context>,
     ) -> Result<(), error::Error> {
@@ -397,6 +412,7 @@ where
 
     fn add_select(
         &mut self,
+        db: impl ir::db::IrDb,
         entity: ir::Entity,
         select: &ast::Select<parser::Context>,
     ) -> Result<(), error::Error> {
@@ -418,6 +434,7 @@ where
 
     fn add_apply(
         &mut self,
+        db: impl ir::db::IrDb,
         entity: ir::Entity,
         apply: &ast::Apply<parser::Context>,
     ) -> Result<(), error::Error> {
@@ -450,6 +467,7 @@ where
 
     fn add_parameter(
         &mut self,
+        db: impl ir::db::IrDb,
         entity: ir::Entity,
         parameter: &ast::Parameter<parser::Context>,
     ) -> Result<(), error::Error> {

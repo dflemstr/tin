@@ -1,3 +1,5 @@
+use std::sync;
+
 use lalrpop_util;
 
 use crate::syntax::ast;
@@ -58,12 +60,12 @@ SemiRequired0<A>: Vec<A> = {
 
 pub Module: ast::Module<parser::Context> = {
     <lo:@L> <ds:SemiRequired0<(Comment? <Definition>)>> <hi:@R> =>
-        ast::Module { context: parser::Context::new(ast::Kind::Module, span, lo, hi), variables: ds },
+        ast::Module { context: parser::Context::new(ast::Kind::Module, span, lo, hi), variables: ds.into_iter().map(sync::Arc::new).collect() },
 }
 
 Definition: ast::Variable<parser::Context> = {
     <lo:@L> <n:Identifier> "=" <i:Expression> <hi:@R> =>
-        ast::Variable { context: parser::Context::new(ast::Kind::Variable, span, lo, hi), name: n, initializer: i },
+        ast::Variable { context: parser::Context::new(ast::Kind::Variable, span, lo, hi), name: sync::Arc::new(n), initializer: sync::Arc::new(i) },
 }
 
 pub Expression = { <ExpressionBiOpOr> }
@@ -166,13 +168,13 @@ UnOperator: ast::UnOperator = {
 
 UnOp: ast::UnOp<parser::Context> = {
     <lo:@L> <operator:UnOperator> <operand:ExpressionUnOp> <hi:@R> =>
-       ast::UnOp { context: parser::Context::new(ast::Kind::UnOp, span, lo, hi), operator, operand: Box::new(operand) },
+       ast::UnOp { context: parser::Context::new(ast::Kind::UnOp, span, lo, hi), operator, operand: sync::Arc::new(operand) },
 }
 
 #[inline]
 BiOp<L, O, R>: ast::BiOp<parser::Context> = {
     <lo:@L> <lhs:L> <operator:O> <rhs:R> <hi:@R> =>
-       ast::BiOp { context: parser::Context::new(ast::Kind::BiOp, span, lo, hi), lhs: Box::new(lhs), operator, rhs: Box::new(rhs) },
+       ast::BiOp { context: parser::Context::new(ast::Kind::BiOp, span, lo, hi), lhs: sync::Arc::new(lhs), operator, rhs: sync::Arc::new(rhs) },
 }
 
 BiOperatorFactor: ast::BiOperator = {
@@ -235,19 +237,19 @@ BiOperatorCmp: ast::BiOperator = {
 
 Identifier: ast::Identifier<parser::Context> = {
     <lo:@L> <id:IdentifierName> <hi:@R> =>
-        ast::Identifier { context: parser::Context::new(ast::Kind::Identifier, span, lo, hi), value: id.into() },
+        ast::Identifier { context: parser::Context::new(ast::Kind::Identifier, span, lo, hi), value: sync::Arc::new(id.to_owned()) },
 }
 
 Tuple: ast::Tuple<parser::Context> = {
     <lo:@L> "(" ")" <hi:@R> =>
         ast::Tuple { context: parser::Context::new(ast::Kind::Tuple, span, lo, hi), fields: vec![] },
     <lo:@L> "(" <fs:Comma1<Expression>> ")" <hi:@R> =>
-        ast::Tuple { context: parser::Context::new(ast::Kind::Tuple, span, lo, hi), fields: fs },
+        ast::Tuple { context: parser::Context::new(ast::Kind::Tuple, span, lo, hi), fields: fs.into_iter().map(sync::Arc::new).collect() },
 }
 
 Record: ast::Record<parser::Context> = {
     <lo:@L> "{" <fs:Comma0<Field>> "}" <hi:@R> =>
-        ast::Record { context: parser::Context::new(ast::Kind::Record, span, lo, hi), fields: fs },
+        ast::Record { context: parser::Context::new(ast::Kind::Record, span, lo, hi), fields: fs.into_iter().map(|(k, v)| (sync::Arc::new(k), sync::Arc::new(v))).collect() },
 }
 
 Field: (ast::Identifier<parser::Context>, ast::Expression<parser::Context>) = {
@@ -269,17 +271,17 @@ StringLiteral: ast::StringLiteral<parser::Context> = {
 
 Symbol: ast::Symbol<parser::Context> = {
     <lo:@L> <label:SymbolLabel> <hi:@R> =>
-        ast::Symbol { context: parser::Context::new(ast::Kind::Symbol, span, lo, hi), label: (&label[1..]).to_owned() },
+        ast::Symbol { context: parser::Context::new(ast::Kind::Symbol, span, lo, hi), label: sync::Arc::new((&label[1..]).to_owned()) },
 }
 
 Lambda: ast::Lambda<parser::Context> = {
     <lo:@L> "|" <params:Comma0<(Comment? <Parameter>)>> "|" "->" <sig:ExpressionAtom> <body:LambdaBody?> <hi:@R> =>
         ast::Lambda {
             context: parser::Context::new(ast::Kind::Lambda, span, lo, hi),
-            parameters: params,
-            signature: Box::new(sig),
-            statements: body.as_ref().map(|b| b.0.clone()).unwrap_or(vec![]),
-            result: body.as_ref().map(|b| Box::new(b.1.clone()))
+            parameters: params.into_iter().map(sync::Arc::new).collect(),
+            signature: sync::Arc::new(sig),
+            statements: body.as_ref().map(|b| b.0.iter().cloned().map(sync::Arc::new).collect()).unwrap_or(vec![]),
+            result: body.as_ref().map(|b| sync::Arc::new(b.1.clone()))
         },
 }
 
@@ -294,15 +296,15 @@ Statement: ast::Statement<parser::Context> = {
 
 Select: ast::Select<parser::Context> = {
     <lo:@L> <r:ExpressionProjection> "." <f:Identifier> <hi:@R> =>
-        ast::Select { context: parser::Context::new(ast::Kind::Select, span, lo, hi), record: Box::new(r), field: f },
+        ast::Select { context: parser::Context::new(ast::Kind::Select, span, lo, hi), record: sync::Arc::new(r), field: sync::Arc::new(f) },
 }
 
 Apply: ast::Apply<parser::Context> = {
     <lo:@L> <e:ExpressionProjection> "(" <p:Comma0<Expression>> ")" <hi:@R> =>
-        ast::Apply { context: parser::Context::new(ast::Kind::Apply, span, lo, hi), function: Box::new(e), parameters: p },
+        ast::Apply { context: parser::Context::new(ast::Kind::Apply, span, lo, hi), function: sync::Arc::new(e), parameters: p.into_iter().map(sync::Arc::new).collect() },
 }
 
 Parameter: ast::Parameter<parser::Context> = {
     <lo:@L> <name:Identifier> ":" <signature:ExpressionAtom> <hi:@R> =>
-        ast::Parameter { context: parser::Context::new(ast::Kind::Parameter, span, lo, hi), name, signature },
+        ast::Parameter { context: parser::Context::new(ast::Kind::Parameter, span, lo, hi), name: sync::Arc::new(name), signature: sync::Arc::new(signature) },
 }

@@ -41,7 +41,7 @@ impl System {
             element::Element::Variable(element::Variable { initializer, .. }) => {
                 self.infer_variable_layout(initializer, db)
             }
-            element::Element::Select(element::Select { record, ref field }) => {
+            element::Element::Select(element::Select { record, field }) => {
                 self.infer_select_layout(record, field, db)
             }
             element::Element::Apply(element::Apply {
@@ -117,18 +117,19 @@ impl System {
 
     fn infer_record_layout(
         &self,
-        fields: &collections::HashMap<String, ir::Entity>,
+        fields: &collections::HashMap<ir::Ident, ir::Entity>,
         db: impl layout::db::LayoutDb,
     ) -> sync::Arc<layout::Layout> {
         let mut layouts = fields
             .iter()
-            .map(|(n, f)| (n, db.entity_layout(*f)))
+            .map(|(n, f)| (*n, db.entity_layout(*f)))
             .collect::<Vec<_>>();
 
         if layouts.is_empty() {
             sync::Arc::new(layout::Layout::zero())
         } else {
-            layouts.sort_unstable_by_key(|(n, l)| (usize::max_value() - l.size, n.as_str()));
+            layouts
+                .sort_unstable_by_key(|(n, l)| (usize::max_value() - l.size, db.lookup_ident(*n)));
             let alignment = layouts.iter().map(|(_, l)| l.alignment).max().unwrap();
             let mut size = 0;
 
@@ -233,12 +234,12 @@ impl System {
     fn infer_select_layout(
         &self,
         record: ir::Entity,
-        field: &str,
+        field: ir::Ident,
         db: impl layout::db::LayoutDb,
     ) -> sync::Arc<layout::Layout> {
         match *db.entity_element(record) {
             element::Element::Record(element::Record { ref fields }) => {
-                if let Some(f) = fields.get(field) {
+                if let Some(f) = fields.get(&field) {
                     db.entity_layout(*f)
                 } else {
                     panic!("field does not exist")
@@ -317,19 +318,20 @@ impl System {
 
     fn infer_closure_layout(
         &self,
-        captures: &collections::HashMap<String, ir::Entity>,
+        captures: &collections::HashMap<ir::Ident, ir::Entity>,
         db: impl layout::db::LayoutDb,
     ) -> sync::Arc<layout::Layout> {
         let mut capture_layouts = captures
             .iter()
-            .map(|(n, f)| (n, db.entity_layout(*f)))
+            .map(|(n, f)| (*n, db.entity_layout(*f)))
             .collect::<Vec<_>>();
         let unnamed_fields = vec![layout::Offset {
             offset: 0,
             layout: layout::Layout::scalar(self.ptr_size),
         }];
 
-        capture_layouts.sort_unstable_by_key(|(n, l)| (usize::max_value() - l.size, n.as_str()));
+        capture_layouts
+            .sort_unstable_by_key(|(n, l)| (usize::max_value() - l.size, db.lookup_ident(*n)));
         let alignment = capture_layouts
             .iter()
             .map(|(_, l)| l.alignment)
@@ -363,7 +365,7 @@ impl System {
 
     fn infer_module_layout(
         &self,
-        _variables: &collections::HashMap<String, ir::Entity>,
+        _variables: &collections::HashMap<ir::Ident, ir::Entity>,
         db: impl layout::db::LayoutDb,
     ) -> sync::Arc<layout::Layout> {
         // TODO

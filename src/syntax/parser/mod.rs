@@ -389,7 +389,7 @@ impl diagnostic::Diagnostics for Error {
 
 #[cfg(test)]
 mod tests {
-    use env_logger;
+    use std::sync;
 
     use crate::syntax::ast;
     use crate::syntax::ast::MapContext;
@@ -454,7 +454,7 @@ help: valid tokens at this point: [Comment, IdentifierName]
 
         let expected = Ok(ast::Expression::Identifier(ast::Identifier {
             context: (),
-            value: "whatever".to_owned(),
+            value: sync::Arc::new("whatever".to_owned()),
         }));
         let actual = parse_expression("test", r#"whatever"#);
         assert_eq!(expected, actual);
@@ -466,7 +466,7 @@ help: valid tokens at this point: [Comment, IdentifierName]
 
         let expected = Ok(ast::Expression::Identifier(ast::Identifier {
             context: (),
-            value: "なんでも".to_owned(),
+            value: sync::Arc::new("なんでも".to_owned()),
         }));
         let actual = parse_expression("test", r#"なんでも"#);
         assert_eq!(expected, actual);
@@ -707,14 +707,14 @@ help: valid tokens at this point: [Comment, IdentifierName]
         let expected = Ok(ast::Expression::Tuple(ast::Tuple {
             context: (),
             fields: vec![
-                ast::Expression::NumberLiteral(ast::NumberLiteral {
+                sync::Arc::new(ast::Expression::NumberLiteral(ast::NumberLiteral {
                     context: (),
                     value: ast::NumberValue::F64(ordered_float::OrderedFloat::from(1.0)),
-                }),
-                ast::Expression::NumberLiteral(ast::NumberLiteral {
+                })),
+                sync::Arc::new(ast::Expression::NumberLiteral(ast::NumberLiteral {
                     context: (),
                     value: ast::NumberValue::F64(ordered_float::OrderedFloat::from(2.0)),
-                }),
+                })),
             ],
         }));
         let actual = parse_expression("test", r#"(1f64, 2f64)"#);
@@ -728,14 +728,14 @@ help: valid tokens at this point: [Comment, IdentifierName]
         let expected = Ok(ast::Expression::Tuple(ast::Tuple {
             context: (),
             fields: vec![
-                ast::Expression::NumberLiteral(ast::NumberLiteral {
+                sync::Arc::new(ast::Expression::NumberLiteral(ast::NumberLiteral {
                     context: (),
                     value: ast::NumberValue::F64(ordered_float::OrderedFloat::from(1.0)),
-                }),
-                ast::Expression::NumberLiteral(ast::NumberLiteral {
+                })),
+                sync::Arc::new(ast::Expression::NumberLiteral(ast::NumberLiteral {
                     context: (),
                     value: ast::NumberValue::F64(ordered_float::OrderedFloat::from(2.0)),
-                }),
+                })),
             ],
         }));
         let actual = parse_expression("test", r#"(1f64, 2f64,)"#);
@@ -748,10 +748,12 @@ help: valid tokens at this point: [Comment, IdentifierName]
 
         let expected = Ok(ast::Expression::Tuple(ast::Tuple {
             context: (),
-            fields: vec![ast::Expression::NumberLiteral(ast::NumberLiteral {
-                context: (),
-                value: ast::NumberValue::F64(ordered_float::OrderedFloat::from(1.0)),
-            })],
+            fields: vec![sync::Arc::new(ast::Expression::NumberLiteral(
+                ast::NumberLiteral {
+                    context: (),
+                    value: ast::NumberValue::F64(ordered_float::OrderedFloat::from(1.0)),
+                },
+            ))],
         }));
         let actual = parse_expression("test", r#"(1f64,)"#);
         assert_eq!(expected, actual);
@@ -791,28 +793,26 @@ help: valid tokens at this point: ["!", "#$0", "#$1", "#0", "#1", "#^-", "#^0", 
             context: (),
             fields: vec![
                 (
-                    ast::Identifier {
+                    sync::Arc::new(ast::Identifier {
                         context: (),
-                        value: "a".to_owned(),
-                    },
-                    ast::Expression::NumberLiteral(ast::NumberLiteral {
+                        value: sync::Arc::new("a".to_owned()),
+                    }),
+                    sync::Arc::new(ast::Expression::NumberLiteral(ast::NumberLiteral {
                         context: (),
                         value: ast::NumberValue::F64(ordered_float::OrderedFloat::from(1.0)),
-                    }),
+                    })),
                 ),
                 (
-                    ast::Identifier {
+                    sync::Arc::new(ast::Identifier {
                         context: (),
-                        value: "b".to_owned(),
-                    },
-                    ast::Expression::StringLiteral(ast::StringLiteral {
+                        value: sync::Arc::new("b".to_owned()),
+                    }),
+                    sync::Arc::new(ast::Expression::StringLiteral(ast::StringLiteral {
                         context: (),
                         value: ast::StringValue::String("c".to_owned()),
-                    }),
+                    })),
                 ),
-            ]
-            .into_iter()
-            .collect(),
+            ],
         }));
         let actual = parse_expression("test", r#"{a: 1f64, b: "c"}"#);
         assert_eq!(expected, actual);
@@ -826,28 +826,26 @@ help: valid tokens at this point: ["!", "#$0", "#$1", "#0", "#1", "#^-", "#^0", 
             context: (),
             fields: vec![
                 (
-                    ast::Identifier {
+                    sync::Arc::new(ast::Identifier {
                         context: (),
-                        value: "a".to_owned(),
-                    },
-                    ast::Expression::NumberLiteral(ast::NumberLiteral {
+                        value: sync::Arc::new("a".to_owned()),
+                    }),
+                    sync::Arc::new(ast::Expression::NumberLiteral(ast::NumberLiteral {
                         context: (),
                         value: ast::NumberValue::F64(ordered_float::OrderedFloat::from(1.0)),
-                    }),
+                    })),
                 ),
                 (
-                    ast::Identifier {
+                    sync::Arc::new(ast::Identifier {
                         context: (),
-                        value: "b".to_owned(),
-                    },
-                    ast::Expression::StringLiteral(ast::StringLiteral {
+                        value: sync::Arc::new("b".to_owned()),
+                    }),
+                    sync::Arc::new(ast::Expression::StringLiteral(ast::StringLiteral {
                         context: (),
                         value: ast::StringValue::String("c".to_owned()),
-                    }),
+                    })),
                 ),
-            ]
-            .into_iter()
-            .collect(),
+            ],
         }));
         let actual = parse_expression("test", r#"{a: 1f64, b: "c",}"#);
         assert_eq!(expected, actual);
@@ -860,17 +858,15 @@ help: valid tokens at this point: ["!", "#$0", "#$1", "#0", "#1", "#^-", "#^0", 
         let expected = Ok(ast::Expression::Record(ast::Record {
             context: (),
             fields: vec![(
-                ast::Identifier {
+                sync::Arc::new(ast::Identifier {
                     context: (),
-                    value: "a".to_owned(),
-                },
-                ast::Expression::NumberLiteral(ast::NumberLiteral {
+                    value: sync::Arc::new("a".to_owned()),
+                }),
+                sync::Arc::new(ast::Expression::NumberLiteral(ast::NumberLiteral {
                     context: (),
                     value: ast::NumberValue::F64(ordered_float::OrderedFloat::from(1.0)),
-                }),
-            )]
-            .into_iter()
-            .collect(),
+                })),
+            )],
         }));
         let actual = parse_expression("test", r#"{a: 1f64}"#);
         assert_eq!(expected, actual);
@@ -883,17 +879,15 @@ help: valid tokens at this point: ["!", "#$0", "#$1", "#0", "#1", "#^-", "#^0", 
         let expected = Ok(ast::Expression::Record(ast::Record {
             context: (),
             fields: vec![(
-                ast::Identifier {
+                sync::Arc::new(ast::Identifier {
                     context: (),
-                    value: "a".to_owned(),
-                },
-                ast::Expression::NumberLiteral(ast::NumberLiteral {
+                    value: sync::Arc::new("a".to_owned()),
+                }),
+                sync::Arc::new(ast::Expression::NumberLiteral(ast::NumberLiteral {
                     context: (),
                     value: ast::NumberValue::F64(ordered_float::OrderedFloat::from(1.0)),
-                }),
-            )]
-            .into_iter()
-            .collect(),
+                })),
+            )],
         }));
         let actual = parse_expression("test", r#"{a: 1f64,}"#);
         assert_eq!(expected, actual);
@@ -926,7 +920,7 @@ help: valid tokens at this point: ["!", "#$0", "#$1", "#0", "#1", "#^-", "#^0", 
         let expected = Ok(ast::Expression::UnOp(ast::UnOp {
             context: (),
             operator: ast::UnOperator::Not,
-            operand: Box::new(ast::Expression::NumberLiteral(ast::NumberLiteral {
+            operand: sync::Arc::new(ast::Expression::NumberLiteral(ast::NumberLiteral {
                 context: (),
                 value: ast::NumberValue::U32(0),
             })),
@@ -942,10 +936,10 @@ help: valid tokens at this point: ["!", "#$0", "#$1", "#0", "#1", "#^-", "#^0", 
         let expected = Ok(ast::Expression::UnOp(ast::UnOp {
             context: (),
             operator: ast::UnOperator::Not,
-            operand: Box::new(ast::Expression::UnOp(ast::UnOp {
+            operand: sync::Arc::new(ast::Expression::UnOp(ast::UnOp {
                 context: (),
                 operator: ast::UnOperator::Not,
-                operand: Box::new(ast::Expression::NumberLiteral(ast::NumberLiteral {
+                operand: sync::Arc::new(ast::Expression::NumberLiteral(ast::NumberLiteral {
                     context: (),
                     value: ast::NumberValue::U32(0),
                 })),
@@ -962,7 +956,7 @@ help: valid tokens at this point: ["!", "#$0", "#$1", "#0", "#1", "#^-", "#^0", 
         let expected = Ok(ast::Expression::UnOp(ast::UnOp {
             context: (),
             operator: ast::UnOperator::BNot,
-            operand: Box::new(ast::Expression::NumberLiteral(ast::NumberLiteral {
+            operand: sync::Arc::new(ast::Expression::NumberLiteral(ast::NumberLiteral {
                 context: (),
                 value: ast::NumberValue::U32(0),
             })),
@@ -978,10 +972,10 @@ help: valid tokens at this point: ["!", "#$0", "#$1", "#0", "#1", "#^-", "#^0", 
         let expected = Ok(ast::Expression::UnOp(ast::UnOp {
             context: (),
             operator: ast::UnOperator::BNot,
-            operand: Box::new(ast::Expression::UnOp(ast::UnOp {
+            operand: sync::Arc::new(ast::Expression::UnOp(ast::UnOp {
                 context: (),
                 operator: ast::UnOperator::BNot,
-                operand: Box::new(ast::Expression::NumberLiteral(ast::NumberLiteral {
+                operand: sync::Arc::new(ast::Expression::NumberLiteral(ast::NumberLiteral {
                     context: (),
                     value: ast::NumberValue::U32(0),
                 })),
@@ -998,7 +992,7 @@ help: valid tokens at this point: ["!", "#$0", "#$1", "#0", "#1", "#^-", "#^0", 
         let expected = Ok(ast::Expression::UnOp(ast::UnOp {
             context: (),
             operator: ast::UnOperator::Cl0,
-            operand: Box::new(ast::Expression::NumberLiteral(ast::NumberLiteral {
+            operand: sync::Arc::new(ast::Expression::NumberLiteral(ast::NumberLiteral {
                 context: (),
                 value: ast::NumberValue::U32(0),
             })),
@@ -1014,10 +1008,10 @@ help: valid tokens at this point: ["!", "#$0", "#$1", "#0", "#1", "#^-", "#^0", 
         let expected = Ok(ast::Expression::UnOp(ast::UnOp {
             context: (),
             operator: ast::UnOperator::Cl0,
-            operand: Box::new(ast::Expression::UnOp(ast::UnOp {
+            operand: sync::Arc::new(ast::Expression::UnOp(ast::UnOp {
                 context: (),
                 operator: ast::UnOperator::Cl0,
-                operand: Box::new(ast::Expression::NumberLiteral(ast::NumberLiteral {
+                operand: sync::Arc::new(ast::Expression::NumberLiteral(ast::NumberLiteral {
                     context: (),
                     value: ast::NumberValue::U32(0),
                 })),
@@ -1034,7 +1028,7 @@ help: valid tokens at this point: ["!", "#$0", "#$1", "#0", "#1", "#^-", "#^0", 
         let expected = Ok(ast::Expression::UnOp(ast::UnOp {
             context: (),
             operator: ast::UnOperator::Cl1,
-            operand: Box::new(ast::Expression::NumberLiteral(ast::NumberLiteral {
+            operand: sync::Arc::new(ast::Expression::NumberLiteral(ast::NumberLiteral {
                 context: (),
                 value: ast::NumberValue::U32(0),
             })),
@@ -1050,10 +1044,10 @@ help: valid tokens at this point: ["!", "#$0", "#$1", "#0", "#1", "#^-", "#^0", 
         let expected = Ok(ast::Expression::UnOp(ast::UnOp {
             context: (),
             operator: ast::UnOperator::Cl1,
-            operand: Box::new(ast::Expression::UnOp(ast::UnOp {
+            operand: sync::Arc::new(ast::Expression::UnOp(ast::UnOp {
                 context: (),
                 operator: ast::UnOperator::Cl1,
-                operand: Box::new(ast::Expression::NumberLiteral(ast::NumberLiteral {
+                operand: sync::Arc::new(ast::Expression::NumberLiteral(ast::NumberLiteral {
                     context: (),
                     value: ast::NumberValue::U32(0),
                 })),
@@ -1070,7 +1064,7 @@ help: valid tokens at this point: ["!", "#$0", "#$1", "#0", "#1", "#^-", "#^0", 
         let expected = Ok(ast::Expression::UnOp(ast::UnOp {
             context: (),
             operator: ast::UnOperator::Cls,
-            operand: Box::new(ast::Expression::NumberLiteral(ast::NumberLiteral {
+            operand: sync::Arc::new(ast::Expression::NumberLiteral(ast::NumberLiteral {
                 context: (),
                 value: ast::NumberValue::U32(0),
             })),
@@ -1086,10 +1080,10 @@ help: valid tokens at this point: ["!", "#$0", "#$1", "#0", "#1", "#^-", "#^0", 
         let expected = Ok(ast::Expression::UnOp(ast::UnOp {
             context: (),
             operator: ast::UnOperator::Cls,
-            operand: Box::new(ast::Expression::UnOp(ast::UnOp {
+            operand: sync::Arc::new(ast::Expression::UnOp(ast::UnOp {
                 context: (),
                 operator: ast::UnOperator::Cls,
-                operand: Box::new(ast::Expression::NumberLiteral(ast::NumberLiteral {
+                operand: sync::Arc::new(ast::Expression::NumberLiteral(ast::NumberLiteral {
                     context: (),
                     value: ast::NumberValue::U32(0),
                 })),
@@ -1106,7 +1100,7 @@ help: valid tokens at this point: ["!", "#$0", "#$1", "#0", "#1", "#^-", "#^0", 
         let expected = Ok(ast::Expression::UnOp(ast::UnOp {
             context: (),
             operator: ast::UnOperator::Ct0,
-            operand: Box::new(ast::Expression::NumberLiteral(ast::NumberLiteral {
+            operand: sync::Arc::new(ast::Expression::NumberLiteral(ast::NumberLiteral {
                 context: (),
                 value: ast::NumberValue::U32(0),
             })),
@@ -1122,10 +1116,10 @@ help: valid tokens at this point: ["!", "#$0", "#$1", "#0", "#1", "#^-", "#^0", 
         let expected = Ok(ast::Expression::UnOp(ast::UnOp {
             context: (),
             operator: ast::UnOperator::Ct0,
-            operand: Box::new(ast::Expression::UnOp(ast::UnOp {
+            operand: sync::Arc::new(ast::Expression::UnOp(ast::UnOp {
                 context: (),
                 operator: ast::UnOperator::Ct0,
-                operand: Box::new(ast::Expression::NumberLiteral(ast::NumberLiteral {
+                operand: sync::Arc::new(ast::Expression::NumberLiteral(ast::NumberLiteral {
                     context: (),
                     value: ast::NumberValue::U32(0),
                 })),
@@ -1142,7 +1136,7 @@ help: valid tokens at this point: ["!", "#$0", "#$1", "#0", "#1", "#^-", "#^0", 
         let expected = Ok(ast::Expression::UnOp(ast::UnOp {
             context: (),
             operator: ast::UnOperator::Ct1,
-            operand: Box::new(ast::Expression::NumberLiteral(ast::NumberLiteral {
+            operand: sync::Arc::new(ast::Expression::NumberLiteral(ast::NumberLiteral {
                 context: (),
                 value: ast::NumberValue::U32(0),
             })),
@@ -1158,10 +1152,10 @@ help: valid tokens at this point: ["!", "#$0", "#$1", "#0", "#1", "#^-", "#^0", 
         let expected = Ok(ast::Expression::UnOp(ast::UnOp {
             context: (),
             operator: ast::UnOperator::Ct1,
-            operand: Box::new(ast::Expression::UnOp(ast::UnOp {
+            operand: sync::Arc::new(ast::Expression::UnOp(ast::UnOp {
                 context: (),
                 operator: ast::UnOperator::Ct1,
-                operand: Box::new(ast::Expression::NumberLiteral(ast::NumberLiteral {
+                operand: sync::Arc::new(ast::Expression::NumberLiteral(ast::NumberLiteral {
                     context: (),
                     value: ast::NumberValue::U32(0),
                 })),
@@ -1178,7 +1172,7 @@ help: valid tokens at this point: ["!", "#$0", "#$1", "#0", "#1", "#^-", "#^0", 
         let expected = Ok(ast::Expression::UnOp(ast::UnOp {
             context: (),
             operator: ast::UnOperator::C0,
-            operand: Box::new(ast::Expression::NumberLiteral(ast::NumberLiteral {
+            operand: sync::Arc::new(ast::Expression::NumberLiteral(ast::NumberLiteral {
                 context: (),
                 value: ast::NumberValue::U32(0),
             })),
@@ -1194,10 +1188,10 @@ help: valid tokens at this point: ["!", "#$0", "#$1", "#0", "#1", "#^-", "#^0", 
         let expected = Ok(ast::Expression::UnOp(ast::UnOp {
             context: (),
             operator: ast::UnOperator::C0,
-            operand: Box::new(ast::Expression::UnOp(ast::UnOp {
+            operand: sync::Arc::new(ast::Expression::UnOp(ast::UnOp {
                 context: (),
                 operator: ast::UnOperator::C0,
-                operand: Box::new(ast::Expression::NumberLiteral(ast::NumberLiteral {
+                operand: sync::Arc::new(ast::Expression::NumberLiteral(ast::NumberLiteral {
                     context: (),
                     value: ast::NumberValue::U32(0),
                 })),
@@ -1214,7 +1208,7 @@ help: valid tokens at this point: ["!", "#$0", "#$1", "#0", "#1", "#^-", "#^0", 
         let expected = Ok(ast::Expression::UnOp(ast::UnOp {
             context: (),
             operator: ast::UnOperator::C1,
-            operand: Box::new(ast::Expression::NumberLiteral(ast::NumberLiteral {
+            operand: sync::Arc::new(ast::Expression::NumberLiteral(ast::NumberLiteral {
                 context: (),
                 value: ast::NumberValue::U32(0),
             })),
@@ -1230,10 +1224,10 @@ help: valid tokens at this point: ["!", "#$0", "#$1", "#0", "#1", "#^-", "#^0", 
         let expected = Ok(ast::Expression::UnOp(ast::UnOp {
             context: (),
             operator: ast::UnOperator::C1,
-            operand: Box::new(ast::Expression::UnOp(ast::UnOp {
+            operand: sync::Arc::new(ast::Expression::UnOp(ast::UnOp {
                 context: (),
                 operator: ast::UnOperator::C1,
-                operand: Box::new(ast::Expression::NumberLiteral(ast::NumberLiteral {
+                operand: sync::Arc::new(ast::Expression::NumberLiteral(ast::NumberLiteral {
                     context: (),
                     value: ast::NumberValue::U32(0),
                 })),
@@ -1250,7 +1244,7 @@ help: valid tokens at this point: ["!", "#$0", "#$1", "#0", "#1", "#^-", "#^0", 
         let expected = Ok(ast::Expression::UnOp(ast::UnOp {
             context: (),
             operator: ast::UnOperator::Sqrt,
-            operand: Box::new(ast::Expression::NumberLiteral(ast::NumberLiteral {
+            operand: sync::Arc::new(ast::Expression::NumberLiteral(ast::NumberLiteral {
                 context: (),
                 value: ast::NumberValue::U32(0),
             })),
@@ -1266,10 +1260,10 @@ help: valid tokens at this point: ["!", "#$0", "#$1", "#0", "#1", "#^-", "#^0", 
         let expected = Ok(ast::Expression::UnOp(ast::UnOp {
             context: (),
             operator: ast::UnOperator::Sqrt,
-            operand: Box::new(ast::Expression::UnOp(ast::UnOp {
+            operand: sync::Arc::new(ast::Expression::UnOp(ast::UnOp {
                 context: (),
                 operator: ast::UnOperator::Sqrt,
-                operand: Box::new(ast::Expression::NumberLiteral(ast::NumberLiteral {
+                operand: sync::Arc::new(ast::Expression::NumberLiteral(ast::NumberLiteral {
                     context: (),
                     value: ast::NumberValue::U32(0),
                 })),
@@ -1286,44 +1280,46 @@ help: valid tokens at this point: ["!", "#$0", "#$1", "#0", "#1", "#^-", "#^0", 
         let expected = Ok(ast::Expression::Lambda(ast::Lambda {
             context: (),
             parameters: vec![
-                ast::Parameter {
+                sync::Arc::new(ast::Parameter {
                     context: (),
-                    name: ast::Identifier {
+                    name: sync::Arc::new(ast::Identifier {
                         context: (),
-                        value: "a".to_owned(),
-                    },
-                    signature: ast::Expression::Identifier(ast::Identifier {
-                        context: (),
-                        value: "t1".to_owned(),
+                        value: sync::Arc::new("a".to_owned()),
                     }),
-                },
-                ast::Parameter {
+                    signature: sync::Arc::new(ast::Expression::Identifier(ast::Identifier {
+                        context: (),
+                        value: sync::Arc::new("t1".to_owned()),
+                    })),
+                }),
+                sync::Arc::new(ast::Parameter {
                     context: (),
-                    name: ast::Identifier {
+                    name: sync::Arc::new(ast::Identifier {
                         context: (),
-                        value: "b".to_owned(),
-                    },
-                    signature: ast::Expression::Identifier(ast::Identifier {
-                        context: (),
-                        value: "t2".to_owned(),
+                        value: sync::Arc::new("b".to_owned()),
                     }),
-                },
+                    signature: sync::Arc::new(ast::Expression::Identifier(ast::Identifier {
+                        context: (),
+                        value: sync::Arc::new("t2".to_owned()),
+                    })),
+                }),
             ],
-            signature: Box::new(ast::Expression::Identifier(ast::Identifier {
+            signature: sync::Arc::new(ast::Expression::Identifier(ast::Identifier {
                 context: (),
-                value: "t3".to_owned(),
+                value: sync::Arc::new("t3".to_owned()),
             })),
             statements: vec![],
-            result: Some(Box::new(ast::Expression::Apply(ast::Apply {
+            result: Some(sync::Arc::new(ast::Expression::Apply(ast::Apply {
                 context: (),
-                function: Box::new(ast::Expression::Identifier(ast::Identifier {
+                function: sync::Arc::new(ast::Expression::Identifier(ast::Identifier {
                     context: (),
-                    value: "a".to_owned(),
+                    value: sync::Arc::new("a".to_owned()),
                 })),
-                parameters: vec![ast::Expression::Identifier(ast::Identifier {
-                    context: (),
-                    value: "b".to_owned(),
-                })],
+                parameters: vec![sync::Arc::new(ast::Expression::Identifier(
+                    ast::Identifier {
+                        context: (),
+                        value: sync::Arc::new("b".to_owned()),
+                    },
+                ))],
             }))),
         }));
         let actual = parse_expression("test", r#"|a: t1, b: t2| -> t3 { a(b) }"#);
@@ -1337,80 +1333,84 @@ help: valid tokens at this point: ["!", "#$0", "#$1", "#0", "#1", "#^-", "#^0", 
         let expected = Ok(ast::Expression::Lambda(ast::Lambda {
             context: (),
             parameters: vec![
-                ast::Parameter {
+                sync::Arc::new(ast::Parameter {
                     context: (),
-                    name: ast::Identifier {
+                    name: sync::Arc::new(ast::Identifier {
                         context: (),
-                        value: "a".to_owned(),
-                    },
-                    signature: ast::Expression::Identifier(ast::Identifier {
-                        context: (),
-                        value: "t1".to_owned(),
+                        value: sync::Arc::new("a".to_owned()),
                     }),
-                },
-                ast::Parameter {
+                    signature: sync::Arc::new(ast::Expression::Identifier(ast::Identifier {
+                        context: (),
+                        value: sync::Arc::new("t1".to_owned()),
+                    })),
+                }),
+                sync::Arc::new(ast::Parameter {
                     context: (),
-                    name: ast::Identifier {
+                    name: sync::Arc::new(ast::Identifier {
                         context: (),
-                        value: "b".to_owned(),
-                    },
-                    signature: ast::Expression::Identifier(ast::Identifier {
-                        context: (),
-                        value: "t2".to_owned(),
+                        value: sync::Arc::new("b".to_owned()),
                     }),
-                },
+                    signature: sync::Arc::new(ast::Expression::Identifier(ast::Identifier {
+                        context: (),
+                        value: sync::Arc::new("t2".to_owned()),
+                    })),
+                }),
             ],
-            signature: Box::new(ast::Expression::Identifier(ast::Identifier {
+            signature: sync::Arc::new(ast::Expression::Identifier(ast::Identifier {
                 context: (),
-                value: "t3".to_owned(),
+                value: sync::Arc::new("t3".to_owned()),
             })),
-            statements: vec![ast::Statement::Variable(ast::Variable {
+            statements: vec![sync::Arc::new(ast::Statement::Variable(ast::Variable {
                 context: (),
-                name: ast::Identifier {
+                name: sync::Arc::new(ast::Identifier {
                     context: (),
-                    value: "c".to_owned(),
-                },
-                initializer: ast::Expression::Lambda(ast::Lambda {
+                    value: sync::Arc::new("c".to_owned()),
+                }),
+                initializer: sync::Arc::new(ast::Expression::Lambda(ast::Lambda {
                     context: (),
-                    parameters: vec![ast::Parameter {
+                    parameters: vec![sync::Arc::new(ast::Parameter {
                         context: (),
-                        name: ast::Identifier {
+                        name: sync::Arc::new(ast::Identifier {
                             context: (),
-                            value: "b".to_owned(),
-                        },
-                        signature: ast::Expression::Identifier(ast::Identifier {
-                            context: (),
-                            value: "t4".to_owned(),
+                            value: sync::Arc::new("b".to_owned()),
                         }),
-                    }],
-                    signature: Box::new(ast::Expression::Identifier(ast::Identifier {
+                        signature: sync::Arc::new(ast::Expression::Identifier(ast::Identifier {
+                            context: (),
+                            value: sync::Arc::new("t4".to_owned()),
+                        })),
+                    })],
+                    signature: sync::Arc::new(ast::Expression::Identifier(ast::Identifier {
                         context: (),
-                        value: "t5".to_owned(),
+                        value: sync::Arc::new("t5".to_owned()),
                     })),
                     statements: vec![],
-                    result: Some(Box::new(ast::Expression::Apply(ast::Apply {
+                    result: Some(sync::Arc::new(ast::Expression::Apply(ast::Apply {
                         context: (),
-                        function: Box::new(ast::Expression::Identifier(ast::Identifier {
+                        function: sync::Arc::new(ast::Expression::Identifier(ast::Identifier {
                             context: (),
-                            value: "a".to_owned(),
+                            value: sync::Arc::new("a".to_owned()),
                         })),
-                        parameters: vec![ast::Expression::Identifier(ast::Identifier {
-                            context: (),
-                            value: "b".to_owned(),
-                        })],
+                        parameters: vec![sync::Arc::new(ast::Expression::Identifier(
+                            ast::Identifier {
+                                context: (),
+                                value: sync::Arc::new("b".to_owned()),
+                            },
+                        ))],
                     }))),
-                }),
-            })],
-            result: Some(Box::new(ast::Expression::Apply(ast::Apply {
-                context: (),
-                function: Box::new(ast::Expression::Identifier(ast::Identifier {
-                    context: (),
-                    value: "c".to_owned(),
                 })),
-                parameters: vec![ast::Expression::Identifier(ast::Identifier {
+            }))],
+            result: Some(sync::Arc::new(ast::Expression::Apply(ast::Apply {
+                context: (),
+                function: sync::Arc::new(ast::Expression::Identifier(ast::Identifier {
                     context: (),
-                    value: "b".to_owned(),
-                })],
+                    value: sync::Arc::new("c".to_owned()),
+                })),
+                parameters: vec![sync::Arc::new(ast::Expression::Identifier(
+                    ast::Identifier {
+                        context: (),
+                        value: sync::Arc::new("b".to_owned()),
+                    },
+                ))],
             }))),
         }));
         let actual = parse_expression(
@@ -1427,80 +1427,84 @@ help: valid tokens at this point: ["!", "#$0", "#$1", "#0", "#1", "#^-", "#^0", 
         let expected = Ok(ast::Expression::Lambda(ast::Lambda {
             context: (),
             parameters: vec![
-                ast::Parameter {
+                sync::Arc::new(ast::Parameter {
                     context: (),
-                    name: ast::Identifier {
+                    name: sync::Arc::new(ast::Identifier {
                         context: (),
-                        value: "a".to_owned(),
-                    },
-                    signature: ast::Expression::Identifier(ast::Identifier {
-                        context: (),
-                        value: "t1".to_owned(),
+                        value: sync::Arc::new("a".to_owned()),
                     }),
-                },
-                ast::Parameter {
+                    signature: sync::Arc::new(ast::Expression::Identifier(ast::Identifier {
+                        context: (),
+                        value: sync::Arc::new("t1".to_owned()),
+                    })),
+                }),
+                sync::Arc::new(ast::Parameter {
                     context: (),
-                    name: ast::Identifier {
+                    name: sync::Arc::new(ast::Identifier {
                         context: (),
-                        value: "b".to_owned(),
-                    },
-                    signature: ast::Expression::Identifier(ast::Identifier {
-                        context: (),
-                        value: "t2".to_owned(),
+                        value: sync::Arc::new("b".to_owned()),
                     }),
-                },
+                    signature: sync::Arc::new(ast::Expression::Identifier(ast::Identifier {
+                        context: (),
+                        value: sync::Arc::new("t2".to_owned()),
+                    })),
+                }),
             ],
-            signature: Box::new(ast::Expression::Identifier(ast::Identifier {
+            signature: sync::Arc::new(ast::Expression::Identifier(ast::Identifier {
                 context: (),
-                value: "t3".to_owned(),
+                value: sync::Arc::new("t3".to_owned()),
             })),
-            statements: vec![ast::Statement::Variable(ast::Variable {
+            statements: vec![sync::Arc::new(ast::Statement::Variable(ast::Variable {
                 context: (),
-                name: ast::Identifier {
+                name: sync::Arc::new(ast::Identifier {
                     context: (),
-                    value: "c".to_owned(),
-                },
-                initializer: ast::Expression::Lambda(ast::Lambda {
+                    value: sync::Arc::new("c".to_owned()),
+                }),
+                initializer: sync::Arc::new(ast::Expression::Lambda(ast::Lambda {
                     context: (),
-                    parameters: vec![ast::Parameter {
+                    parameters: vec![sync::Arc::new(ast::Parameter {
                         context: (),
-                        name: ast::Identifier {
+                        name: sync::Arc::new(ast::Identifier {
                             context: (),
-                            value: "b".to_owned(),
-                        },
-                        signature: ast::Expression::Identifier(ast::Identifier {
-                            context: (),
-                            value: "t4".to_owned(),
+                            value: sync::Arc::new("b".to_owned()),
                         }),
-                    }],
-                    signature: Box::new(ast::Expression::Identifier(ast::Identifier {
+                        signature: sync::Arc::new(ast::Expression::Identifier(ast::Identifier {
+                            context: (),
+                            value: sync::Arc::new("t4".to_owned()),
+                        })),
+                    })],
+                    signature: sync::Arc::new(ast::Expression::Identifier(ast::Identifier {
                         context: (),
-                        value: "t5".to_owned(),
+                        value: sync::Arc::new("t5".to_owned()),
                     })),
                     statements: vec![],
-                    result: Some(Box::new(ast::Expression::Apply(ast::Apply {
+                    result: Some(sync::Arc::new(ast::Expression::Apply(ast::Apply {
                         context: (),
-                        function: Box::new(ast::Expression::Identifier(ast::Identifier {
+                        function: sync::Arc::new(ast::Expression::Identifier(ast::Identifier {
                             context: (),
-                            value: "a".to_owned(),
+                            value: sync::Arc::new("a".to_owned()),
                         })),
-                        parameters: vec![ast::Expression::Identifier(ast::Identifier {
-                            context: (),
-                            value: "b".to_owned(),
-                        })],
+                        parameters: vec![sync::Arc::new(ast::Expression::Identifier(
+                            ast::Identifier {
+                                context: (),
+                                value: sync::Arc::new("b".to_owned()),
+                            },
+                        ))],
                     }))),
-                }),
-            })],
-            result: Some(Box::new(ast::Expression::Apply(ast::Apply {
-                context: (),
-                function: Box::new(ast::Expression::Identifier(ast::Identifier {
-                    context: (),
-                    value: "c".to_owned(),
                 })),
-                parameters: vec![ast::Expression::Identifier(ast::Identifier {
+            }))],
+            result: Some(sync::Arc::new(ast::Expression::Apply(ast::Apply {
+                context: (),
+                function: sync::Arc::new(ast::Expression::Identifier(ast::Identifier {
                     context: (),
-                    value: "b".to_owned(),
-                })],
+                    value: sync::Arc::new("c".to_owned()),
+                })),
+                parameters: vec![sync::Arc::new(ast::Expression::Identifier(
+                    ast::Identifier {
+                        context: (),
+                        value: sync::Arc::new("b".to_owned()),
+                    },
+                ))],
             }))),
         }));
         let actual = parse_expression(
@@ -1517,44 +1521,46 @@ help: valid tokens at this point: ["!", "#$0", "#$1", "#0", "#1", "#^-", "#^0", 
         let expected = Ok(ast::Expression::Lambda(ast::Lambda {
             context: (),
             parameters: vec![
-                ast::Parameter {
+                sync::Arc::new(ast::Parameter {
                     context: (),
-                    name: ast::Identifier {
+                    name: sync::Arc::new(ast::Identifier {
                         context: (),
-                        value: "a".to_owned(),
-                    },
-                    signature: ast::Expression::NumberLiteral(ast::NumberLiteral {
+                        value: sync::Arc::new("a".to_owned()),
+                    }),
+                    signature: sync::Arc::new(ast::Expression::NumberLiteral(ast::NumberLiteral {
                         context: (),
                         value: ast::NumberValue::U32(0),
-                    }),
-                },
-                ast::Parameter {
+                    })),
+                }),
+                sync::Arc::new(ast::Parameter {
                     context: (),
-                    name: ast::Identifier {
+                    name: sync::Arc::new(ast::Identifier {
                         context: (),
-                        value: "b".to_owned(),
-                    },
-                    signature: ast::Expression::NumberLiteral(ast::NumberLiteral {
+                        value: sync::Arc::new("b".to_owned()),
+                    }),
+                    signature: sync::Arc::new(ast::Expression::NumberLiteral(ast::NumberLiteral {
                         context: (),
                         value: ast::NumberValue::U32(0),
-                    }),
-                },
+                    })),
+                }),
             ],
-            signature: Box::new(ast::Expression::Identifier(ast::Identifier {
+            signature: sync::Arc::new(ast::Expression::Identifier(ast::Identifier {
                 context: (),
-                value: "t1".to_owned(),
+                value: sync::Arc::new("t1".to_owned()),
             })),
             statements: vec![],
-            result: Some(Box::new(ast::Expression::Apply(ast::Apply {
+            result: Some(sync::Arc::new(ast::Expression::Apply(ast::Apply {
                 context: (),
-                function: Box::new(ast::Expression::Identifier(ast::Identifier {
+                function: sync::Arc::new(ast::Expression::Identifier(ast::Identifier {
                     context: (),
-                    value: "a".to_owned(),
+                    value: sync::Arc::new("a".to_owned()),
                 })),
-                parameters: vec![ast::Expression::Identifier(ast::Identifier {
-                    context: (),
-                    value: "b".to_owned(),
-                })],
+                parameters: vec![sync::Arc::new(ast::Expression::Identifier(
+                    ast::Identifier {
+                        context: (),
+                        value: sync::Arc::new("b".to_owned()),
+                    },
+                ))],
             }))),
         }));
         let actual = parse_expression("test", r#"|a: u32, b: u32| -> t1 { a(b) }"#);
@@ -1568,56 +1574,60 @@ help: valid tokens at this point: ["!", "#$0", "#$1", "#0", "#1", "#^-", "#^0", 
         let expected = Ok(ast::Expression::Lambda(ast::Lambda {
             context: (),
             parameters: vec![
-                ast::Parameter {
+                sync::Arc::new(ast::Parameter {
                     context: (),
-                    name: ast::Identifier {
+                    name: sync::Arc::new(ast::Identifier {
                         context: (),
-                        value: "a".to_owned(),
-                    },
-                    signature: ast::Expression::Identifier(ast::Identifier {
-                        context: (),
-                        value: "t1".to_owned(),
+                        value: sync::Arc::new("a".to_owned()),
                     }),
-                },
-                ast::Parameter {
-                    context: (),
-                    name: ast::Identifier {
+                    signature: sync::Arc::new(ast::Expression::Identifier(ast::Identifier {
                         context: (),
-                        value: "b".to_owned(),
-                    },
-                    signature: ast::Expression::Identifier(ast::Identifier {
-                        context: (),
-                        value: "t2".to_owned(),
-                    }),
-                },
-            ],
-            signature: Box::new(ast::Expression::Identifier(ast::Identifier {
-                context: (),
-                value: "t3".to_owned(),
-            })),
-            statements: vec![ast::Statement::Expression(ast::Expression::Apply(
-                ast::Apply {
-                    context: (),
-                    function: Box::new(ast::Expression::Identifier(ast::Identifier {
-                        context: (),
-                        value: "a".to_owned(),
+                        value: sync::Arc::new("t1".to_owned()),
                     })),
-                    parameters: vec![ast::Expression::Identifier(ast::Identifier {
+                }),
+                sync::Arc::new(ast::Parameter {
+                    context: (),
+                    name: sync::Arc::new(ast::Identifier {
                         context: (),
-                        value: "b".to_owned(),
-                    })],
-                },
-            ))],
-            result: Some(Box::new(ast::Expression::Apply(ast::Apply {
+                        value: sync::Arc::new("b".to_owned()),
+                    }),
+                    signature: sync::Arc::new(ast::Expression::Identifier(ast::Identifier {
+                        context: (),
+                        value: sync::Arc::new("t2".to_owned()),
+                    })),
+                }),
+            ],
+            signature: sync::Arc::new(ast::Expression::Identifier(ast::Identifier {
                 context: (),
-                function: Box::new(ast::Expression::Identifier(ast::Identifier {
+                value: sync::Arc::new("t3".to_owned()),
+            })),
+            statements: vec![sync::Arc::new(ast::Statement::Expression(
+                ast::Expression::Apply(ast::Apply {
                     context: (),
-                    value: "a".to_owned(),
+                    function: sync::Arc::new(ast::Expression::Identifier(ast::Identifier {
+                        context: (),
+                        value: sync::Arc::new("a".to_owned()),
+                    })),
+                    parameters: vec![sync::Arc::new(ast::Expression::Identifier(
+                        ast::Identifier {
+                            context: (),
+                            value: sync::Arc::new("b".to_owned()),
+                        },
+                    ))],
+                }),
+            ))],
+            result: Some(sync::Arc::new(ast::Expression::Apply(ast::Apply {
+                context: (),
+                function: sync::Arc::new(ast::Expression::Identifier(ast::Identifier {
+                    context: (),
+                    value: sync::Arc::new("a".to_owned()),
                 })),
-                parameters: vec![ast::Expression::Identifier(ast::Identifier {
-                    context: (),
-                    value: "b".to_owned(),
-                })],
+                parameters: vec![sync::Arc::new(ast::Expression::Identifier(
+                    ast::Identifier {
+                        context: (),
+                        value: sync::Arc::new("b".to_owned()),
+                    },
+                ))],
             }))),
         }));
         let actual = parse_expression("test", r#"|a: t1, b: t2| -> t3 { a(b); a(b) }"#);
@@ -1630,14 +1640,16 @@ help: valid tokens at this point: ["!", "#$0", "#$1", "#0", "#1", "#^-", "#^0", 
 
         let expected = Ok(ast::Expression::Apply(ast::Apply {
             context: (),
-            function: Box::new(ast::Expression::Identifier(ast::Identifier {
+            function: sync::Arc::new(ast::Expression::Identifier(ast::Identifier {
                 context: (),
-                value: "a".to_owned(),
+                value: sync::Arc::new("a".to_owned()),
             })),
-            parameters: vec![ast::Expression::Identifier(ast::Identifier {
-                context: (),
-                value: "b".to_owned(),
-            })],
+            parameters: vec![sync::Arc::new(ast::Expression::Identifier(
+                ast::Identifier {
+                    context: (),
+                    value: sync::Arc::new("b".to_owned()),
+                },
+            ))],
         }));
         let actual = parse_expression("test", r#"a(b)"#);
         assert_eq!(expected, actual);

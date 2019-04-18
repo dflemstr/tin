@@ -5,32 +5,32 @@ use std::sync;
 lazy_static! {
     pub static ref NIL: Value = {
         Value::new(Case::Symbol(Symbol {
-            label: "nil".to_owned(),
+            label: sync::Arc::new("nil".to_owned()),
         }))
     };
     pub static ref FALSE: Value = {
         Value::new(Case::Symbol(Symbol {
-            label: "f".to_owned(),
+            label: sync::Arc::new("f".to_owned()),
         }))
     };
     pub static ref TRUE: Value = {
         Value::new(Case::Symbol(Symbol {
-            label: "t".to_owned(),
+            label: sync::Arc::new("t".to_owned()),
         }))
     };
     pub static ref LT: Value = {
         Value::new(Case::Symbol(Symbol {
-            label: "lt".to_owned(),
+            label: sync::Arc::new("lt".to_owned()),
         }))
     };
     pub static ref EQ: Value = {
         Value::new(Case::Symbol(Symbol {
-            label: "eq".to_owned(),
+            label: sync::Arc::new("eq".to_owned()),
         }))
     };
     pub static ref GT: Value = {
         Value::new(Case::Symbol(Symbol {
-            label: "gt".to_owned(),
+            label: sync::Arc::new("gt".to_owned()),
         }))
     };
 }
@@ -63,7 +63,7 @@ pub enum Number {
 
 #[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub struct Symbol {
-    pub label: String,
+    pub label: sync::Arc<String>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -73,7 +73,7 @@ pub struct Tuple {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Record {
-    pub fields: collections::HashMap<String, Value>,
+    pub fields: collections::HashMap<sync::Arc<String>, Value>,
 }
 
 impl Value {
@@ -92,11 +92,7 @@ impl Value {
         Value(sync::Arc::new(Case::String(string.into())))
     }
 
-    pub fn symbol<S>(label: S) -> Self
-    where
-        S: Into<String>,
-    {
-        let label = label.into();
+    pub fn symbol(label: sync::Arc<String>) -> Self {
         Value::new(Case::Symbol(Symbol { label }))
     }
 

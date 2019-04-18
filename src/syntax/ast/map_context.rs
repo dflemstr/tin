@@ -1,5 +1,6 @@
 //! AST node context mapping helpers.
 use std::fmt;
+use std::sync;
 
 use crate::syntax::ast;
 use crate::syntax::ast::ast_node;
@@ -20,8 +21,8 @@ pub trait MapContext<C1, C2>: ast_node::AstNode<C1> {
 
 impl<C1, C2> MapContext<C1, C2> for ast::Module<C1>
 where
-    C1: fmt::Debug,
-    C2: fmt::Debug,
+    C1: Clone + fmt::Debug,
+    C2: Clone + fmt::Debug,
 {
     type Output = ast::Module<C2>;
 
@@ -33,7 +34,7 @@ where
         let variables = self
             .variables
             .into_iter()
-            .map(|v| v.map_context(mapping))
+            .map(|v| sync::Arc::new(own(v).map_context(mapping)))
             .collect();
 
         ast::Module { context, variables }
@@ -42,8 +43,8 @@ where
 
 impl<C1, C2> MapContext<C1, C2> for ast::Identifier<C1>
 where
-    C1: fmt::Debug,
-    C2: fmt::Debug,
+    C1: Clone + fmt::Debug,
+    C2: Clone + fmt::Debug,
 {
     type Output = ast::Identifier<C2>;
 
@@ -60,8 +61,8 @@ where
 
 impl<C1, C2> MapContext<C1, C2> for ast::Expression<C1>
 where
-    C1: fmt::Debug,
-    C2: fmt::Debug,
+    C1: Clone + fmt::Debug,
+    C2: Clone + fmt::Debug,
 {
     type Output = ast::Expression<C2>;
 
@@ -92,8 +93,8 @@ where
 
 impl<C1, C2> MapContext<C1, C2> for ast::NumberLiteral<C1>
 where
-    C1: fmt::Debug,
-    C2: fmt::Debug,
+    C1: Clone + fmt::Debug,
+    C2: Clone + fmt::Debug,
 {
     type Output = ast::NumberLiteral<C2>;
 
@@ -109,8 +110,8 @@ where
 
 impl<C1, C2> MapContext<C1, C2> for ast::StringLiteral<C1>
 where
-    C1: fmt::Debug,
-    C2: fmt::Debug,
+    C1: Clone + fmt::Debug,
+    C2: Clone + fmt::Debug,
 {
     type Output = ast::StringLiteral<C2>;
 
@@ -126,8 +127,8 @@ where
 
 impl<C1, C2> MapContext<C1, C2> for ast::Symbol<C1>
 where
-    C1: fmt::Debug,
-    C2: fmt::Debug,
+    C1: Clone + fmt::Debug,
+    C2: Clone + fmt::Debug,
 {
     type Output = ast::Symbol<C2>;
 
@@ -143,8 +144,8 @@ where
 
 impl<C1, C2> MapContext<C1, C2> for ast::Tuple<C1>
 where
-    C1: fmt::Debug,
-    C2: fmt::Debug,
+    C1: Clone + fmt::Debug,
+    C2: Clone + fmt::Debug,
 {
     type Output = ast::Tuple<C2>;
 
@@ -156,7 +157,7 @@ where
         let fields = self
             .fields
             .into_iter()
-            .map(|f| f.map_context(mapping))
+            .map(|f| sync::Arc::new(own(f).map_context(mapping)))
             .collect();
         ast::Tuple { context, fields }
     }
@@ -164,8 +165,8 @@ where
 
 impl<C1, C2> MapContext<C1, C2> for ast::Record<C1>
 where
-    C1: fmt::Debug,
-    C2: fmt::Debug,
+    C1: Clone + fmt::Debug,
+    C2: Clone + fmt::Debug,
 {
     type Output = ast::Record<C2>;
 
@@ -177,7 +178,12 @@ where
         let fields = self
             .fields
             .into_iter()
-            .map(|(i, f)| (i.map_context(mapping), f.map_context(mapping)))
+            .map(|(i, f)| {
+                (
+                    sync::Arc::new(own(i).map_context(mapping)),
+                    sync::Arc::new(own(f).map_context(mapping)),
+                )
+            })
             .collect();
         ast::Record { context, fields }
     }
@@ -185,8 +191,8 @@ where
 
 impl<C1, C2> MapContext<C1, C2> for ast::UnOp<C1>
 where
-    C1: fmt::Debug,
-    C2: fmt::Debug,
+    C1: Clone + fmt::Debug,
+    C2: Clone + fmt::Debug,
 {
     type Output = ast::UnOp<C2>;
 
@@ -196,7 +202,7 @@ where
     {
         let context = mapping(self.context);
         let operator = self.operator;
-        let operand = Box::new(self.operand.map_context(mapping));
+        let operand = sync::Arc::new(own(self.operand).map_context(mapping));
         ast::UnOp {
             context,
             operator,
@@ -207,8 +213,8 @@ where
 
 impl<C1, C2> MapContext<C1, C2> for ast::BiOp<C1>
 where
-    C1: fmt::Debug,
-    C2: fmt::Debug,
+    C1: Clone + fmt::Debug,
+    C2: Clone + fmt::Debug,
 {
     type Output = ast::BiOp<C2>;
 
@@ -217,9 +223,9 @@ where
         F: FnMut(C1) -> C2,
     {
         let context = mapping(self.context);
-        let lhs = Box::new(self.lhs.map_context(mapping));
+        let lhs = sync::Arc::new(own(self.lhs).map_context(mapping));
         let operator = self.operator;
-        let rhs = Box::new(self.rhs.map_context(mapping));
+        let rhs = sync::Arc::new(own(self.rhs).map_context(mapping));
         ast::BiOp {
             context,
             lhs,
@@ -231,8 +237,8 @@ where
 
 impl<C1, C2> MapContext<C1, C2> for ast::Lambda<C1>
 where
-    C1: fmt::Debug,
-    C2: fmt::Debug,
+    C1: Clone + fmt::Debug,
+    C2: Clone + fmt::Debug,
 {
     type Output = ast::Lambda<C2>;
 
@@ -244,15 +250,17 @@ where
         let parameters = self
             .parameters
             .into_iter()
-            .map(|p| p.map_context(mapping))
+            .map(|p| sync::Arc::new(own(p).map_context(mapping)))
             .collect();
-        let signature = Box::new(self.signature.map_context(mapping));
+        let signature = sync::Arc::new(own(self.signature).map_context(mapping));
         let statements = self
             .statements
             .into_iter()
-            .map(|s| s.map_context(mapping))
+            .map(|s| sync::Arc::new(own(s).map_context(mapping)))
             .collect();
-        let result = self.result.map(|r| Box::new(r.map_context(mapping)));
+        let result = self
+            .result
+            .map(|r| sync::Arc::new(own(r).map_context(mapping)));
 
         ast::Lambda {
             context,
@@ -266,8 +274,8 @@ where
 
 impl<C1, C2> MapContext<C1, C2> for ast::Statement<C1>
 where
-    C1: fmt::Debug,
-    C2: fmt::Debug,
+    C1: Clone + fmt::Debug,
+    C2: Clone + fmt::Debug,
 {
     type Output = ast::Statement<C2>;
 
@@ -284,8 +292,8 @@ where
 
 impl<C1, C2> MapContext<C1, C2> for ast::Variable<C1>
 where
-    C1: fmt::Debug,
-    C2: fmt::Debug,
+    C1: Clone + fmt::Debug,
+    C2: Clone + fmt::Debug,
 {
     type Output = ast::Variable<C2>;
 
@@ -294,8 +302,8 @@ where
         F: FnMut(C1) -> C2,
     {
         let context = mapping(self.context);
-        let name = self.name.map_context(mapping);
-        let initializer = self.initializer.map_context(mapping);
+        let name = sync::Arc::new(own(self.name).map_context(mapping));
+        let initializer = sync::Arc::new(own(self.initializer).map_context(mapping));
 
         ast::Variable {
             context,
@@ -307,8 +315,8 @@ where
 
 impl<C1, C2> MapContext<C1, C2> for ast::Select<C1>
 where
-    C1: fmt::Debug,
-    C2: fmt::Debug,
+    C1: Clone + fmt::Debug,
+    C2: Clone + fmt::Debug,
 {
     type Output = ast::Select<C2>;
 
@@ -317,8 +325,8 @@ where
         F: FnMut(C1) -> C2,
     {
         let context = mapping(self.context);
-        let record = Box::new(self.record.map_context(mapping));
-        let field = self.field.map_context(mapping);
+        let record = sync::Arc::new(own(self.record).map_context(mapping));
+        let field = sync::Arc::new(own(self.field).map_context(mapping));
         ast::Select {
             context,
             record,
@@ -329,8 +337,8 @@ where
 
 impl<C1, C2> MapContext<C1, C2> for ast::Apply<C1>
 where
-    C1: fmt::Debug,
-    C2: fmt::Debug,
+    C1: Clone + fmt::Debug,
+    C2: Clone + fmt::Debug,
 {
     type Output = ast::Apply<C2>;
 
@@ -339,11 +347,11 @@ where
         F: FnMut(C1) -> C2,
     {
         let context = mapping(self.context);
-        let function = Box::new(self.function.map_context(mapping));
+        let function = sync::Arc::new(own(self.function).map_context(mapping));
         let parameters = self
             .parameters
             .into_iter()
-            .map(|e| e.map_context(mapping))
+            .map(|e| sync::Arc::new(own(e).map_context(mapping)))
             .collect();
         ast::Apply {
             context,
@@ -355,8 +363,8 @@ where
 
 impl<C1, C2> MapContext<C1, C2> for ast::Parameter<C1>
 where
-    C1: fmt::Debug,
-    C2: fmt::Debug,
+    C1: Clone + fmt::Debug,
+    C2: Clone + fmt::Debug,
 {
     type Output = ast::Parameter<C2>;
 
@@ -365,12 +373,19 @@ where
         F: FnMut(C1) -> C2,
     {
         let context = mapping(self.context);
-        let name = self.name.map_context(mapping);
-        let signature = self.signature.map_context(mapping);
+        let name = sync::Arc::new(own(self.name).map_context(mapping));
+        let signature = sync::Arc::new(own(self.signature).map_context(mapping));
         ast::Parameter {
             context,
             name,
             signature,
         }
     }
+}
+
+fn own<A>(arc: sync::Arc<A>) -> A
+where
+    A: Clone,
+{
+    sync::Arc::try_unwrap(arc).unwrap_or_else(|arc| (*arc).clone())
 }

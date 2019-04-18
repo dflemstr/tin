@@ -1,7 +1,7 @@
 //! Intermediate representation variables for the compiler and interpreter.
 use std::collections;
 
-pub mod builder;
+// pub mod builder;
 pub mod db;
 pub mod element;
 pub mod error;
@@ -12,6 +12,9 @@ pub mod world;
 //mod tests;
 
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+pub struct Ident(u32);
+
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct Entity(u32);
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -19,12 +22,25 @@ pub struct Entities {
     elements: collections::HashMap<Entity, element::Element>,
     locations: collections::HashMap<Entity, location::Location>,
     symbols: collections::HashMap<Entity, symbol::Symbol>,
-    next_entity: u32,
 }
 
-impl Entity {
-    pub fn new(id: u32) -> Self {
-        Self(id)
+impl salsa::InternKey for Ident {
+    fn from_intern_id(v: salsa::InternId) -> Self {
+        Ident(v.as_u32())
+    }
+
+    fn as_intern_id(&self) -> salsa::InternId {
+        salsa::InternId::from(self.0)
+    }
+}
+
+impl salsa::InternKey for Entity {
+    fn from_intern_id(v: salsa::InternId) -> Self {
+        Entity(v.as_u32())
+    }
+
+    fn as_intern_id(&self) -> salsa::InternId {
+        salsa::InternId::from(self.0)
     }
 }
 
@@ -33,13 +49,11 @@ impl Entities {
         let elements = collections::HashMap::new();
         let locations = collections::HashMap::new();
         let symbols = collections::HashMap::new();
-        let next_entity = 0;
 
         Self {
             elements,
             locations,
             symbols,
-            next_entity,
         }
     }
 }

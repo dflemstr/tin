@@ -30,7 +30,6 @@
 //! # }
 //! ```
 #![feature(const_fn, const_vec_new)]
-
 // #![deny(nonstandard_style, warnings, unused)]
 #![deny(nonstandard_style)]
 #![deny(

@@ -2,6 +2,8 @@ use std::collections;
 use std::fmt;
 use std::sync;
 
+use crate::ir;
+
 pub mod class;
 pub mod db;
 pub mod error;
@@ -16,6 +18,7 @@ pub enum Type {
     Union(Union),
     Record(Record),
     Function(Function),
+    Placeholder,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -34,7 +37,7 @@ pub enum Number {
 
 #[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub struct Symbol {
-    pub label: String,
+    pub label: ir::Ident,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -49,7 +52,7 @@ pub struct Union {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Record {
-    pub fields: collections::HashMap<String, sync::Arc<Type>>,
+    pub fields: collections::HashMap<ir::Ident, sync::Arc<Type>>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -63,7 +66,7 @@ impl Type {
         match *self {
             Type::Number(ref n) => n.scalar_class(),
             Type::Symbol(_) => class::Scalar::Symbol,
-            Type::Union(_) | Type::Function(_) => class::Scalar::Undefined,
+            Type::Union(_) | Type::Function(_) | Type::Placeholder => class::Scalar::Undefined,
             Type::String | Type::Tuple(_) | Type::Record(_) => class::Scalar::Complex,
         }
     }
@@ -104,6 +107,7 @@ impl fmt::Display for Type {
             Type::Union(ref union) => union.fmt(f),
             Type::Record(ref record) => record.fmt(f),
             Type::Function(ref function) => function.fmt(f),
+            Type::Placeholder => write!(f, "???"),
         }
     }
 }
@@ -127,7 +131,7 @@ impl fmt::Display for Number {
 
 impl fmt::Display for Symbol {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, ":{}", self.label)
+        write!(f, ":{:?}", self.label)
     }
 }
 
@@ -169,7 +173,7 @@ impl fmt::Display for Record {
             if needs_sep {
                 write!(f, ", ")?;
             }
-            write!(f, "{}: ", id)?;
+            write!(f, "{:?}: ", id)?;
             ty.fmt(f)?;
             needs_sep = true;
         }

@@ -1,3 +1,4 @@
+use crate::ir;
 use std::fmt;
 
 pub mod db;
@@ -13,7 +14,7 @@ pub struct Layout {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct NamedField {
-    pub field: String,
+    pub field: ir::Ident,
     pub offset_layout: Offset,
 }
 

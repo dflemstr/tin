@@ -37,7 +37,7 @@ pub enum Number {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Symbol {
-    pub label: String,
+    pub label: ir::Ident,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -47,7 +47,7 @@ pub struct Tuple {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Record {
-    pub fields: collections::HashMap<String, ir::Entity>,
+    pub fields: collections::HashMap<ir::Ident, ir::Entity>,
 }
 
 /// An unary operator.
@@ -165,14 +165,14 @@ pub struct BiOp {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Variable {
-    pub name: String,
+    pub name: ir::Ident,
     pub initializer: ir::Entity,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Select {
     pub record: ir::Entity,
-    pub field: String,
+    pub field: ir::Ident,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -183,19 +183,19 @@ pub struct Apply {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Parameter {
-    pub name: String,
+    pub name: ir::Ident,
     pub signature: ir::Entity,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Capture {
-    pub name: String,
+    pub name: ir::Ident,
     pub captured: ir::Entity,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Closure {
-    pub captures: collections::HashMap<String, ir::Entity>,
+    pub captures: collections::HashMap<ir::Ident, ir::Entity>,
     pub parameters: Vec<ir::Entity>,
     pub statements: Vec<ir::Entity>,
     pub signature: ir::Entity,
@@ -204,7 +204,7 @@ pub struct Closure {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Module {
-    pub variables: collections::HashMap<String, ir::Entity>,
+    pub variables: collections::HashMap<ir::Ident, ir::Entity>,
 }
 
 impl fmt::Display for UnOperator {
