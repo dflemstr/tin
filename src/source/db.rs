@@ -20,13 +20,13 @@ pub trait SourceDb: salsa::Database {
 
     /// Source root of the file.
     #[salsa::input]
-    fn file_source_root(&self, file_id: source::FileId) -> source::SourceRootId;
+    fn file_source_root(&self, file_id: source::FileId) -> source::RootId;
 
     /// Contents of the source root.
     #[salsa::input]
-    fn source_root(&self, id: source::SourceRootId) -> sync::Arc<source::SourceRoot>;
+    fn source_root(&self, id: source::RootId) -> sync::Arc<source::Root>;
 
     /// All source roots.
     #[salsa::input]
-    fn all_source_roots(&self) -> sync::Arc<Vec<source::SourceRootId>>;
+    fn all_source_roots(&self) -> sync::Arc<Vec<source::RootId>>;
 }

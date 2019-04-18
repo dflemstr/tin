@@ -93,7 +93,6 @@ impl Tin {
         Tin { db }
     }
 
-    /*
     /// Loads the specified source code as a module.
     ///
     /// # Errors
@@ -135,6 +134,8 @@ impl Tin {
     where
         F: Into<codespan::FileName>,
     {
+        unimplemented!()
+        /*
         let span = self
             .codemap
             .add_filemap(file_name.into(), source.to_owned())
@@ -143,14 +144,17 @@ impl Tin {
         self.ir.load(&module)?;
 
         Ok(())
+        */
     }
 
+    /*
     /// Creates a graph representation of the current IR of this Tin instance.
     ///
     /// This can be used to for example visualize the code using GraphViz or other tools.
     pub fn graph(&self) -> graph::Graph {
         graph::Graph::new(&self.ir)
     }
+        */
 
     /// Compiles the code loaded so far into a stand-alone module.
     ///
@@ -178,17 +182,22 @@ impl Tin {
     /// # }
     /// ```
     pub fn compile(&mut self) -> Result<module::Module> {
+        unimplemented!()
+        /*
         self.ir.check_types()?;
         let module = codegen::Codegen::new(&self.ir, &self.codemap).compile();
         Ok(module)
+        */
     }
 
     /// Returns a reference to the current code map, which contains location mapping for all source
     /// code loaded so far.
     pub fn codemap(&self) -> &codespan::CodeMap {
+        unimplemented!()
+        /*
         &self.codemap
+        */
     }
-    */
 }
 
 impl Default for Tin {

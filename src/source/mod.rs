@@ -25,9 +25,9 @@ pub struct FileId(u32);
 /// source root at all. So, a file from one source root can't refer to a file in another source root
 /// by path.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub struct SourceRootId(u32);
+pub struct RootId(u32);
 
 #[derive(Default, Clone, Debug, PartialEq, Eq)]
-pub struct SourceRoot {
+pub struct Root {
     pub files: rustc_hash::FxHashMap<relative_path::RelativePathBuf, FileId>,
 }
