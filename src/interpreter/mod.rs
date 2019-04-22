@@ -106,7 +106,7 @@ fn eval_un_op(
     }
 }
 
-#[cfg_attr(feature = "cargo-clippy", allow(clippy::cyclomatic_complexity))]
+#[allow(clippy::cyclomatic_complexity)]
 fn eval_bi_op(
     lhs: &value::Value,
     operator: element::BiOperator,

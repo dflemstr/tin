@@ -49,7 +49,7 @@ lto = true
 codegen-units = 1
 
 [workspace]
-members = ["specs-visitor", "specs-visitor-derive", "tin-fuzz-target"]
+members = ["syntax"]
 
 [dev-dependencies]
 pretty_assertions = "0.6.1"
