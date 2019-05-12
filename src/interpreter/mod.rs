@@ -11,7 +11,7 @@ pub mod error;
 #[macro_use]
 mod macros;
 
-#[salsa::query_group(Interpreter)]
+#[salsa::query_group(InterpreterStorage)]
 pub trait Db: salsa::Database + ir::Db {
     fn value(&self, entity: ir::Entity) -> error::Result<Option<value::Value>>;
 }

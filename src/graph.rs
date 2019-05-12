@@ -88,9 +88,9 @@ impl<'a> dot::Labeller<'a, Node, Edge> for Graph<'a> {
     }
 
     fn node_label(&'a self, n: &Node) -> dot::LabelText<'a> {
-        use crate::ir::Db;
-        use crate::layout::db::LayoutDb;
-        use crate::ty::db::TyDb;
+        use crate::ir::Db as _;
+        use crate::layout::Db as _;
+        use crate::ty::db::TyDb as _;
         use std::fmt::Write;
 
         let mut result = format!("({}) ", n.0.id());

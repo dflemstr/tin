@@ -1,12 +1,13 @@
 use crate::ir;
+use crate::ty;
 use std::result;
 
 #[derive(Clone, Debug, Eq, Fail, PartialEq)]
 pub enum Error {
     #[fail(display = "semantic error: {}", _0)]
     Ir(#[cause] ir::error::Error),
-    #[fail(display = "not implemented")]
-    NotImplemented,
+    #[fail(display = "unknown size")]
+    UnknownSize,
 }
 
 pub type Result<A> = result::Result<A, Error>;

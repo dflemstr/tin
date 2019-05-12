@@ -12,7 +12,7 @@ pub mod location;
 #[cfg(test)]
 mod tests;
 
-#[salsa::query_group(Ir)]
+#[salsa::query_group(IrStorage)]
 pub trait Db: salsa::Database + syntax::db::SyntaxDb {
     #[salsa::interned]
     fn ident(&self, id: sync::Arc<String>) -> Ident;

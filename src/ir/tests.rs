@@ -4,6 +4,7 @@ use std::collections;
 use std::sync;
 
 use crate::db;
+use crate::layout;
 use crate::source;
 use crate::test_util;
 
@@ -125,7 +126,8 @@ a = || -> u32 {
 }
 
 fn check_module(name: &'static str, source: &str) -> Result<(), String> {
-    use crate::ir::Db;
+    use crate::ir::Db as _;
+    use crate::layout::Db as _;
     use crate::source::db::SourceDb;
 
     let mut codemap = codespan::CodeMap::new();
@@ -148,6 +150,7 @@ fn check_module(name: &'static str, source: &str) -> Result<(), String> {
     db.set_file_source_root(file_id, root_id);
     db.set_source_root(root_id, sync::Arc::new(root));
     db.set_all_source_roots(sync::Arc::new(vec![root_id]));
+    db.set_ptr_size(layout::PtrSize::Size64);
 
     db.entities()
         .map_err(|e| crate::diagnostic::to_string(&codemap, &e))?;
