@@ -221,18 +221,13 @@ impl Error {
                     ),
                 }
             }
-            lalrpop_util::ParseError::UnrecognizedToken { token, expected } => {
-                let token = token.map_or(
-                    codespan::Span::new(
-                        span.end() - codespan::ByteOffset(1),
-                        span.end() - codespan::ByteOffset(1),
-                    ),
-                    |(s, _, e)| {
-                        span.subspan(
-                            codespan::ByteOffset(s as codespan::RawOffset),
-                            codespan::ByteOffset(e as codespan::RawOffset),
-                        )
-                    },
+            lalrpop_util::ParseError::UnrecognizedToken {
+                token: (s, _, e),
+                expected,
+            } => {
+                let token = span.subspan(
+                    codespan::ByteOffset(s as codespan::RawOffset),
+                    codespan::ByteOffset(e as codespan::RawOffset),
                 );
                 Error::Unexpected { token, expected }
             }
@@ -242,6 +237,13 @@ impl Error {
                     codespan::ByteOffset(e as codespan::RawOffset),
                 );
                 Error::Extra { token }
+            }
+            lalrpop_util::ParseError::UnrecognizedEOF { location, expected } => {
+                let token = span.subspan(
+                    codespan::ByteOffset(location as codespan::RawOffset),
+                    codespan::ByteOffset((location + 1) as codespan::RawOffset),
+                );
+                Error::Unexpected { token, expected }
             }
             lalrpop_util::ParseError::User { error } => error,
         }

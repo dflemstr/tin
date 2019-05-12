@@ -16,19 +16,13 @@ pub trait Db: salsa::Database + ir::Db {
     fn value(&self, entity: ir::Entity) -> error::Result<Option<value::Value>>;
 }
 
-fn value(
-    db: &impl Db,
-    entity: ir::Entity,
-) -> error::Result<Option<value::Value>> {
+fn value(db: &impl Db, entity: ir::Entity) -> error::Result<Option<value::Value>> {
     let element = db.element(entity)?;
     let value = eval(db, &*element)?;
     Ok(value)
 }
 
-fn eval(
-    db: &impl Db,
-    element: &element::Element,
-) -> error::Result<Option<value::Value>> {
+fn eval(db: &impl Db, element: &element::Element) -> error::Result<Option<value::Value>> {
     match element {
         element::Element::Number(v) => Ok(Some(value::Value::number(eval_number(v)))),
         element::Element::String(ref v) => Ok(Some(value::Value::string(v.as_str()))),
@@ -57,9 +51,7 @@ fn eval(
                 _ => Ok(None),
             }
         }
-        element::Element::Variable(element::Variable { initializer, .. }) => {
-            db.value(*initializer)
-        }
+        element::Element::Variable(element::Variable { initializer, .. }) => db.value(*initializer),
         element::Element::Select(element::Select { record, field }) => db
             .value(*record)?
             .map(|record| match record.case() {
