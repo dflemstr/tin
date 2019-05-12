@@ -37,14 +37,14 @@ impl<'a> Graph<'a> {
 
 impl<'a> dot::GraphWalk<'a, Node, Edge> for Graph<'a> {
     fn nodes(&'a self) -> borrow::Cow<'a, [Node]> {
-        use crate::ir::db::IrDb;
+        use crate::ir::Db;
 
         let entities = self.db.entities().unwrap();
         borrow::Cow::Owned(entities.infos.keys().cloned().map(Node).collect())
     }
 
     fn edges(&'a self) -> borrow::Cow<'a, [Edge]> {
-        use crate::ir::db::IrDb;
+        use crate::ir::Db;
 
         let mut edges = Vec::new();
 
@@ -88,7 +88,7 @@ impl<'a> dot::Labeller<'a, Node, Edge> for Graph<'a> {
     }
 
     fn node_label(&'a self, n: &Node) -> dot::LabelText<'a> {
-        use crate::ir::db::IrDb;
+        use crate::ir::Db;
         use crate::layout::db::LayoutDb;
         use crate::ty::db::TyDb;
         use std::fmt::Write;
@@ -165,7 +165,7 @@ impl<'a> dot::Labeller<'a, Node, Edge> for Graph<'a> {
     }
 
     fn edge_label(&'a self, e: &Edge) -> dot::LabelText<'a> {
-        use crate::ir::db::IrDb;
+        use crate::ir::Db;
         use crate::source::db::SourceDb;
 
         match e.role {

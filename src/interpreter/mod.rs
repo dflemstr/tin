@@ -12,7 +12,7 @@ pub mod error;
 mod macros;
 
 #[salsa::query_group(Interpreter)]
-pub trait Db: salsa::Database + ir::db::IrDb {
+pub trait Db: salsa::Database + ir::Db {
     fn entity_value(&self, entity: ir::Entity) -> error::Result<Option<value::Value>>;
 }
 

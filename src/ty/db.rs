@@ -4,7 +4,7 @@ use crate::ir;
 use crate::ty;
 
 #[salsa::query_group(Ty)]
-pub trait TyDb: salsa::Database + ir::db::IrDb {
+pub trait TyDb: salsa::Database + ir::Db {
     fn entity_type(&self, entity: ir::Entity) -> Result<sync::Arc<ty::Type>, ty::error::Error>;
 
     fn bool_type(&self) -> sync::Arc<ty::Type>;

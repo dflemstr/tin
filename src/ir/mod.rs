@@ -3,14 +3,35 @@ use std::collections;
 use std::sync;
 
 use crate::source;
+use crate::syntax;
 
 pub mod builder;
-pub mod db;
 pub mod element;
 pub mod error;
 pub mod location;
 #[cfg(test)]
 mod tests;
+
+#[salsa::query_group(Ir)]
+pub trait Db: salsa::Database + syntax::db::SyntaxDb {
+    #[salsa::interned]
+    fn ident(&self, id: sync::Arc<String>) -> Ident;
+
+    #[salsa::interned]
+    fn entity(&self, parent: Option<Entity>, role: EntityRole) -> Entity;
+
+    fn entity_element(
+        &self,
+        entity: Entity,
+    ) -> error::Result<sync::Arc<element::Element>>;
+
+    fn entity_location(
+        &self,
+        entity: Entity,
+    ) -> error::Result<location::Location>;
+
+    fn entities(&self) -> error::Result<sync::Arc<Entities>>;
+}
 
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct Ident(u32);
@@ -49,8 +70,8 @@ pub enum EntityRole {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct EntityInfo {
-    pub element: sync::Arc<element::Element>,
-    pub location: sync::Arc<location::Location>,
+    element: sync::Arc<element::Element>,
+    location: location::Location,
 }
 
 impl Ident {
@@ -88,7 +109,6 @@ impl salsa::InternKey for Entity {
 impl EntityInfo {
     fn new(element: element::Element, location: location::Location) -> Self {
         let element = sync::Arc::new(element);
-        let location = sync::Arc::new(location);
 
         Self { element, location }
     }
@@ -101,4 +121,45 @@ impl Entities {
 
         Self { infos, modules }
     }
+}
+
+impl EntityInfo {
+    pub fn element(&self) -> &element::Element {
+        &self.element
+    }
+
+    pub fn location(&self) -> location::Location {
+        self.location
+    }
+}
+fn entity_element(
+    db: &impl Db,
+    entity: Entity,
+) -> error::Result<sync::Arc<element::Element>> {
+    Ok(db.entities()?.infos.get(&entity).unwrap().element.clone())
+}
+
+fn entity_location(
+    db: &impl Db,
+    entity: Entity,
+) -> error::Result<location::Location> {
+    Ok(db.entities()?.infos.get(&entity).unwrap().location)
+}
+
+fn entities(db: &impl Db) -> error::Result<sync::Arc<Entities>> {
+    let mut entities = Entities::new();
+    for source_root_id in &*db.all_source_roots() {
+        for file in db.source_root(*source_root_id).files.values() {
+            let result = db.parse(*file).unwrap();
+
+            let entity = db.entity(None, EntityRole::File(*file));
+            let builder = builder::Builder::new(db, entity, &mut entities.infos);
+            let module_id = builder.build_module(
+                sync::Arc::new(db.file_relative_path(*file).as_str().to_owned()),
+                &*result,
+            )?;
+            entities.modules.push(module_id);
+        }
+    }
+    Ok(sync::Arc::new(entities))
 }

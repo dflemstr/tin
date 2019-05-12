@@ -4,7 +4,7 @@ use crate::ir;
 use crate::layout;
 
 #[salsa::query_group(Layout)]
-pub trait LayoutDb: salsa::Database + ir::db::IrDb {
+pub trait LayoutDb: salsa::Database + ir::Db {
     fn entity_layout(&self, entity: ir::Entity)
         -> layout::error::Result<sync::Arc<layout::Layout>>;
 }

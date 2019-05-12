@@ -125,7 +125,7 @@ a = || -> u32 {
 }
 
 fn check_module(name: &'static str, source: &str) -> Result<(), String> {
-    use crate::ir::db::IrDb;
+    use crate::ir::Db;
     use crate::source::db::SourceDb;
 
     let mut codemap = codespan::CodeMap::new();

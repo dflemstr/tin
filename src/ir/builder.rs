@@ -25,7 +25,7 @@ struct Scope {
 
 impl<'a, Db> Builder<'a, Db>
 where
-    Db: ir::db::IrDb,
+    Db: ir::Db,
 {
     pub fn new(
         db: &'a Db,
@@ -497,7 +497,7 @@ impl Scope {
 
     fn resolve_capture(
         &mut self,
-        db: &impl ir::db::IrDb,
+        db: &impl ir::Db,
         ident: ir::Ident,
         location: codespan::ByteSpan,
     ) -> Result<ir::Entity, error::Error> {

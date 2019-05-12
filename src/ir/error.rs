@@ -1,4 +1,5 @@
 use crate::diagnostic;
+use std::result;
 
 /// Errors that may occur while building and interacting with an [`Ir`].
 #[derive(Clone, Debug, Eq, Fail, PartialEq)]
@@ -19,6 +20,8 @@ pub enum Error {
         errors: Vec<Error>,
     },
 }
+
+pub type Result<A> = result::Result<A, Error>;
 
 impl diagnostic::Diagnostics for Error {
     fn to_diagnostics(&self, builder: &mut diagnostic::DiagnosticsBuilder) {
