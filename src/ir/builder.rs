@@ -37,20 +37,10 @@ where
         Builder { db, scope, infos }
     }
 
-    pub fn build_module(
-        mut self,
-        name: sync::Arc<String>,
-        ast: &ast::Module<parser::Context>,
-    ) -> Result<ir::Entity, error::Error> {
-        let module_ident = self.db.ident(name.clone());
-        let module_entity = self.db.entity(
-            Some(self.scope.entity),
-            ir::EntityRole::ModuleDefinition(module_ident),
-        );
+    pub fn build_module(mut self, ast: &ast::Module<parser::Context>) -> Result<(), error::Error> {
+        self.add_module(self.scope.entity, ast)?;
 
-        self.add_module(module_entity, ast)?;
-
-        Ok(module_entity)
+        Ok(())
     }
 
     fn add_module(

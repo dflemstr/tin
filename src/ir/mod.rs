@@ -126,6 +126,7 @@ impl EntityInfo {
         self.location
     }
 }
+
 fn element(db: &impl Db, entity: Entity) -> error::Result<sync::Arc<element::Element>> {
     Ok(db.entities()?.infos.get(&entity).unwrap().element.clone())
 }
@@ -142,11 +143,8 @@ fn entities(db: &impl Db) -> error::Result<sync::Arc<Entities>> {
 
             let entity = db.entity(None, EntityRole::File(*file));
             let builder = builder::Builder::new(db, entity, &mut entities.infos);
-            let module_id = builder.build_module(
-                sync::Arc::new(db.file_relative_path(*file).as_str().to_owned()),
-                &*result,
-            )?;
-            entities.modules.push(module_id);
+            builder.build_module(&*result)?;
+            entities.modules.push(entity);
         }
     }
     Ok(sync::Arc::new(entities))
