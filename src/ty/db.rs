@@ -18,7 +18,7 @@ fn entity_type(
         expected: ty::error::ExpectedType::AnyOf(vec![]),
         actual: sync::Arc::new(ty::Type::Placeholder),
         main_entity: _entity,
-        aux_entities: vec![]
+        aux_entities: vec![],
     })
 }
 

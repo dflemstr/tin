@@ -6,7 +6,7 @@ use crate::syntax;
 use crate::ty;
 
 #[salsa::database(
-    interpreter::db::Interpreter,
+    interpreter::Interpreter,
     ir::db::Ir,
     layout::db::Layout,
     source::db::Source,

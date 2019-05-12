@@ -2,19 +2,33 @@ use std::cmp;
 use std::collections;
 
 use crate::interpreter;
+use crate::ir;
 use crate::ir::element;
 use crate::module;
 use crate::value;
 
-pub mod db;
 pub mod error;
 #[macro_use]
 mod macros;
 
-pub fn eval(
+#[salsa::query_group(Interpreter)]
+pub trait InterpreterDb: salsa::Database + ir::db::IrDb {
+    fn entity_value(&self, entity: ir::Entity) -> error::Result<Option<value::Value>>;
+}
+
+fn entity_value(
+    db: &impl InterpreterDb,
+    entity: ir::Entity,
+) -> error::Result<Option<value::Value>> {
+    let element = db.entity_element(entity)?;
+    let value = eval(db, &*element)?;
+    Ok(value)
+}
+
+fn eval(
+    db: &impl InterpreterDb,
     element: &element::Element,
-    db: &impl interpreter::db::InterpreterDb,
-) -> Result<Option<value::Value>, error::Error> {
+) -> error::Result<Option<value::Value>> {
     match element {
         element::Element::Number(v) => Ok(Some(value::Value::number(eval_number(v)))),
         element::Element::String(ref v) => Ok(Some(value::Value::string(v.as_str()))),
@@ -31,10 +45,10 @@ pub fn eval(
             .map(|(k, f)| Ok(db.entity_value(*f)?.map(|v| (db.lookup_ident(*k), v))))
             .collect::<Result<Option<collections::HashMap<_, _>>, error::Error>>()?
             .map(|fields| value::Value::record(value::Record { fields }))),
-        element::Element::UnOp(element::UnOp { operator, operand }) => transpose(
-            db.entity_value(*operand)?
-                .map(|operand| eval_un_op(*operator, &operand)),
-        ),
+        element::Element::UnOp(element::UnOp { operator, operand }) => db
+            .entity_value(*operand)?
+            .map(|operand| eval_un_op(*operator, &operand))
+            .transpose(),
         element::Element::BiOp(element::BiOp { lhs, operator, rhs }) => {
             let lhs_value = db.entity_value(*lhs)?;
             let rhs_value = db.entity_value(*rhs)?;
@@ -46,15 +60,16 @@ pub fn eval(
         element::Element::Variable(element::Variable { initializer, .. }) => {
             db.entity_value(*initializer)
         }
-        element::Element::Select(element::Select { record, field }) => {
-            transpose(db.entity_value(*record)?.map(|record| match record.case() {
+        element::Element::Select(element::Select { record, field }) => db
+            .entity_value(*record)?
+            .map(|record| match record.case() {
                 value::Case::Record(r) => Ok(r.fields[&db.lookup_ident(*field)].clone()),
                 other => Err(error::Error::RuntimeTypeConflict(format!(
                     "not a record: {:?}",
                     other
                 ))),
-            }))
-        }
+            })
+            .transpose(),
         _ => Ok(None), // TODO
     }
 }
@@ -106,7 +121,7 @@ fn eval_un_op(
     }
 }
 
-#[allow(clippy::cyclomatic_complexity)]
+#[allow(clippy::cognitive_complexity)]
 fn eval_bi_op(
     lhs: &value::Value,
     operator: element::BiOperator,
@@ -144,13 +159,13 @@ fn eval_bi_op(
             (l.into_inner() * r.into_inner()).into()
         )),
         element::BiOperator::Div => match_number_value!("/", (lhs, rhs), |l, r| int: if *r == 0 {
-            Err(error::Error::EvaluationError(module::Error::new(module::ErrorKind::IntegerDivisonByZero)))
+            Err(error::Error::Evaluation(module::Error::new(module::ErrorKind::IntegerDivisonByZero)))
         } else {
             Ok((l.wrapping_div(*r)).into())
         }, frac: Ok((l.into_inner() / r.into_inner()).into()
         )),
         element::BiOperator::Rem => match_number_value!("%", (lhs, rhs), |l, r| int: if *r == 0 {
-            Err(error::Error::EvaluationError(module::Error::new(module::ErrorKind::IntegerDivisonByZero)))
+            Err(error::Error::Evaluation(module::Error::new(module::ErrorKind::IntegerDivisonByZero)))
         } else {
             Ok((l.wrapping_rem(*r)).into())
         }, frac: Ok(
@@ -341,13 +356,4 @@ where
     let rhs = to_bool(rhs)?;
 
     Ok(op(lhs, rhs).into())
-}
-
-// TODO: awaits https://github.com/rust-lang/rust/issues/47338
-fn transpose<A, E>(option: Option<Result<A, E>>) -> Result<Option<A>, E> {
-    match option {
-        Some(Ok(x)) => Ok(Some(x)),
-        Some(Err(e)) => Err(e),
-        None => Ok(None),
-    }
 }

@@ -6,7 +6,7 @@ pub enum Error {
     #[fail(display = "semantic error: {}", _0)]
     Ir(#[cause] ir::error::Error),
     #[fail(display = "not implemented")]
-    NotImplemented
+    NotImplemented,
 }
 
 pub type Result<A> = result::Result<A, Error>;

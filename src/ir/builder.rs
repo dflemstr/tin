@@ -27,7 +27,11 @@ impl<'a, Db> Builder<'a, Db>
 where
     Db: ir::db::IrDb,
 {
-    pub fn new(db: &'a Db, root: ir::Entity, infos: &'a mut collections::HashMap<ir::Entity, ir::EntityInfo>) -> Self {
+    pub fn new(
+        db: &'a Db,
+        root: ir::Entity,
+        infos: &'a mut collections::HashMap<ir::Entity, ir::EntityInfo>,
+    ) -> Self {
         let scope = Scope::new(root);
 
         Builder { db, scope, infos }

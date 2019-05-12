@@ -144,7 +144,6 @@ impl System {
                 .map(|(field, layout)| {
                     let offset = align_up(size, layout.alignment);
                     size = offset + layout.size;
-                    let field = field.clone();
                     let layout = (*layout).clone();
                     let offset_layout = layout::Offset { offset, layout };
 
@@ -354,7 +353,6 @@ impl System {
             .map(|(field, layout)| {
                 let offset = align_up(size, layout.alignment);
                 size = offset + layout.size;
-                let field = field.clone();
                 let layout = (*layout).clone();
                 let offset_layout = layout::Offset { offset, layout };
 
