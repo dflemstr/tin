@@ -441,7 +441,7 @@ main = || -> i32 {
 - <test>:1:28
 1 | main = || -> u32 { 0u32 }; <-<
   |                            ^^^
-help: valid tokens at this point: [Comment, IdentifierName]
+help: valid tokens at this point: [Comment, Identifier]
 "#
         .to_owned());
         let actual = parse_module("test", r#"main = || -> u32 { 0u32 }; <-<"#);
@@ -781,7 +781,7 @@ help: valid tokens at this point: [Comment, IdentifierName]
 - <test>:1:2
 1 | (,)
   |  ^
-help: valid tokens at this point: ["!", "#$0", "#$1", "#0", "#1", "#^-", "#^0", "#^1", "(", ")", "^/", "{", "|", "~!", IdentifierName, NumberValue, StringValue, SymbolLabel]
+help: valid tokens at this point: ["!", "#$0", "#$1", "#0", "#1", "#^-", "#^0", "#^1", "(", ")", "^/", "{", "|", "~!", Identifier, NumberValue, StringValue, SymbolLabel]
 "##.to_owned());
         let actual = parse_expression("test", r#"(,)"#);
         assert_eq!(expected, actual);
