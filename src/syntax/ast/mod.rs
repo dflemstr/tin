@@ -4,8 +4,8 @@
 //! arbitrary metadata to every node; a common use is to store the source location for each node as
 //! parsed by a parser (see [`parser::Context`] for an example).
 //!
-//! To generically interact with the context of a node, the [`AstNode`] trait can be used.  All of
-//! the contexts of an entire AST can additionally be transformed using the [`MapContext`] trait.
+//! To generically interact with the context of a node, the `AstNode` trait can be used.  All of
+//! the contexts of an entire AST can additionally be transformed using the `MapContext` trait.
 use std::sync;
 
 mod ast_node;

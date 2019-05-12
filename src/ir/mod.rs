@@ -20,12 +20,12 @@ pub trait Db: salsa::Database + syntax::db::SyntaxDb {
     #[salsa::interned]
     fn entity(&self, parent: Option<Entity>, role: EntityRole) -> Entity;
 
-    fn entity_element(
+    fn element(
         &self,
         entity: Entity,
     ) -> error::Result<sync::Arc<element::Element>>;
 
-    fn entity_location(
+    fn location(
         &self,
         entity: Entity,
     ) -> error::Result<location::Location>;
@@ -132,14 +132,14 @@ impl EntityInfo {
         self.location
     }
 }
-fn entity_element(
+fn element(
     db: &impl Db,
     entity: Entity,
 ) -> error::Result<sync::Arc<element::Element>> {
     Ok(db.entities()?.infos.get(&entity).unwrap().element.clone())
 }
 
-fn entity_location(
+fn location(
     db: &impl Db,
     entity: Entity,
 ) -> error::Result<location::Location> {

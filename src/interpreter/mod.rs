@@ -13,14 +13,14 @@ mod macros;
 
 #[salsa::query_group(Interpreter)]
 pub trait Db: salsa::Database + ir::Db {
-    fn entity_value(&self, entity: ir::Entity) -> error::Result<Option<value::Value>>;
+    fn value(&self, entity: ir::Entity) -> error::Result<Option<value::Value>>;
 }
 
-fn entity_value(
+fn value(
     db: &impl Db,
     entity: ir::Entity,
 ) -> error::Result<Option<value::Value>> {
-    let element = db.entity_element(entity)?;
+    let element = db.element(entity)?;
     let value = eval(db, &*element)?;
     Ok(value)
 }
@@ -37,31 +37,31 @@ fn eval(
         }
         element::Element::Tuple(element::Tuple { ref fields }) => Ok(fields
             .iter()
-            .map(|f| db.entity_value(*f))
+            .map(|f| db.value(*f))
             .collect::<Result<Option<Vec<_>>, error::Error>>()?
             .map(|fields| value::Value::tuple(value::Tuple { fields }))),
         element::Element::Record(element::Record { ref fields }) => Ok(fields
             .iter()
-            .map(|(k, f)| Ok(db.entity_value(*f)?.map(|v| (db.lookup_ident(*k), v))))
+            .map(|(k, f)| Ok(db.value(*f)?.map(|v| (db.lookup_ident(*k), v))))
             .collect::<Result<Option<collections::HashMap<_, _>>, error::Error>>()?
             .map(|fields| value::Value::record(value::Record { fields }))),
         element::Element::UnOp(element::UnOp { operator, operand }) => db
-            .entity_value(*operand)?
+            .value(*operand)?
             .map(|operand| eval_un_op(*operator, &operand))
             .transpose(),
         element::Element::BiOp(element::BiOp { lhs, operator, rhs }) => {
-            let lhs_value = db.entity_value(*lhs)?;
-            let rhs_value = db.entity_value(*rhs)?;
+            let lhs_value = db.value(*lhs)?;
+            let rhs_value = db.value(*rhs)?;
             match (lhs_value, rhs_value) {
                 (Some(ref lhs), Some(ref rhs)) => eval_bi_op(lhs, *operator, rhs).map(Some),
                 _ => Ok(None),
             }
         }
         element::Element::Variable(element::Variable { initializer, .. }) => {
-            db.entity_value(*initializer)
+            db.value(*initializer)
         }
         element::Element::Select(element::Select { record, field }) => db
-            .entity_value(*record)?
+            .value(*record)?
             .map(|record| match record.case() {
                 value::Case::Record(r) => Ok(r.fields[&db.lookup_ident(*field)].clone()),
                 other => Err(error::Error::RuntimeTypeConflict(format!(

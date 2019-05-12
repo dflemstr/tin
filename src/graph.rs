@@ -95,7 +95,7 @@ impl<'a> dot::Labeller<'a, Node, Edge> for Graph<'a> {
 
         let mut result = format!("({}) ", n.0.id());
 
-        if let Ok(element) = self.db.entity_element(n.0) {
+        if let Ok(element) = self.db.element(n.0) {
             match &*element {
                 element::Element::Reference(e) => write!(result, "ref <b>{:?}</b>", e).unwrap(),
                 element::Element::Number(n) => write!(result, "num <b>{:?}</b>", n).unwrap(),

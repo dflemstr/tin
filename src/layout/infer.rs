@@ -246,7 +246,7 @@ impl System {
         field: ir::Ident,
         db: impl layout::db::LayoutDb,
     ) -> layout::error::Result<sync::Arc<layout::Layout>> {
-        match *db.entity_element(record)? {
+        match *db.element(record)? {
             element::Element::Record(element::Record { ref fields }) => {
                 if let Some(f) = fields.get(&field) {
                     db.entity_layout(*f)
