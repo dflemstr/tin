@@ -48,8 +48,8 @@ debug = true
 lto = true
 codegen-units = 1
 
-[workspace]
-members = ["syntax"]
+#[workspace]
+#members = ["syntax"]
 
 [dev-dependencies]
 pretty_assertions = "0.6.1"

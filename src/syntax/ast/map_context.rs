@@ -41,12 +41,12 @@ where
     }
 }
 
-impl<C1, C2> MapContext<C1, C2> for ast::Identifier<C1>
+impl<C1, C2> MapContext<C1, C2> for ast::Reference<C1>
 where
     C1: Clone + fmt::Debug,
     C2: Clone + fmt::Debug,
 {
-    type Output = ast::Identifier<C2>;
+    type Output = ast::Reference<C2>;
 
     fn map_context<F>(self, mapping: &mut F) -> Self::Output
     where
@@ -55,7 +55,7 @@ where
         let context = mapping(self.context);
         let value = self.value;
 
-        ast::Identifier { context, value }
+        ast::Reference { context, value }
     }
 }
 
@@ -82,7 +82,7 @@ where
             ast::Expression::Record(e) => ast::Expression::Record(e.map_context(mapping)),
             ast::Expression::UnOp(e) => ast::Expression::UnOp(e.map_context(mapping)),
             ast::Expression::BiOp(e) => ast::Expression::BiOp(e.map_context(mapping)),
-            ast::Expression::Identifier(e) => ast::Expression::Identifier(e.map_context(mapping)),
+            ast::Expression::Reference(e) => ast::Expression::Reference(e.map_context(mapping)),
             ast::Expression::Lambda(e) => ast::Expression::Lambda(e.map_context(mapping)),
             ast::Expression::Select(e) => ast::Expression::Select(e.map_context(mapping)),
             ast::Expression::Apply(e) => ast::Expression::Apply(e.map_context(mapping)),
@@ -178,9 +178,9 @@ where
         let fields = self
             .fields
             .into_iter()
-            .map(|(i, f)| {
+            .map(|(n, f)| {
                 (
-                    sync::Arc::new(own(i).map_context(mapping)),
+                    sync::Arc::new(own(n)),
                     sync::Arc::new(own(f).map_context(mapping)),
                 )
             })
@@ -302,7 +302,7 @@ where
         F: FnMut(C1) -> C2,
     {
         let context = mapping(self.context);
-        let name = sync::Arc::new(own(self.name).map_context(mapping));
+        let name = sync::Arc::new(own(self.name));
         let initializer = sync::Arc::new(own(self.initializer).map_context(mapping));
 
         ast::Variable {
@@ -326,7 +326,7 @@ where
     {
         let context = mapping(self.context);
         let record = sync::Arc::new(own(self.record).map_context(mapping));
-        let field = sync::Arc::new(own(self.field).map_context(mapping));
+        let field = sync::Arc::new(own(self.field));
         ast::Select {
             context,
             record,
@@ -373,7 +373,7 @@ where
         F: FnMut(C1) -> C2,
     {
         let context = mapping(self.context);
-        let name = sync::Arc::new(own(self.name).map_context(mapping));
+        let name = sync::Arc::new(own(self.name));
         let signature = sync::Arc::new(own(self.signature).map_context(mapping));
         ast::Parameter {
             context,

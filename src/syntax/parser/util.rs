@@ -1,5 +1,6 @@
 use std::char;
 use std::num;
+use std::sync;
 
 use crate::syntax::ast;
 use crate::syntax::parser;
@@ -356,9 +357,9 @@ pub fn parse_escaped_string<T>(
         if is_invalid {
             ast::StringValue::Invalid
         } else {
-            ast::StringValue::String(result.to_owned())
+            ast::StringValue::String(sync::Arc::new(result))
         }
     } else {
-        ast::StringValue::String(input.to_owned())
+        ast::StringValue::String(sync::Arc::new(input.to_owned()))
     }
 }

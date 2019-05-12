@@ -58,7 +58,7 @@ pub struct Module<C> {
 
 /// An identifier.
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct Identifier<C> {
+pub struct Reference<C> {
     /// This node's AST context.
     pub context: C,
     /// The raw string name of the identifier.
@@ -79,7 +79,7 @@ pub enum Expression<C> {
     /// A record literal.
     Record(Record<C>),
     /// A reference to an identifier.
-    Identifier(Identifier<C>),
+    Reference(Reference<C>),
     /// A unary operator application.
     UnOp(UnOp<C>),
     /// A binary operator application.
@@ -144,7 +144,7 @@ pub struct StringLiteral<C> {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum StringValue {
     /// A plain string.
-    String(String),
+    String(sync::Arc<String>),
     /// The string value is invalid (e.g. has an illegal character).
     Invalid,
 }
@@ -173,7 +173,7 @@ pub struct Record<C> {
     /// This node's AST context.
     pub context: C,
     /// The fields of the record, in declaration order.
-    pub fields: Vec<(sync::Arc<Identifier<C>>, sync::Arc<Expression<C>>)>,
+    pub fields: Vec<(sync::Arc<String>, sync::Arc<Expression<C>>)>,
 }
 
 /// An unary operator.
@@ -323,7 +323,7 @@ pub struct Variable<C> {
     /// This node's AST context.
     pub context: C,
     /// The name of the variable.
-    pub name: sync::Arc<Identifier<C>>,
+    pub name: sync::Arc<String>,
     /// The initializer expression of the variable.
     pub initializer: sync::Arc<Expression<C>>,
 }
@@ -336,7 +336,7 @@ pub struct Select<C> {
     /// The expression to select from; should evaluate to a record.
     pub record: sync::Arc<Expression<C>>,
     /// The field to select.
-    pub field: sync::Arc<Identifier<C>>,
+    pub field: sync::Arc<String>,
 }
 
 /// A function application expression.
@@ -357,7 +357,7 @@ pub struct Parameter<C> {
     /// This node's AST context.
     pub context: C,
     /// The name of the parameter.
-    pub name: sync::Arc<Identifier<C>>,
+    pub name: sync::Arc<String>,
     /// The signature of the parameter.
     pub signature: sync::Arc<Expression<C>>,
 }

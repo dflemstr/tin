@@ -20,7 +20,7 @@ match {
       )" => NumberValue,
 } else {
     r"/\*(\*[^/]|[^*])*\*/" => Comment,
-    r"\p{XID_Start}\p{XID_Continue}*" => IdentifierName,
+    r"\p{XID_Start}\p{XID_Continue}*" => Identifier,
     r":\p{XID_Start}\p{XID_Continue}*" => SymbolLabel,
     r#""(?:[^"\\]|\\.)*""# => StringValue,
     _
@@ -65,70 +65,33 @@ pub Module: ast::Module<parser::Context> = {
 
 Definition: ast::Variable<parser::Context> = {
     <lo:@L> <n:Identifier> "=" <i:Expression> <hi:@R> =>
-        ast::Variable { context: parser::Context::new(ast::Kind::Variable, span, lo, hi), name: sync::Arc::new(n), initializer: sync::Arc::new(i) },
+        ast::Variable { context: parser::Context::new(ast::Kind::Variable, span, lo, hi), name: sync::Arc::new(n.to_owned()), initializer: sync::Arc::new(i) },
 }
 
 pub Expression = { <ExpressionBiOpOr> }
 
 // Left-to-right evaluation
-ExpressionBiOpOr: ast::Expression<parser::Context> = {
-    BiOp<ExpressionBiOpOr, BiOperatorOr, ExpressionBiOpXor> => ast::Expression::BiOp(<>),
-    ExpressionBiOpXor => <>,
-}
-
-// Left-to-right evaluation
-ExpressionBiOpXor: ast::Expression<parser::Context> = {
-    BiOp<ExpressionBiOpXor, BiOperatorXor, ExpressionBiOpAnd> => ast::Expression::BiOp(<>),
-    ExpressionBiOpAnd => <>,
-}
-
-// Left-to-right evaluation
-ExpressionBiOpAnd: ast::Expression<parser::Context> = {
-    BiOp<ExpressionBiOpAnd, BiOperatorAnd, ExpressionBiOpCmp> => ast::Expression::BiOp(<>),
-    ExpressionBiOpCmp => <>,
+LeftOp<Op, NextTier>: ast::Expression<parser::Context> = {
+    BiOp<LeftOp<Op, NextTier>, Op, NextTier> => ast::Expression::BiOp(<>),
+    NextTier => <>,
 }
 
 // No associativity; require parenthesis
-ExpressionBiOpCmp: ast::Expression<parser::Context> = {
-    BiOp<ExpressionBiOpBOr, BiOperatorCmp, ExpressionBiOpBOr> => ast::Expression::BiOp(<>),
-    ExpressionBiOpBOr => <>,
+InfixOp<Op, NextTier>: ast::Expression<parser::Context> = {
+    BiOp<NextTier, Op, NextTier> => ast::Expression::BiOp(<>),
+    NextTier => <>,
 }
 
-// Left-to-right evaluation
-ExpressionBiOpBOr: ast::Expression<parser::Context> = {
-    BiOp<ExpressionBiOpBOr, BiOperatorBOr, ExpressionBiOpBXor> => ast::Expression::BiOp(<>),
-    ExpressionBiOpBXor => <>,
-}
-
-// Left-to-right evaluation
-ExpressionBiOpBXor: ast::Expression<parser::Context> = {
-    BiOp<ExpressionBiOpBXor, BiOperatorBXor, ExpressionBiOpBAnd> => ast::Expression::BiOp(<>),
-    ExpressionBiOpBAnd => <>,
-}
-
-// Left-to-right evaluation
-ExpressionBiOpBAnd: ast::Expression<parser::Context> = {
-    BiOp<ExpressionBiOpBAnd, BiOperatorBAnd, ExpressionBiOpShift> => ast::Expression::BiOp(<>),
-    ExpressionBiOpShift => <>,
-}
-
-// Left-to-right evaluation
-ExpressionBiOpShift: ast::Expression<parser::Context> = {
-    BiOp<ExpressionBiOpShift, BiOperatorShift, ExpressionBiOpSum> => ast::Expression::BiOp(<>),
-    ExpressionBiOpSum => <>,
-}
-
-// Left-to-right evaluation
-ExpressionBiOpSum: ast::Expression<parser::Context> = {
-    BiOp<ExpressionBiOpSum, BiOperatorSum, ExpressionBiOpFactor> => ast::Expression::BiOp(<>),
-    ExpressionBiOpFactor => <>,
-}
-
-// Left-to-right evaluation
-ExpressionBiOpFactor: ast::Expression<parser::Context> = {
-    BiOp<ExpressionBiOpFactor, BiOperatorFactor, ExpressionUnOp> => ast::Expression::BiOp(<>),
-    ExpressionUnOp => <>,
-}
+ExpressionBiOpOr = LeftOp<BiOperatorOr, ExpressionBiOpXor>;
+ExpressionBiOpXor = LeftOp<BiOperatorXor, ExpressionBiOpAnd>;
+ExpressionBiOpAnd = LeftOp<BiOperatorAnd, ExpressionBiOpCmp>;
+ExpressionBiOpCmp = InfixOp<BiOperatorCmp, ExpressionBiOpBOr>;
+ExpressionBiOpBOr = LeftOp<BiOperatorBOr, ExpressionBiOpBXor>;
+ExpressionBiOpBXor = LeftOp<BiOperatorBXor, ExpressionBiOpBAnd>;
+ExpressionBiOpBAnd = LeftOp<BiOperatorBAnd, ExpressionBiOpShift>;
+ExpressionBiOpShift = LeftOp<BiOperatorShift, ExpressionBiOpSum>;
+ExpressionBiOpSum = LeftOp<BiOperatorSum, ExpressionBiOpFactor>;
+ExpressionBiOpFactor = LeftOp<BiOperatorFactor, ExpressionUnOp>;
 
 ExpressionUnOp: ast::Expression<parser::Context> = {
     UnOp => ast::Expression::UnOp(<>),
@@ -143,7 +106,7 @@ ExpressionProjection: ast::Expression<parser::Context> = {
 }
 
 ExpressionAtom: ast::Expression<parser::Context> = {
-    Identifier => ast::Expression::Identifier(<>),
+    Reference => ast::Expression::Reference(<>),
     NumberLiteral => ast::Expression::NumberLiteral(<>),
     StringLiteral => ast::Expression::StringLiteral(<>),
     Symbol => ast::Expression::Symbol(<>),
@@ -235,9 +198,9 @@ BiOperatorCmp: ast::BiOperator = {
     "<=>" => ast::BiOperator::Cmp,
 }
 
-Identifier: ast::Identifier<parser::Context> = {
-    <lo:@L> <id:IdentifierName> <hi:@R> =>
-        ast::Identifier { context: parser::Context::new(ast::Kind::Identifier, span, lo, hi), value: sync::Arc::new(id.to_owned()) },
+Reference: ast::Reference<parser::Context> = {
+    <lo:@L> <id:Identifier> <hi:@R> =>
+        ast::Reference { context: parser::Context::new(ast::Kind::Identifier, span, lo, hi), value: sync::Arc::new(id.to_owned()) },
 }
 
 Tuple: ast::Tuple<parser::Context> = {
@@ -252,8 +215,8 @@ Record: ast::Record<parser::Context> = {
         ast::Record { context: parser::Context::new(ast::Kind::Record, span, lo, hi), fields: fs.into_iter().map(|(k, v)| (sync::Arc::new(k), sync::Arc::new(v))).collect() },
 }
 
-Field: (ast::Identifier<parser::Context>, ast::Expression<parser::Context>) = {
-     <Identifier> ":" <Expression> => (<>),
+Field: (String, ast::Expression<parser::Context>) = {
+     <i:Identifier> ":" <e:Expression> => (i.to_owned(), e),
 }
 
 NumberLiteral: ast::NumberLiteral<parser::Context> = {
@@ -296,7 +259,7 @@ Statement: ast::Statement<parser::Context> = {
 
 Select: ast::Select<parser::Context> = {
     <lo:@L> <r:ExpressionProjection> "." <f:Identifier> <hi:@R> =>
-        ast::Select { context: parser::Context::new(ast::Kind::Select, span, lo, hi), record: sync::Arc::new(r), field: sync::Arc::new(f) },
+        ast::Select { context: parser::Context::new(ast::Kind::Select, span, lo, hi), record: sync::Arc::new(r), field: sync::Arc::new(f.to_owned()) },
 }
 
 Apply: ast::Apply<parser::Context> = {
@@ -306,5 +269,5 @@ Apply: ast::Apply<parser::Context> = {
 
 Parameter: ast::Parameter<parser::Context> = {
     <lo:@L> <name:Identifier> ":" <signature:ExpressionAtom> <hi:@R> =>
-        ast::Parameter { context: parser::Context::new(ast::Kind::Parameter, span, lo, hi), name: sync::Arc::new(name), signature: sync::Arc::new(signature) },
+        ast::Parameter { context: parser::Context::new(ast::Kind::Parameter, span, lo, hi), name: sync::Arc::new(name.to_owned()), signature: sync::Arc::new(signature) },
 }

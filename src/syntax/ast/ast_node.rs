@@ -25,7 +25,7 @@ where
     }
 }
 
-impl<C> AstNode<C> for ast::Identifier<C>
+impl<C> AstNode<C> for ast::Reference<C>
 where
     C: fmt::Debug,
 {
@@ -51,7 +51,7 @@ where
             ast::Expression::Record(ref v) => v.context(),
             ast::Expression::UnOp(ref v) => v.context(),
             ast::Expression::BiOp(ref v) => v.context(),
-            ast::Expression::Identifier(ref v) => v.context(),
+            ast::Expression::Reference(ref v) => v.context(),
             ast::Expression::Lambda(ref v) => v.context(),
             ast::Expression::Select(ref v) => v.context(),
             ast::Expression::Apply(ref v) => v.context(),
@@ -68,7 +68,7 @@ where
             ast::Expression::Record(ref mut v) => v.context_mut(),
             ast::Expression::UnOp(ref mut v) => v.context_mut(),
             ast::Expression::BiOp(ref mut v) => v.context_mut(),
-            ast::Expression::Identifier(ref mut v) => v.context_mut(),
+            ast::Expression::Reference(ref mut v) => v.context_mut(),
             ast::Expression::Lambda(ref mut v) => v.context_mut(),
             ast::Expression::Select(ref mut v) => v.context_mut(),
             ast::Expression::Apply(ref mut v) => v.context_mut(),

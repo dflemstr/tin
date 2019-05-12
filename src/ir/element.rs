@@ -1,12 +1,14 @@
 use std::collections;
 use std::fmt;
+use std::sync;
 
 use crate::ir;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Element {
+    Reference(ir::Entity),
     Number(Number),
-    String(String),
+    String(sync::Arc<String>),
     Symbol(Symbol),
     Tuple(Tuple),
     Record(Record),

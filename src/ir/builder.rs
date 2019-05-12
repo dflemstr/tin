@@ -1,511 +1,522 @@
 use std::collections;
 use std::mem;
+use std::sync;
 
 use crate::ir;
 use crate::ir::element;
 use crate::ir::error;
 use crate::ir::location;
-use crate::ir::symbol;
-use crate::ir::world;
 use crate::syntax::ast;
 use crate::syntax::parser;
 
-pub struct Builder<W>
-where
-    W: world::World,
-{
-    world: W,
-    symbol: Vec<symbol::Part>,
-    current_closure: Option<ir::Entity>,
-    current_scope: collections::HashMap<ir::Ident, ir::Entity>,
-    scopes: Vec<collections::HashMap<ir::Ident, ir::Entity>>,
-    current_captures: collections::HashMap<ir::Ident, ir::Entity>,
-    captures: Vec<collections::HashMap<ir::Ident, ir::Entity>>,
+pub struct Builder<'a, Db> {
+    db: &'a mut Db,
+    scope: Scope,
+    infos: collections::HashMap<ir::Entity, ir::EntityInfo>,
 }
 
-impl<W> Builder<W>
-where
-    W: world::World,
-{
-    pub fn new(world: W) -> Builder<W> {
-        let symbol = Vec::new();
-        let current_scope = collections::HashMap::new();
-        let scopes = Vec::new();
-        let current_captures = collections::HashMap::new();
-        let captures = Vec::new();
+#[derive(Debug)]
+struct Scope {
+    parent: Option<Box<Scope>>,
+    entity: ir::Entity,
+    locals: collections::HashMap<ir::Ident, ir::Entity>,
+    captures: collections::HashMap<ir::Entity, element::Capture>,
+}
 
-        Builder {
-            world,
-            symbol,
-            current_scope,
-            scopes,
-            current_captures,
-            captures,
-        }
+impl<'a, Db> Builder<'a, Db>
+where
+    Db: ir::db::IrDb,
+{
+    pub fn new(db: &'a mut Db, root: ir::Entity) -> Self {
+        let scope = Scope::new(root);
+        let infos = collections::HashMap::new();
+
+        Builder { db, scope, infos }
     }
 
-    pub fn add_module(
+    pub fn build_module(
+        mut self,
+        name: sync::Arc<String>,
+        ast: &ast::Module<parser::Context>,
+    ) -> Result<ir::Entity, error::Error> {
+        let module_ident = self.db.ident(name.clone());
+        let module_entity = self
+            .db
+            .entity(None, ir::db::EntityKind::Module(module_ident));
+
+        self.add_module(module_entity, ast)?;
+
+        Ok(module_entity)
+    }
+
+    fn add_module(
         &mut self,
-        db: impl ir::db::IrDb,
         entity: ir::Entity,
         ast: &ast::Module<parser::Context>,
     ) -> Result<(), error::Error> {
         let mut variables = collections::HashMap::new();
 
         for variable in &ast.variables {
-            let ident = db.ident(variable.name.value.clone());
-            let var_entity = db.entity(Some(entity), ident);
+            let ident = self.db.ident(variable.name.clone());
+            let var_entity = self
+                .db
+                .entity(Some(entity), ir::db::EntityKind::Named(ident));
 
-            self.current_scope
-                .insert(ident, var_entity);
+            self.scope.locals.insert(ident, var_entity);
 
             variables.insert(ident, var_entity);
         }
 
         for variable in &ast.variables {
-            let ident = db.ident(variable.name.value.clone());
-            self.add_variable(db, variables[&ident], variable)?;
+            let ident = self.db.ident(variable.name.clone());
+            self.add_variable(variables[&ident], variable)?;
         }
 
-        self.world.set_element(
-            entity,
-            element::Element::Module(element::Module { variables }),
-        );
-        self.world
-            .set_symbol(entity, symbol::Symbol::new(self.symbol.clone()));
-        self.world
-            .set_location(entity, location::Location(ast.context.span));
+        let element = element::Element::Module(element::Module { variables });
+        let location = location::Location(ast.context.span);
+
+        self.infos
+            .insert(entity, ir::EntityInfo::new(element, location));
 
         Ok(())
     }
 
-    fn add_identifier(
+    fn add_reference(
         &mut self,
-        db: impl ir::db::IrDb,
         entity: ir::Entity,
-        identifier: &ast::Identifier<parser::Context>,
+        ast: &ast::Reference<parser::Context>,
     ) -> Result<(), error::Error> {
-        let ident = db.ident(identifier.value.clone());
+        let ident = self.db.ident(ast.value.clone());
+        let target = self
+            .scope
+            .resolve_capture(self.db, ident, ast.context.span)?;
 
-        let definition = self.current_scope.get(&ident).cloned().or_else(|| {
-            self.scopes
-                .iter()
-                .rev()
-                .flat_map(|scope| scope.get(&ident).cloned().into_iter())
-                .next()
-                .map(|e| {
-                    let capture = db.child_entity(entity, ident);
-                    self.world.set_element(
-                        capture,
-                        element::Element::Capture(element::Capture {
-                            name: ident,
-                            captured: e,
-                        }),
-                    );
+        let element = element::Element::Reference(target);
+        let location = location::Location(ast.context.span);
 
-                    self.world
-                        .set_location(capture, location::Location(identifier.context.span));
-
-                    self.current_captures.insert(name.clone(), capture);
-
-                    capture
-                })
-        });
-
-        let definition = definition.ok_or_else(|| error::Error::UndefinedReference {
-            reference: name.clone(),
-            location: identifier.context.span,
-        })?;
-
-        self.world.replace(entity, definition);
-
-        self.world
-            .set_location(entity, location::Location(identifier.context.span));
+        self.infos
+            .insert(entity, ir::EntityInfo::new(element, location));
 
         Ok(())
     }
 
     fn add_expression(
         &mut self,
-        db: impl ir::db::IrDb,
         entity: ir::Entity,
-        expression: &ast::Expression<parser::Context>,
+        ast: &ast::Expression<parser::Context>,
     ) -> Result<(), error::Error> {
-        match *expression {
-            ast::Expression::NumberLiteral(ref v) => self.add_number(db, entity, v),
-            ast::Expression::StringLiteral(ref v) => self.add_string(db, entity, v),
-            ast::Expression::Symbol(ref v) => self.add_symbol(db, entity, v),
-            ast::Expression::Tuple(ref v) => self.add_tuple(db, entity, v),
-            ast::Expression::Record(ref v) => self.add_record(db, entity, v),
-            ast::Expression::UnOp(ref v) => self.add_un_op(db, entity, v),
-            ast::Expression::BiOp(ref v) => self.add_bi_op(db, entity, v),
-            ast::Expression::Identifier(ref v) => self.add_identifier(db, entity, v),
-            ast::Expression::Lambda(ref v) => self.add_lambda(db, entity, v),
-            ast::Expression::Select(ref v) => self.add_select(db, entity, v),
-            ast::Expression::Apply(ref v) => self.add_apply(db, entity, v),
+        match *ast {
+            ast::Expression::NumberLiteral(ref v) => self.add_number(entity, v),
+            ast::Expression::StringLiteral(ref v) => self.add_string(entity, v),
+            ast::Expression::Symbol(ref v) => self.add_symbol(entity, v),
+            ast::Expression::Tuple(ref v) => self.add_tuple(entity, v),
+            ast::Expression::Record(ref v) => self.add_record(entity, v),
+            ast::Expression::UnOp(ref v) => self.add_un_op(entity, v),
+            ast::Expression::BiOp(ref v) => self.add_bi_op(entity, v),
+            ast::Expression::Reference(ref v) => self.add_reference(entity, v),
+            ast::Expression::Lambda(ref v) => self.add_lambda(entity, v),
+            ast::Expression::Select(ref v) => self.add_select(entity, v),
+            ast::Expression::Apply(ref v) => self.add_apply(entity, v),
             ast::Expression::Unknown => panic!("'unknown' AST nodes should not escape the parser"),
         }
     }
 
     fn add_number(
         &mut self,
-        db: impl ir::db::IrDb,
         entity: ir::Entity,
-        number: &ast::NumberLiteral<parser::Context>,
+        ast: &ast::NumberLiteral<parser::Context>,
     ) -> Result<(), error::Error> {
-        self.world.set_element(
-            entity,
-            element::Element::Number(translate_number(number.value)),
-        );
+        let element = element::Element::Number(translate_number(ast.value));
+        let location = location::Location(ast.context.span);
 
-        self.world
-            .set_location(entity, location::Location(number.context.span));
+        self.infos
+            .insert(entity, ir::EntityInfo::new(element, location));
 
         Ok(())
     }
 
     fn add_string(
         &mut self,
-        db: impl ir::db::IrDb,
         entity: ir::Entity,
-        string: &ast::StringLiteral<parser::Context>,
+        ast: &ast::StringLiteral<parser::Context>,
     ) -> Result<(), error::Error> {
-        self.world.set_element(
-            entity,
-            element::Element::String(match string.value {
-                ast::StringValue::String(ref s) => s.clone(),
-                ast::StringValue::Invalid => {
-                    panic!("'invalid' AST nodes should not escape the parser")
-                }
-            }),
-        );
+        let element = element::Element::String(match &ast.value {
+            ast::StringValue::String(str) => str.clone(),
+            ast::StringValue::Invalid => {
+                panic!("'invalid' string values should not escape the parser")
+            }
+        });
+        let location = location::Location(ast.context.span);
 
-        self.world
-            .set_location(entity, location::Location(string.context.span));
+        self.infos
+            .insert(entity, ir::EntityInfo::new(element, location));
 
         Ok(())
     }
 
     fn add_tuple(
         &mut self,
-        db: impl ir::db::IrDb,
         entity: ir::Entity,
         tuple: &ast::Tuple<parser::Context>,
     ) -> Result<(), error::Error> {
         let fields = tuple
             .fields
             .iter()
-            .map(|f| {
-                let e = self.world.create_entity();
-                self.add_expression(e, f)?;
-                Ok(e)
+            .enumerate()
+            .map(|(index, ast)| {
+                let entity = self
+                    .db
+                    .entity(Some(entity), ir::db::EntityKind::Indexed(index));
+                self.add_expression(entity, &*ast)?;
+                Ok(entity)
             })
             .collect::<Result<_, error::Error>>()?;
 
-        self.world
-            .set_element(entity, element::Element::Tuple(element::Tuple { fields }));
+        let element = element::Element::Tuple(element::Tuple { fields });
+        let location = location::Location(tuple.context.span);
 
-        self.world
-            .set_location(entity, location::Location(tuple.context.span));
+        self.infos
+            .insert(entity, ir::EntityInfo::new(element, location));
 
         Ok(())
     }
 
     fn add_symbol(
         &mut self,
-        db: impl ir::db::IrDb,
         entity: ir::Entity,
         symbol: &ast::Symbol<parser::Context>,
     ) -> Result<(), error::Error> {
-        let label = symbol.label.clone();
+        let label = self.db.ident(symbol.label.clone());
 
-        self.world
-            .set_element(entity, element::Element::Symbol(element::Symbol { label }));
+        let element = element::Element::Symbol(element::Symbol { label });
+        let location = location::Location(symbol.context.span);
 
-        self.world
-            .set_location(entity, location::Location(symbol.context.span));
+        self.infos
+            .insert(entity, ir::EntityInfo::new(element, location));
 
         Ok(())
     }
 
     fn add_record(
         &mut self,
-        db: impl ir::db::IrDb,
         entity: ir::Entity,
         record: &ast::Record<parser::Context>,
     ) -> Result<(), error::Error> {
         let fields = record
             .fields
             .iter()
-            .map(|(i, e)| {
-                let en = self.world.create_entity();
-                self.add_expression(en, e)?;
-                Ok((i.value.clone(), en))
+            .map(|(field, value)| {
+                let ident = self.db.ident(field.clone());
+                let entity = self
+                    .db
+                    .entity(Some(entity), ir::db::EntityKind::Named(ident));
+                self.add_expression(entity, value)?;
+                Ok((ident, entity))
             })
             .collect::<Result<_, error::Error>>()?;
 
-        self.world
-            .set_element(entity, element::Element::Record(element::Record { fields }));
+        let element = element::Element::Record(element::Record { fields });
+        let location = location::Location(record.context.span);
 
-        self.world
-            .set_location(entity, location::Location(record.context.span));
+        self.infos
+            .insert(entity, ir::EntityInfo::new(element, location));
 
         Ok(())
     }
 
     fn add_un_op(
         &mut self,
-        db: impl ir::db::IrDb,
         entity: ir::Entity,
         un_op: &ast::UnOp<parser::Context>,
     ) -> Result<(), error::Error> {
         let operator = translate_un_operator(un_op.operator);
 
-        let operand = self.world.create_entity();
+        let operand = self.db.entity(Some(entity), ir::db::EntityKind::UnOperand);
         self.add_expression(operand, &*un_op.operand)?;
 
-        self.world.set_element(
-            entity,
-            element::Element::UnOp(element::UnOp { operator, operand }),
-        );
+        let element = element::Element::UnOp(element::UnOp { operator, operand });
+        let location = location::Location(un_op.context.span);
 
-        self.world
-            .set_location(entity, location::Location(un_op.context.span));
+        self.infos
+            .insert(entity, ir::EntityInfo::new(element, location));
 
         Ok(())
     }
 
     fn add_bi_op(
         &mut self,
-        db: impl ir::db::IrDb,
         entity: ir::Entity,
         bi_op: &ast::BiOp<parser::Context>,
     ) -> Result<(), error::Error> {
-        let lhs = self.world.create_entity();
+        let lhs = self.db.entity(Some(entity), ir::db::EntityKind::BiLhs);
         self.add_expression(lhs, &*bi_op.lhs)?;
 
         let operator = translate_bi_operator(bi_op.operator);
 
-        let rhs = self.world.create_entity();
+        let rhs = self.db.entity(Some(entity), ir::db::EntityKind::BiRhs);
         self.add_expression(rhs, &*bi_op.rhs)?;
 
-        self.world.set_element(
-            entity,
-            element::Element::BiOp(element::BiOp { lhs, operator, rhs }),
-        );
+        let element = element::Element::BiOp(element::BiOp { lhs, operator, rhs });
+        let location = location::Location(bi_op.context.span);
 
-        self.world
-            .set_location(entity, location::Location(bi_op.context.span));
+        self.infos
+            .insert(entity, ir::EntityInfo::new(element, location));
 
         Ok(())
     }
 
     fn add_lambda(
         &mut self,
-        db: impl ir::db::IrDb,
         entity: ir::Entity,
         lambda: &ast::Lambda<parser::Context>,
     ) -> Result<(), error::Error> {
         // TODO generate unique symbol for anonymous lambdas
 
-        self.push_scope(Some(lambda.parameters.len()), None);
+        self.push_scope(entity);
 
         let parameters = lambda
             .parameters
             .iter()
-            .map(|p| {
-                let e = self.world.create_entity();
-                self.add_parameter(e, p)?;
-                Ok(e)
+            .map(|parameter| {
+                let ident = self.db.ident(parameter.name.clone());
+                let entity = self
+                    .db
+                    .entity(Some(entity), ir::db::EntityKind::Named(ident));
+                self.add_parameter(entity, &*parameter)?;
+                Ok(entity)
             })
             .collect::<Result<Vec<_>, error::Error>>()?;
 
         // Defer inserting parameters as variables until here to ensure that one parameter can't
         // depend on another one.
         for (entity, parameter) in parameters.iter().zip(lambda.parameters.iter()) {
-            self.current_scope
-                .insert(parameter.name.value.clone(), *entity);
+            let ident = self.db.ident(parameter.name.clone());
+            self.scope.locals.insert(ident, *entity);
         }
 
         let statements = lambda
             .statements
             .iter()
-            .map(|s| {
-                let e = self.world.create_entity();
+            .enumerate()
+            .map(|(index, statement)| {
+                let entity = self
+                    .db
+                    .entity(Some(entity), ir::db::EntityKind::Indexed(index));
 
-                match s {
+                match &**statement {
                     ast::Statement::Variable(ref variable) => {
-                        self.current_scope.insert(variable.name.value.clone(), e);
-                        self.add_variable(e, variable)?;
+                        let ident = self.db.ident(variable.name.clone());
+                        self.scope.locals.insert(ident, entity);
+                        self.add_variable(entity, variable)?;
                     }
                     ast::Statement::Expression(ref expression) => {
-                        self.add_expression(e, expression)?;
+                        self.add_expression(entity, expression)?;
                     }
                 }
 
-                Ok(e)
+                Ok(entity)
             })
             .collect::<Result<Vec<_>, error::Error>>()?;
 
-        let signature = self.world.create_entity();
+        let signature = self.db.entity(Some(entity), ir::db::EntityKind::Signature);
         self.add_expression(signature, &*lambda.signature)?;
 
         let result = if let Some(ref result) = lambda.result {
-            let e = self.world.create_entity();
+            let e = self
+                .db
+                .entity(Some(entity), ir::db::EntityKind::LambdaResult);
             self.add_expression(e, &*result)?;
             e
         } else {
             signature
         };
 
-        self.world.set_element(
-            entity,
-            element::Element::Closure(element::Closure {
-                captures: self.current_captures.clone(),
-                parameters,
-                statements,
-                signature,
-                result,
-            }),
-        );
+        let location = location::Location(lambda.context.span);
 
-        self.world
-            .set_symbol(entity, symbol::Symbol::new(self.symbol.clone()));
+        let scope = self.pop_scope();
+        let captures = scope
+            .captures
+            .into_iter()
+            .map(|(entity, capture)| {
+                let ident = capture.name;
+                self.infos.insert(
+                    entity,
+                    ir::EntityInfo::new(element::Element::Capture(capture), location),
+                );
+                (ident, entity)
+            })
+            .collect();
 
-        self.world
-            .set_location(entity, location::Location(lambda.context.span));
+        let element = element::Element::Closure(element::Closure {
+            captures,
+            parameters,
+            statements,
+            signature,
+            result,
+        });
 
-        self.pop_scope();
+        self.infos
+            .insert(entity, ir::EntityInfo::new(element, location));
 
         Ok(())
     }
 
     fn add_variable(
         &mut self,
-        db: impl ir::db::IrDb,
         entity: ir::Entity,
         variable: &ast::Variable<parser::Context>,
     ) -> Result<(), error::Error> {
-        self.symbol
-            .push(symbol::Part::Named(variable.name.value.clone()));
+        let name = self.db.ident(variable.name.clone());
 
-        let name = variable.name.value.clone();
-        let initializer = self.world.create_entity();
+        let initializer = self
+            .db
+            .entity(Some(entity), ir::db::EntityKind::Initializer);
 
         self.add_expression(initializer, &variable.initializer)?;
 
-        self.world.set_element(
-            entity,
-            element::Element::Variable(element::Variable { name, initializer }),
-        );
+        let element = element::Element::Variable(element::Variable { name, initializer });
+        let location = location::Location(variable.context.span);
 
-        self.world
-            .set_symbol(entity, symbol::Symbol::new(self.symbol.clone()));
-
-        self.world
-            .set_location(entity, location::Location(variable.context.span));
-
-        self.symbol.pop();
+        self.infos
+            .insert(entity, ir::EntityInfo::new(element, location));
 
         Ok(())
     }
 
     fn add_select(
         &mut self,
-        db: impl ir::db::IrDb,
         entity: ir::Entity,
         select: &ast::Select<parser::Context>,
     ) -> Result<(), error::Error> {
-        let record = self.world.create_entity();
+        let field = self.db.ident(select.field.clone());
+        let record = self
+            .db
+            .entity(Some(entity), ir::db::EntityKind::Named(field));
         self.add_expression(record, &*select.record)?;
 
-        let field = select.field.value.clone();
+        let element = element::Element::Select(element::Select { record, field });
+        let location = location::Location(select.context.span);
 
-        self.world.set_element(
-            entity,
-            element::Element::Select(element::Select { record, field }),
-        );
-
-        self.world
-            .set_location(entity, location::Location(select.context.span));
+        self.infos
+            .insert(entity, ir::EntityInfo::new(element, location));
 
         Ok(())
     }
 
     fn add_apply(
         &mut self,
-        db: impl ir::db::IrDb,
         entity: ir::Entity,
         apply: &ast::Apply<parser::Context>,
     ) -> Result<(), error::Error> {
-        let function = self.world.create_entity();
+        let function = self
+            .db
+            .entity(Some(entity), ir::db::EntityKind::CalledFunction);
         self.add_expression(function, &*apply.function)?;
 
         let parameters = apply
             .parameters
             .iter()
-            .map(|p| {
-                let e = self.world.create_entity();
-                self.add_expression(e, p)?;
-                Ok(e)
+            .enumerate()
+            .map(|(index, parameter)| {
+                let entity = self
+                    .db
+                    .entity(Some(entity), ir::db::EntityKind::Indexed(index));
+                self.add_expression(entity, &*parameter)?;
+                Ok(entity)
             })
             .collect::<Result<_, error::Error>>()?;
 
-        self.world.set_element(
-            entity,
-            element::Element::Apply(element::Apply {
-                function,
-                parameters,
-            }),
-        );
+        let element = element::Element::Apply(element::Apply {
+            function,
+            parameters,
+        });
+        let location = location::Location(apply.context.span);
 
-        self.world
-            .set_location(entity, location::Location(apply.context.span));
+        self.infos
+            .insert(entity, ir::EntityInfo::new(element, location));
 
         Ok(())
     }
 
     fn add_parameter(
         &mut self,
-        db: impl ir::db::IrDb,
         entity: ir::Entity,
         parameter: &ast::Parameter<parser::Context>,
     ) -> Result<(), error::Error> {
-        let name = parameter.name.value.clone();
-        let signature = self.world.create_entity();
+        let name = self.db.ident(parameter.name.clone());
+        let signature = self.db.entity(Some(entity), ir::db::EntityKind::Signature);
         self.add_expression(signature, &parameter.signature)?;
 
-        self.world.set_element(
-            entity,
-            element::Element::Parameter(element::Parameter { name, signature }),
-        );
+        let element = element::Element::Parameter(element::Parameter { name, signature });
+        let location = location::Location(parameter.context.span);
 
-        self.world
-            .set_location(entity, location::Location(parameter.context.span));
+        self.infos
+            .insert(entity, ir::EntityInfo::new(element, location));
 
         Ok(())
     }
 
-    fn push_scope(&mut self, scope_size_hint: Option<usize>, captures_size_hint: Option<usize>) {
-        self.scopes.push(mem::replace(
-            &mut self.current_scope,
-            scope_size_hint.map_or_else(
-                collections::HashMap::new,
-                collections::HashMap::with_capacity,
-            ),
-        ));
-        self.captures.push(mem::replace(
-            &mut self.current_captures,
-            captures_size_hint.map_or_else(
-                collections::HashMap::new,
-                collections::HashMap::with_capacity,
-            ),
-        ));
+    fn push_scope(&mut self, entity: ir::Entity) {
+        let scope = Scope::new(entity);
+        let parent_scope = mem::replace(&mut self.scope, scope);
+        self.scope.parent = Some(Box::new(parent_scope));
     }
 
-    fn pop_scope(&mut self) {
-        self.current_scope = self.scopes.pop().unwrap();
-        self.current_captures = self.captures.pop().unwrap();
+    fn pop_scope(&mut self) -> Scope {
+        let parent = self
+            .scope
+            .parent
+            .take()
+            .expect("unbalanced push_scope/pop_scope calls");
+        mem::replace(&mut self.scope, *parent)
+    }
+}
+
+impl Scope {
+    fn new(entity: ir::Entity) -> Self {
+        let parent = None;
+        let locals = collections::HashMap::new();
+        let captures = collections::HashMap::new();
+
+        Self {
+            parent,
+            entity,
+            locals,
+            captures,
+        }
+    }
+
+    fn resolve_capture(
+        &mut self,
+        db: &mut impl ir::db::IrDb,
+        ident: ir::Ident,
+        location: codespan::ByteSpan,
+    ) -> Result<ir::Entity, error::Error> {
+        match self.locals.entry(ident) {
+            collections::hash_map::Entry::Occupied(entry) => Ok(*entry.get()),
+            collections::hash_map::Entry::Vacant(entry) => {
+                if let Some(parent) = &mut self.parent {
+                    let capture_entity =
+                        db.entity(Some(self.entity), ir::db::EntityKind::Named(ident));
+                    let parent_entity = parent.resolve_capture(db, ident, location)?;
+                    self.captures.insert(
+                        capture_entity,
+                        element::Capture {
+                            name: ident,
+                            captured: parent_entity,
+                        },
+                    );
+                    self.locals.insert(ident, capture_entity);
+                    Ok(capture_entity)
+                } else {
+                    let reference = (*db.lookup_ident(ident)).clone();
+                    Err(error::Error::UndefinedReference {
+                        reference,
+                        location,
+                    })
+                }
+            }
+        }
     }
 }
 

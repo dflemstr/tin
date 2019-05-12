@@ -23,6 +23,7 @@ impl System {
         db: impl layout::db::LayoutDb,
     ) -> sync::Arc<layout::Layout> {
         match *element {
+            element::Element::Reference(_) => unimplemented!(),
             element::Element::Number(ref n) => self.infer_number_layout(n),
             element::Element::String(_) => sync::Arc::new(layout::Layout::scalar(self.ptr_size)),
             element::Element::Symbol(_) => sync::Arc::new(layout::Layout::zero()),

@@ -1,13 +1,12 @@
 //! Intermediate representation variables for the compiler and interpreter.
 use std::collections;
+use std::sync;
 
-// pub mod builder;
+pub mod builder;
 pub mod db;
 pub mod element;
 pub mod error;
 pub mod location;
-pub mod symbol;
-pub mod world;
 //#[cfg(test)]
 //mod tests;
 
@@ -19,9 +18,13 @@ pub struct Entity(u32);
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Entities {
-    elements: collections::HashMap<Entity, element::Element>,
-    locations: collections::HashMap<Entity, location::Location>,
-    symbols: collections::HashMap<Entity, symbol::Symbol>,
+    infos: collections::HashMap<Entity, EntityInfo>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct EntityInfo {
+    pub element: sync::Arc<element::Element>,
+    pub location: sync::Arc<location::Location>,
 }
 
 impl salsa::InternKey for Ident {
@@ -44,16 +47,19 @@ impl salsa::InternKey for Entity {
     }
 }
 
+impl EntityInfo {
+    fn new(element: element::Element, location: location::Location) -> Self {
+        let element = sync::Arc::new(element);
+        let location = sync::Arc::new(location);
+
+        Self { element, location }
+    }
+}
+
 impl Entities {
     pub fn new() -> Self {
-        let elements = collections::HashMap::new();
-        let locations = collections::HashMap::new();
-        let symbols = collections::HashMap::new();
+        let infos = collections::HashMap::new();
 
-        Self {
-            elements,
-            locations,
-            symbols,
-        }
+        Self { infos }
     }
 }

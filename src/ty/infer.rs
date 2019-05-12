@@ -12,6 +12,7 @@ type Result<T> = result::Result<sync::Arc<T>, ty::error::Error>;
 
 fn infer_type(element: &element::Element, db: impl ty::db::TyDb) -> Result<ty::Type> {
     match *element {
+        element::Element::Reference(_) => unimplemented!(),
         element::Element::Number(ref n) => {
             Ok(sync::Arc::new(ty::Type::Number(infer_number_type(n))))
         }
