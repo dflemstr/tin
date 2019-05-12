@@ -34,7 +34,6 @@ enum-primitive-derive = "0.1.2"
 num-traits = "0.2.6"
 salsa = "0.12.0"
 relative-path = "0.4.0"
-rustc-hash = "1.0.1"
 ordered-float = "1.0.2"
 
 [features]

@@ -30,8 +30,8 @@
 //! # }
 //! ```
 #![feature(const_fn, const_vec_new)]
-// #![deny(nonstandard_style, warnings, unused)]
-#![deny(nonstandard_style)]
+#![deny(nonstandard_style, warnings)]
+#![allow(unused)]
 #![deny(
     missing_docs,
     missing_debug_implementations,
@@ -67,12 +67,12 @@ mod syntax;
 mod ty;
 mod value;
 
-//#[cfg(test)]
-//mod test_util;
+#[cfg(test)]
+mod test_util;
 
 pub mod diagnostic;
 pub mod error;
-// pub mod graph;
+pub mod graph;
 pub mod module;
 
 pub use crate::error::Error;
@@ -128,7 +128,7 @@ impl Tin {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn load<F>(&mut self, file_name: F, source: &str) -> Result<()>
+    pub fn load<F>(&mut self, _file_name: F, _source: &str) -> Result<()>
     where
         F: Into<codespan::FileName>,
     {

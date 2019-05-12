@@ -21,12 +21,14 @@ impl System {
         &self,
         element: &element::Element,
         db: impl layout::db::LayoutDb,
-    ) -> sync::Arc<layout::Layout> {
+    ) -> layout::error::Result<sync::Arc<layout::Layout>> {
         match *element {
             element::Element::Reference(_) => unimplemented!(),
             element::Element::Number(ref n) => self.infer_number_layout(n),
-            element::Element::String(_) => sync::Arc::new(layout::Layout::scalar(self.ptr_size)),
-            element::Element::Symbol(_) => sync::Arc::new(layout::Layout::zero()),
+            element::Element::String(_) => {
+                Ok(sync::Arc::new(layout::Layout::scalar(self.ptr_size)))
+            }
+            element::Element::Symbol(_) => Ok(sync::Arc::new(layout::Layout::zero())),
             element::Element::Tuple(element::Tuple { ref fields }) => {
                 self.infer_tuple_layout(fields, db)
             }
@@ -64,19 +66,22 @@ impl System {
         }
     }
 
-    fn infer_number_layout(&self, number: &element::Number) -> sync::Arc<layout::Layout> {
+    fn infer_number_layout(
+        &self,
+        number: &element::Number,
+    ) -> layout::error::Result<sync::Arc<layout::Layout>> {
         match *number {
             element::Number::U8(_) | element::Number::I8(_) => {
-                sync::Arc::new(layout::Layout::scalar(1))
+                Ok(sync::Arc::new(layout::Layout::scalar(1)))
             }
             element::Number::U16(_) | element::Number::I16(_) => {
-                sync::Arc::new(layout::Layout::scalar(2))
+                Ok(sync::Arc::new(layout::Layout::scalar(2)))
             }
             element::Number::U32(_) | element::Number::I32(_) | element::Number::F32(_) => {
-                sync::Arc::new(layout::Layout::scalar(4))
+                Ok(sync::Arc::new(layout::Layout::scalar(4)))
             }
             element::Number::U64(_) | element::Number::I64(_) | element::Number::F64(_) => {
-                sync::Arc::new(layout::Layout::scalar(8))
+                Ok(sync::Arc::new(layout::Layout::scalar(8)))
             }
         }
     }
@@ -85,15 +90,15 @@ impl System {
         &self,
         fields: &[ir::Entity],
         db: impl layout::db::LayoutDb,
-    ) -> sync::Arc<layout::Layout> {
+    ) -> layout::error::Result<sync::Arc<layout::Layout>> {
         let mut layouts = fields
             .iter()
             .enumerate()
-            .map(|(i, f)| (i, db.entity_layout(*f)))
-            .collect::<Vec<_>>();
+            .map(|(i, f)| Ok((i, db.entity_layout(*f)?)))
+            .collect::<layout::error::Result<Vec<_>>>()?;
 
         if layouts.is_empty() {
-            sync::Arc::new(layout::Layout::zero())
+            Ok(sync::Arc::new(layout::Layout::zero()))
         } else {
             layouts.sort_unstable_by_key(|(i, l)| (usize::max_value() - l.size, *i));
             let alignment = layouts.iter().map(|(_, l)| l.alignment).max().unwrap();
@@ -108,11 +113,11 @@ impl System {
                 unnamed_fields[i] = layout::Offset { offset, layout };
             }
 
-            sync::Arc::new(layout::Layout::unnamed_fields(
+            Ok(sync::Arc::new(layout::Layout::unnamed_fields(
                 size,
                 alignment,
                 unnamed_fields,
-            ))
+            )))
         }
     }
 
@@ -120,14 +125,14 @@ impl System {
         &self,
         fields: &collections::HashMap<ir::Ident, ir::Entity>,
         db: impl layout::db::LayoutDb,
-    ) -> sync::Arc<layout::Layout> {
+    ) -> layout::error::Result<sync::Arc<layout::Layout>> {
         let mut layouts = fields
             .iter()
-            .map(|(n, f)| (*n, db.entity_layout(*f)))
-            .collect::<Vec<_>>();
+            .map(|(n, f)| Ok((*n, db.entity_layout(*f)?)))
+            .collect::<layout::error::Result<Vec<_>>>()?;
 
         if layouts.is_empty() {
-            sync::Arc::new(layout::Layout::zero())
+            Ok(sync::Arc::new(layout::Layout::zero()))
         } else {
             layouts
                 .sort_unstable_by_key(|(n, l)| (usize::max_value() - l.size, db.lookup_ident(*n)));
@@ -150,7 +155,11 @@ impl System {
                 })
                 .collect::<Vec<_>>();
 
-            sync::Arc::new(layout::Layout::named_fields(size, alignment, named_fields))
+            Ok(sync::Arc::new(layout::Layout::named_fields(
+                size,
+                alignment,
+                named_fields,
+            )))
         }
     }
 
@@ -159,9 +168,9 @@ impl System {
         operator: element::UnOperator,
         operand: ir::Entity,
         db: impl layout::db::LayoutDb,
-    ) -> sync::Arc<layout::Layout> {
+    ) -> layout::error::Result<sync::Arc<layout::Layout>> {
         match operator {
-            element::UnOperator::Not => sync::Arc::new(BOOL_LAYOUT),
+            element::UnOperator::Not => Ok(sync::Arc::new(BOOL_LAYOUT)),
             element::UnOperator::BNot
             | element::UnOperator::Cl0
             | element::UnOperator::Cl1
@@ -180,9 +189,9 @@ impl System {
         operator: element::BiOperator,
         rhs: ir::Entity,
         db: impl layout::db::LayoutDb,
-    ) -> sync::Arc<layout::Layout> {
-        let lhs = db.entity_layout(lhs);
-        let rhs = db.entity_layout(rhs);
+    ) -> layout::error::Result<sync::Arc<layout::Layout>> {
+        let lhs = db.entity_layout(lhs)?;
+        let rhs = db.entity_layout(rhs)?;
 
         if lhs.size != rhs.size {
             unreachable!()
@@ -204,7 +213,7 @@ impl System {
             | element::BiOperator::Xor
             | element::BiOperator::AndNot
             | element::BiOperator::OrNot
-            | element::BiOperator::XorNot => sync::Arc::new(BOOL_LAYOUT),
+            | element::BiOperator::XorNot => Ok(sync::Arc::new(BOOL_LAYOUT)),
             element::BiOperator::Cmp => unimplemented!(),
             element::BiOperator::Add
             | element::BiOperator::Sub
@@ -220,7 +229,7 @@ impl System {
             | element::BiOperator::RotL
             | element::BiOperator::RotR
             | element::BiOperator::ShL
-            | element::BiOperator::ShR => lhs,
+            | element::BiOperator::ShR => Ok(lhs),
         }
     }
 
@@ -228,7 +237,7 @@ impl System {
         &self,
         initializer: ir::Entity,
         db: impl layout::db::LayoutDb,
-    ) -> sync::Arc<layout::Layout> {
+    ) -> layout::error::Result<sync::Arc<layout::Layout>> {
         db.entity_layout(initializer)
     }
 
@@ -237,8 +246,8 @@ impl System {
         record: ir::Entity,
         field: ir::Ident,
         db: impl layout::db::LayoutDb,
-    ) -> sync::Arc<layout::Layout> {
-        match *db.entity_element(record) {
+    ) -> layout::error::Result<sync::Arc<layout::Layout>> {
+        match *db.entity_element(record)? {
             element::Element::Record(element::Record { ref fields }) => {
                 if let Some(f) = fields.get(&field) {
                     db.entity_layout(*f)
@@ -255,7 +264,7 @@ impl System {
         _function: ir::Entity,
         _parameters: &[ir::Entity],
         _db: impl layout::db::LayoutDb,
-    ) -> sync::Arc<layout::Layout> {
+    ) -> layout::error::Result<sync::Arc<layout::Layout>> {
         // TODO
         unimplemented!()
         /*
@@ -305,7 +314,7 @@ impl System {
         &self,
         signature: ir::Entity,
         db: impl layout::db::LayoutDb,
-    ) -> sync::Arc<layout::Layout> {
+    ) -> layout::error::Result<sync::Arc<layout::Layout>> {
         db.entity_layout(signature)
     }
 
@@ -313,7 +322,7 @@ impl System {
         &self,
         capture: ir::Entity,
         db: impl layout::db::LayoutDb,
-    ) -> sync::Arc<layout::Layout> {
+    ) -> layout::error::Result<sync::Arc<layout::Layout>> {
         db.entity_layout(capture)
     }
 
@@ -321,11 +330,11 @@ impl System {
         &self,
         captures: &collections::HashMap<ir::Ident, ir::Entity>,
         db: impl layout::db::LayoutDb,
-    ) -> sync::Arc<layout::Layout> {
+    ) -> layout::error::Result<sync::Arc<layout::Layout>> {
         let mut capture_layouts = captures
             .iter()
-            .map(|(n, f)| (*n, db.entity_layout(*f)))
-            .collect::<Vec<_>>();
+            .map(|(n, f)| Ok((*n, db.entity_layout(*f)?)))
+            .collect::<layout::error::Result<Vec<_>>>()?;
         let unnamed_fields = vec![layout::Offset {
             offset: 0,
             layout: layout::Layout::scalar(self.ptr_size),
@@ -356,19 +365,19 @@ impl System {
             })
             .collect::<Vec<_>>();
 
-        sync::Arc::new(layout::Layout {
+        Ok(sync::Arc::new(layout::Layout {
             size,
             alignment,
             named_fields,
             unnamed_fields,
-        })
+        }))
     }
 
     fn infer_module_layout(
         &self,
         _variables: &collections::HashMap<ir::Ident, ir::Entity>,
-        db: impl layout::db::LayoutDb,
-    ) -> sync::Arc<layout::Layout> {
+        _db: impl layout::db::LayoutDb,
+    ) -> layout::error::Result<sync::Arc<layout::Layout>> {
         // TODO
         unimplemented!()
         /*

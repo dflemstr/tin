@@ -320,7 +320,7 @@ fn if_eq_then(
     rhs_entity: ir::Entity,
     rhs: &sync::Arc<ty::Type>,
     result: &sync::Arc<ty::Type>,
-    db: impl ty::db::TyDb,
+    _db: impl ty::db::TyDb,
 ) -> Result<ty::Type> {
     if lhs == rhs {
         Ok(result.clone())

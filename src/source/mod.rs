@@ -9,13 +9,15 @@
 //!
 pub mod db;
 
+use std::collections;
+
 /// `FileId` is an integer which uniquely identifies a file.
 ///
 /// File paths are messy and system-dependent, so most of the code should work directly with
 /// `FileId`, without inspecting the path. The mapping between `FileId` and path  and `SourceRoot`
 /// is constant. A file rename is represented as a pair of deletion/creation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct FileId(u32);
+pub struct FileId(pub u32);
 
 /// Files are grouped into source roots.
 ///
@@ -25,9 +27,9 @@ pub struct FileId(u32);
 /// source root at all. So, a file from one source root can't refer to a file in another source root
 /// by path.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub struct RootId(u32);
+pub struct RootId(pub u32);
 
 #[derive(Default, Clone, Debug, PartialEq, Eq)]
 pub struct Root {
-    pub files: rustc_hash::FxHashMap<relative_path::RelativePathBuf, FileId>,
+    pub files: collections::HashMap<relative_path::RelativePathBuf, FileId>,
 }

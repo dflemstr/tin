@@ -14,7 +14,7 @@ fn entity_value(
     db: &impl InterpreterDb,
     entity: ir::Entity,
 ) -> Result<Option<value::Value>, interpreter::error::Error> {
-    let element = db.entity_element(entity);
+    let element = db.entity_element(entity)?;
 
     Ok(interpreter::eval(&*element, db)?)
 }

@@ -2,13 +2,15 @@
 use std::collections;
 use std::sync;
 
+use crate::source;
+
 pub mod builder;
 pub mod db;
 pub mod element;
 pub mod error;
 pub mod location;
-//#[cfg(test)]
-//mod tests;
+#[cfg(test)]
+mod tests;
 
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct Ident(u32);
@@ -18,13 +20,49 @@ pub struct Entity(u32);
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Entities {
-    infos: collections::HashMap<Entity, EntityInfo>,
+    pub infos: collections::HashMap<Entity, EntityInfo>,
+    pub modules: Vec<Entity>,
+}
+
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+pub enum EntityRole {
+    File(source::FileId),
+    Reference(Ident),
+    RecordField(Ident),
+    TupleField(usize),
+    VariableDefinition(Ident),
+    VariableInitializer,
+    SelectField(Ident),
+    AppliedFunction,
+    AppliedParameter(usize),
+    ParameterSignature,
+    ClosureCaptureDefinition(Ident),
+    ClosureParameter(Ident),
+    ClosureStatement(usize),
+    ClosureSignature,
+    ClosureResult,
+    ModuleDefinition(Ident),
+    UnOperand,
+    BiLhs,
+    BiRhs,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct EntityInfo {
     pub element: sync::Arc<element::Element>,
     pub location: sync::Arc<location::Location>,
+}
+
+impl Ident {
+    pub fn id(self) -> u32 {
+        self.0
+    }
+}
+
+impl Entity {
+    pub fn id(self) -> u32 {
+        self.0
+    }
 }
 
 impl salsa::InternKey for Ident {
@@ -59,7 +97,8 @@ impl EntityInfo {
 impl Entities {
     pub fn new() -> Self {
         let infos = collections::HashMap::new();
+        let modules = Vec::new();
 
-        Self { infos }
+        Self { infos, modules }
     }
 }

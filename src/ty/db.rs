@@ -14,7 +14,12 @@ fn entity_type(
     _ir: &impl TyDb,
     _entity: ir::Entity,
 ) -> Result<sync::Arc<ty::Type>, ty::error::Error> {
-    unimplemented!()
+    Err(ty::error::Error {
+        expected: ty::error::ExpectedType::AnyOf(vec![]),
+        actual: sync::Arc::new(ty::Type::Placeholder),
+        main_entity: _entity,
+        aux_entities: vec![]
+    })
 }
 
 fn bool_type(db: &impl TyDb) -> sync::Arc<ty::Type> {

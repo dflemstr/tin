@@ -10,9 +10,9 @@ use crate::syntax::ast;
 use crate::syntax::parser;
 
 pub struct Builder<'a, Db> {
-    db: &'a mut Db,
+    db: &'a Db,
     scope: Scope,
-    infos: collections::HashMap<ir::Entity, ir::EntityInfo>,
+    infos: &'a mut collections::HashMap<ir::Entity, ir::EntityInfo>,
 }
 
 #[derive(Debug)]
@@ -27,9 +27,8 @@ impl<'a, Db> Builder<'a, Db>
 where
     Db: ir::db::IrDb,
 {
-    pub fn new(db: &'a mut Db, root: ir::Entity) -> Self {
+    pub fn new(db: &'a Db, root: ir::Entity, infos: &'a mut collections::HashMap<ir::Entity, ir::EntityInfo>) -> Self {
         let scope = Scope::new(root);
-        let infos = collections::HashMap::new();
 
         Builder { db, scope, infos }
     }
@@ -40,9 +39,10 @@ where
         ast: &ast::Module<parser::Context>,
     ) -> Result<ir::Entity, error::Error> {
         let module_ident = self.db.ident(name.clone());
-        let module_entity = self
-            .db
-            .entity(None, ir::db::EntityKind::Module(module_ident));
+        let module_entity = self.db.entity(
+            Some(self.scope.entity),
+            ir::EntityRole::ModuleDefinition(module_ident),
+        );
 
         self.add_module(module_entity, ast)?;
 
@@ -60,7 +60,7 @@ where
             let ident = self.db.ident(variable.name.clone());
             let var_entity = self
                 .db
-                .entity(Some(entity), ir::db::EntityKind::Named(ident));
+                .entity(Some(entity), ir::EntityRole::VariableDefinition(ident));
 
             self.scope.locals.insert(ident, var_entity);
 
@@ -87,6 +87,9 @@ where
         ast: &ast::Reference<parser::Context>,
     ) -> Result<(), error::Error> {
         let ident = self.db.ident(ast.value.clone());
+        let entity = self
+            .db
+            .entity(Some(entity), ir::EntityRole::Reference(ident));
         let target = self
             .scope
             .resolve_capture(self.db, ident, ast.context.span)?;
@@ -166,7 +169,7 @@ where
             .map(|(index, ast)| {
                 let entity = self
                     .db
-                    .entity(Some(entity), ir::db::EntityKind::Indexed(index));
+                    .entity(Some(entity), ir::EntityRole::TupleField(index));
                 self.add_expression(entity, &*ast)?;
                 Ok(entity)
             })
@@ -209,7 +212,7 @@ where
                 let ident = self.db.ident(field.clone());
                 let entity = self
                     .db
-                    .entity(Some(entity), ir::db::EntityKind::Named(ident));
+                    .entity(Some(entity), ir::EntityRole::RecordField(ident));
                 self.add_expression(entity, value)?;
                 Ok((ident, entity))
             })
@@ -231,7 +234,7 @@ where
     ) -> Result<(), error::Error> {
         let operator = translate_un_operator(un_op.operator);
 
-        let operand = self.db.entity(Some(entity), ir::db::EntityKind::UnOperand);
+        let operand = self.db.entity(Some(entity), ir::EntityRole::UnOperand);
         self.add_expression(operand, &*un_op.operand)?;
 
         let element = element::Element::UnOp(element::UnOp { operator, operand });
@@ -248,12 +251,12 @@ where
         entity: ir::Entity,
         bi_op: &ast::BiOp<parser::Context>,
     ) -> Result<(), error::Error> {
-        let lhs = self.db.entity(Some(entity), ir::db::EntityKind::BiLhs);
+        let lhs = self.db.entity(Some(entity), ir::EntityRole::BiLhs);
         self.add_expression(lhs, &*bi_op.lhs)?;
 
         let operator = translate_bi_operator(bi_op.operator);
 
-        let rhs = self.db.entity(Some(entity), ir::db::EntityKind::BiRhs);
+        let rhs = self.db.entity(Some(entity), ir::EntityRole::BiRhs);
         self.add_expression(rhs, &*bi_op.rhs)?;
 
         let element = element::Element::BiOp(element::BiOp { lhs, operator, rhs });
@@ -281,7 +284,7 @@ where
                 let ident = self.db.ident(parameter.name.clone());
                 let entity = self
                     .db
-                    .entity(Some(entity), ir::db::EntityKind::Named(ident));
+                    .entity(Some(entity), ir::EntityRole::ClosureParameter(ident));
                 self.add_parameter(entity, &*parameter)?;
                 Ok(entity)
             })
@@ -301,7 +304,7 @@ where
             .map(|(index, statement)| {
                 let entity = self
                     .db
-                    .entity(Some(entity), ir::db::EntityKind::Indexed(index));
+                    .entity(Some(entity), ir::EntityRole::ClosureStatement(index));
 
                 match &**statement {
                     ast::Statement::Variable(ref variable) => {
@@ -318,13 +321,13 @@ where
             })
             .collect::<Result<Vec<_>, error::Error>>()?;
 
-        let signature = self.db.entity(Some(entity), ir::db::EntityKind::Signature);
+        let signature = self
+            .db
+            .entity(Some(entity), ir::EntityRole::ClosureSignature);
         self.add_expression(signature, &*lambda.signature)?;
 
         let result = if let Some(ref result) = lambda.result {
-            let e = self
-                .db
-                .entity(Some(entity), ir::db::EntityKind::LambdaResult);
+            let e = self.db.entity(Some(entity), ir::EntityRole::ClosureResult);
             self.add_expression(e, &*result)?;
             e
         } else {
@@ -370,7 +373,7 @@ where
 
         let initializer = self
             .db
-            .entity(Some(entity), ir::db::EntityKind::Initializer);
+            .entity(Some(entity), ir::EntityRole::VariableInitializer);
 
         self.add_expression(initializer, &variable.initializer)?;
 
@@ -391,7 +394,7 @@ where
         let field = self.db.ident(select.field.clone());
         let record = self
             .db
-            .entity(Some(entity), ir::db::EntityKind::Named(field));
+            .entity(Some(entity), ir::EntityRole::SelectField(field));
         self.add_expression(record, &*select.record)?;
 
         let element = element::Element::Select(element::Select { record, field });
@@ -410,7 +413,7 @@ where
     ) -> Result<(), error::Error> {
         let function = self
             .db
-            .entity(Some(entity), ir::db::EntityKind::CalledFunction);
+            .entity(Some(entity), ir::EntityRole::AppliedFunction);
         self.add_expression(function, &*apply.function)?;
 
         let parameters = apply
@@ -420,7 +423,7 @@ where
             .map(|(index, parameter)| {
                 let entity = self
                     .db
-                    .entity(Some(entity), ir::db::EntityKind::Indexed(index));
+                    .entity(Some(entity), ir::EntityRole::AppliedParameter(index));
                 self.add_expression(entity, &*parameter)?;
                 Ok(entity)
             })
@@ -444,7 +447,9 @@ where
         parameter: &ast::Parameter<parser::Context>,
     ) -> Result<(), error::Error> {
         let name = self.db.ident(parameter.name.clone());
-        let signature = self.db.entity(Some(entity), ir::db::EntityKind::Signature);
+        let signature = self
+            .db
+            .entity(Some(entity), ir::EntityRole::ParameterSignature);
         self.add_expression(signature, &parameter.signature)?;
 
         let element = element::Element::Parameter(element::Parameter { name, signature });
@@ -488,7 +493,7 @@ impl Scope {
 
     fn resolve_capture(
         &mut self,
-        db: &mut impl ir::db::IrDb,
+        db: &impl ir::db::IrDb,
         ident: ir::Ident,
         location: codespan::ByteSpan,
     ) -> Result<ir::Entity, error::Error> {
@@ -496,8 +501,10 @@ impl Scope {
             collections::hash_map::Entry::Occupied(entry) => Ok(*entry.get()),
             collections::hash_map::Entry::Vacant(entry) => {
                 if let Some(parent) = &mut self.parent {
-                    let capture_entity =
-                        db.entity(Some(self.entity), ir::db::EntityKind::Named(ident));
+                    let capture_entity = db.entity(
+                        Some(self.entity),
+                        ir::EntityRole::ClosureCaptureDefinition(ident),
+                    );
                     let parent_entity = parent.resolve_capture(db, ident, location)?;
                     self.captures.insert(
                         capture_entity,
@@ -506,7 +513,7 @@ impl Scope {
                             captured: parent_entity,
                         },
                     );
-                    self.locals.insert(ident, capture_entity);
+                    entry.insert(capture_entity);
                     Ok(capture_entity)
                 } else {
                     let reference = (*db.lookup_ident(ident)).clone();

@@ -1,8 +1,10 @@
 use env_logger;
 use failure;
+use std::collections;
+use std::sync;
 
-use super::*;
-use crate::syntax::ast;
+use crate::db;
+use crate::source;
 use crate::test_util;
 
 #[test]
@@ -123,22 +125,34 @@ a = || -> u32 {
 }
 
 fn check_module(name: &'static str, source: &str) -> Result<(), String> {
-    use crate::syntax::parser::Parse;
+    use crate::ir::db::IrDb;
+    use crate::source::db::SourceDb;
 
     let mut codemap = codespan::CodeMap::new();
     let span = codemap
         .add_filemap(codespan::FileName::Virtual(name.into()), source.to_owned())
         .span();
-    let ast_module =
-        ast::Module::parse(span, source).map_err(|e| crate::diagnostic::to_string(&codemap, &e))?;
 
-    let mut ir = Ir::new();
-    ir.load(&ast_module)
-        .map_err(|e| crate::diagnostic::to_string(&codemap, &e))?;
-    ir.check_types()
+    let root_id = source::RootId(1);
+    let file_id = source::FileId(1);
+    let path = relative_path::RelativePath::new(name).to_owned();
+    let mut files = collections::HashMap::new();
+    files.insert(path.clone(), file_id);
+    let root = source::Root { files };
+
+    let mut db = db::Db::new();
+
+    db.set_file_text(file_id, sync::Arc::new(source.to_owned()));
+    db.set_file_span(file_id, span);
+    db.set_file_relative_path(file_id, path);
+    db.set_file_source_root(file_id, root_id);
+    db.set_source_root(root_id, sync::Arc::new(root));
+    db.set_all_source_roots(sync::Arc::new(vec![root_id]));
+
+    db.entities()
         .map_err(|e| crate::diagnostic::to_string(&codemap, &e))?;
 
-    test_util::render_graph(&format!(concat!(module_path!(), "::{}"), name), &ir).unwrap();
+    test_util::render_graph(&format!(concat!(module_path!(), "::{}"), name), &db).unwrap();
 
     Ok(())
 }

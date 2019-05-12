@@ -1,11 +1,11 @@
 use failure;
 
+use crate::db;
 use crate::graph;
-use crate::ir;
 
-pub fn render_graph(name: &str, ir: &ir::Ir) -> Result<(), failure::Error> {
+pub fn render_graph(name: &str, db: &db::Db) -> Result<(), failure::Error> {
     if cfg!(feature = "test-render-graphs") {
-        let graph = graph::Graph::new(ir);
+        let graph = graph::Graph::new(db);
 
         let dot_path = format!("/tmp/{}.dot", name);
         let img_path = format!("/tmp/{}.svg", name);

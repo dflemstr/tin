@@ -2,6 +2,7 @@ use crate::ir;
 use std::fmt;
 
 pub mod db;
+pub mod error;
 mod infer;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
