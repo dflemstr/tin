@@ -12,12 +12,12 @@ pub mod error;
 mod macros;
 
 #[salsa::query_group(Interpreter)]
-pub trait InterpreterDb: salsa::Database + ir::db::IrDb {
+pub trait Db: salsa::Database + ir::db::IrDb {
     fn entity_value(&self, entity: ir::Entity) -> error::Result<Option<value::Value>>;
 }
 
 fn entity_value(
-    db: &impl InterpreterDb,
+    db: &impl Db,
     entity: ir::Entity,
 ) -> error::Result<Option<value::Value>> {
     let element = db.entity_element(entity)?;
@@ -26,7 +26,7 @@ fn entity_value(
 }
 
 fn eval(
-    db: &impl InterpreterDb,
+    db: &impl Db,
     element: &element::Element,
 ) -> error::Result<Option<value::Value>> {
     match element {
