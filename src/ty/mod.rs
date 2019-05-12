@@ -5,9 +5,15 @@ use std::sync;
 use crate::ir;
 
 pub mod class;
-pub mod db;
 pub mod error;
 pub mod infer;
+
+#[salsa::query_group(TyStorage)]
+pub trait Db: salsa::Database + ir::Db {
+    fn ty(&self, entity: ir::Entity) -> error::Result<sync::Arc<Type>>;
+
+    fn bool_ty(&self) -> sync::Arc<Type>;
+}
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Type {
@@ -197,4 +203,21 @@ impl fmt::Display for Function {
         self.result.fmt(f)?;
         Ok(())
     }
+}
+
+fn ty(db: &impl Db, entity: ir::Entity) -> error::Result<sync::Arc<Type>> {
+    let element = db.element(entity)?;
+    infer::element_type(&*element, db)
+}
+
+fn bool_ty(db: &impl Db) -> sync::Arc<Type> {
+    let alternatives = vec![
+        Symbol {
+            label: db.ident(sync::Arc::new("f".to_owned())),
+        },
+        Symbol {
+            label: db.ident(sync::Arc::new("t".to_owned())),
+        },
+    ];
+    sync::Arc::new(Type::Union(Union { alternatives }))
 }

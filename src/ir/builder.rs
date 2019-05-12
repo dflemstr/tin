@@ -19,8 +19,14 @@ pub struct Builder<'a, Db> {
 struct Scope {
     parent: Option<Box<Scope>>,
     entity: ir::Entity,
+    is_static: bool,
     locals: collections::HashMap<ir::Ident, ir::Entity>,
     captures: collections::HashMap<ir::Entity, element::Capture>,
+}
+
+enum CaptureStrategy {
+    Capture,
+    StaticRef,
 }
 
 impl<'a, Db> Builder<'a, Db>
@@ -38,6 +44,7 @@ where
     }
 
     pub fn build_module(mut self, ast: &ast::Module<parser::Context>) -> Result<(), error::Error> {
+        self.scope.is_static = true;
         self.add_module(self.scope.entity, ast)?;
 
         Ok(())
@@ -81,10 +88,7 @@ where
         ast: &ast::Reference<parser::Context>,
     ) -> Result<(), error::Error> {
         let ident = self.db.ident(ast.value.clone());
-        let entity = self
-            .db
-            .entity(Some(entity), ir::EntityRole::Reference(ident));
-        let target = self
+        let (target, _) = self
             .scope
             .resolve_capture(self.db, ident, ast.context.span)?;
 
@@ -474,11 +478,13 @@ where
 impl Scope {
     fn new(entity: ir::Entity) -> Self {
         let parent = None;
+        let is_static = false;
         let locals = collections::HashMap::new();
         let captures = collections::HashMap::new();
 
         Self {
             parent,
+            is_static,
             entity,
             locals,
             captures,
@@ -490,25 +496,37 @@ impl Scope {
         db: &impl ir::Db,
         ident: ir::Ident,
         location: codespan::ByteSpan,
-    ) -> Result<ir::Entity, error::Error> {
+    ) -> Result<(ir::Entity, CaptureStrategy), error::Error> {
         match self.locals.entry(ident) {
-            collections::hash_map::Entry::Occupied(entry) => Ok(*entry.get()),
+            collections::hash_map::Entry::Occupied(entry) => Ok((
+                *entry.get(),
+                if self.is_static {
+                    CaptureStrategy::StaticRef
+                } else {
+                    CaptureStrategy::Capture
+                },
+            )),
             collections::hash_map::Entry::Vacant(entry) => {
                 if let Some(parent) = &mut self.parent {
                     let capture_entity = db.entity(
                         Some(self.entity),
                         ir::EntityRole::ClosureCaptureDefinition(ident),
                     );
-                    let parent_entity = parent.resolve_capture(db, ident, location)?;
-                    self.captures.insert(
-                        capture_entity,
-                        element::Capture {
-                            name: ident,
-                            captured: parent_entity,
-                        },
-                    );
-                    entry.insert(capture_entity);
-                    Ok(capture_entity)
+                    let (parent_entity, strategy) = parent.resolve_capture(db, ident, location)?;
+
+                    if let CaptureStrategy::Capture = strategy {
+                        self.captures.insert(
+                            capture_entity,
+                            element::Capture {
+                                name: ident,
+                                captured: parent_entity,
+                            },
+                        );
+                        entry.insert(capture_entity);
+                        Ok((capture_entity, CaptureStrategy::Capture))
+                    } else {
+                        Ok((parent_entity, CaptureStrategy::StaticRef))
+                    }
                 } else {
                     let reference = (*db.lookup_ident(ident)).clone();
                     Err(error::Error::UndefinedReference {

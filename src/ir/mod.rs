@@ -13,7 +13,7 @@ pub mod location;
 mod tests;
 
 #[salsa::query_group(IrStorage)]
-pub trait Db: salsa::Database + syntax::db::SyntaxDb {
+pub trait Db: salsa::Database + syntax::Db {
     #[salsa::interned]
     fn ident(&self, id: sync::Arc<String>) -> Ident;
 
@@ -35,14 +35,13 @@ pub struct Entity(u32);
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Entities {
-    pub infos: collections::HashMap<Entity, EntityInfo>,
-    pub modules: Vec<Entity>,
+    infos: collections::HashMap<Entity, EntityInfo>,
+    modules: Vec<Entity>,
 }
 
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub enum EntityRole {
     File(source::FileId),
-    Reference(Ident),
     RecordField(Ident),
     TupleField(usize),
     VariableDefinition(Ident),
@@ -114,6 +113,14 @@ impl Entities {
         let modules = Vec::new();
 
         Self { infos, modules }
+    }
+
+    pub fn all(&self) -> impl Iterator<Item = Entity> + '_ {
+        self.infos.keys().cloned()
+    }
+
+    pub fn modules(&self) -> impl Iterator<Item = Entity> + '_ {
+        self.modules.iter().cloned()
     }
 }
 

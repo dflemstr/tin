@@ -40,7 +40,7 @@ impl<'a> dot::GraphWalk<'a, Node, Edge> for Graph<'a> {
         use crate::ir::Db;
 
         let entities = self.db.entities().unwrap();
-        borrow::Cow::Owned(entities.infos.keys().cloned().map(Node).collect())
+        borrow::Cow::Owned(entities.all().map(Node).collect())
     }
 
     fn edges(&'a self) -> borrow::Cow<'a, [Edge]> {
@@ -49,11 +49,11 @@ impl<'a> dot::GraphWalk<'a, Node, Edge> for Graph<'a> {
         let mut edges = Vec::new();
 
         let entities = self.db.entities().unwrap();
-        for entity in entities.infos.keys() {
-            let (parent, role) = self.db.lookup_entity(*entity);
+        for child in entities.all() {
+            let (parent, role) = self.db.lookup_entity(child);
             if let Some(parent) = parent {
                 let source = Node(parent);
-                let target = Node(*entity);
+                let target = Node(child);
                 edges.push(Edge {
                     source,
                     target,
@@ -90,7 +90,7 @@ impl<'a> dot::Labeller<'a, Node, Edge> for Graph<'a> {
     fn node_label(&'a self, n: &Node) -> dot::LabelText<'a> {
         use crate::ir::Db as _;
         use crate::layout::Db as _;
-        use crate::ty::db::TyDb as _;
+        use crate::ty::Db as _;
         use std::fmt::Write;
 
         let mut result = format!("({}) ", n.0.id());
@@ -153,11 +153,11 @@ impl<'a> dot::Labeller<'a, Node, Edge> for Graph<'a> {
             write!(result, "(unknown)").unwrap();
         };
 
-        if let Ok(ty) = self.db.entity_type(n.0) {
+        if let Ok(ty) = self.db.ty(n.0) {
             write!(result, "<br/> <font color=\"blue\">{}</font>", ty).unwrap();
         }
 
-        if let Ok(layout) = self.db.entity_layout(n.0) {
+        if let Ok(layout) = self.db.layout(n.0) {
             write!(result, "<br/> <font color=\"brown\">{}</font>", layout).unwrap();
         }
 
@@ -165,15 +165,12 @@ impl<'a> dot::Labeller<'a, Node, Edge> for Graph<'a> {
     }
 
     fn edge_label(&'a self, e: &Edge) -> dot::LabelText<'a> {
-        use crate::ir::Db;
-        use crate::source::db::SourceDb;
+        use crate::ir::Db as _;
+        use crate::source::Db as _;
 
         match e.role {
             ir::EntityRole::File(file_id) => dot::LabelText::HtmlStr(
                 format!("file <b>{:?}</b>", self.db.file_relative_path(file_id)).into(),
-            ),
-            ir::EntityRole::Reference(ident) => dot::LabelText::HtmlStr(
-                format!("ref <b>{:?}</b>", self.db.lookup_ident(ident)).into(),
             ),
             ir::EntityRole::RecordField(ident) => dot::LabelText::HtmlStr(
                 format!("field <b>{:?}</b>", self.db.lookup_ident(ident)).into(),

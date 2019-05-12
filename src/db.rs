@@ -9,9 +9,9 @@ use crate::ty;
     interpreter::InterpreterStorage,
     ir::IrStorage,
     layout::LayoutStorage,
-    source::db::Source,
-    syntax::db::Syntax,
-    ty::db::Ty
+    source::SourceStorage,
+    syntax::SyntaxStorage,
+    ty::TyStorage
 )]
 #[derive(Debug, Default)]
 pub struct Db {

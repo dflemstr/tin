@@ -13,7 +13,7 @@ pub trait Db: salsa::Database + ir::Db {
     #[salsa::input]
     fn ptr_size(&self) -> PtrSize;
 
-    fn entity_layout(&self, entity: ir::Entity) -> error::Result<sync::Arc<Layout>>;
+    fn layout(&self, entity: ir::Entity) -> error::Result<sync::Arc<Layout>>;
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -151,7 +151,7 @@ impl fmt::Display for Offset {
     }
 }
 
-fn entity_layout(db: &impl Db, entity: ir::Entity) -> error::Result<sync::Arc<Layout>> {
+fn layout(db: &impl Db, entity: ir::Entity) -> error::Result<sync::Arc<Layout>> {
     let element = db.element(entity)?;
     let layout = element_layout(db, &*element)?;
     Ok(layout)
@@ -211,7 +211,7 @@ fn tuple_layout(db: &impl Db, fields: &[ir::Entity]) -> error::Result<sync::Arc<
     let mut layouts = fields
         .iter()
         .enumerate()
-        .map(|(i, f)| Ok((i, db.entity_layout(*f)?)))
+        .map(|(i, f)| Ok((i, db.layout(*f)?)))
         .collect::<error::Result<Vec<_>>>()?;
 
     if layouts.is_empty() {
@@ -244,7 +244,7 @@ fn record_layout(
 ) -> error::Result<sync::Arc<Layout>> {
     let mut layouts = fields
         .iter()
-        .map(|(n, f)| Ok((*n, db.entity_layout(*f)?)))
+        .map(|(n, f)| Ok((*n, db.layout(*f)?)))
         .collect::<error::Result<Vec<_>>>()?;
 
     if layouts.is_empty() {
@@ -292,7 +292,7 @@ fn un_op_layout(
         | element::UnOperator::Ct1
         | element::UnOperator::C0
         | element::UnOperator::C1
-        | element::UnOperator::Sqrt => db.entity_layout(operand),
+        | element::UnOperator::Sqrt => db.layout(operand),
     }
 }
 
@@ -302,15 +302,11 @@ fn bi_op_layout(
     operator: element::BiOperator,
     rhs: ir::Entity,
 ) -> error::Result<sync::Arc<Layout>> {
-    let lhs = db.entity_layout(lhs)?;
-    let rhs = db.entity_layout(rhs)?;
+    let lhs = db.layout(lhs)?;
+    let rhs = db.layout(rhs)?;
 
-    if lhs.size != rhs.size {
-        unreachable!()
-    }
-
-    if lhs.alignment != rhs.alignment {
-        unreachable!()
+    if lhs.size != rhs.size || lhs.alignment != rhs.alignment {
+        return Err(error::Error::UnknownSize);
     }
 
     match operator {
@@ -346,7 +342,7 @@ fn bi_op_layout(
 }
 
 fn variable_layout(db: &impl Db, initializer: ir::Entity) -> error::Result<sync::Arc<Layout>> {
-    db.entity_layout(initializer)
+    db.layout(initializer)
 }
 
 fn select_layout(
@@ -357,7 +353,7 @@ fn select_layout(
     match *db.element(record)? {
         element::Element::Record(element::Record { ref fields }) => {
             if let Some(f) = fields.get(&field) {
-                db.entity_layout(*f)
+                db.layout(*f)
             } else {
                 Err(error::Error::UnknownSize)
             }
@@ -371,22 +367,20 @@ fn apply_layout(
     function: ir::Entity,
     _parameters: &[ir::Entity],
 ) -> error::Result<sync::Arc<Layout>> {
-    use crate::ty::db::TyDb;
-
     match *db.element(function)? {
-        element::Element::Closure(element::Closure { result, .. }) => {
-            element_layout(db, &*db.element(result)?)
+        element::Element::Closure(element::Closure { signature, .. }) => {
+            element_layout(db, &*db.element(signature)?)
         }
         _ => Err(error::Error::UnknownSize),
     }
 }
 
 fn parameter_layout(db: &impl Db, signature: ir::Entity) -> error::Result<sync::Arc<Layout>> {
-    db.entity_layout(signature)
+    db.layout(signature)
 }
 
 fn capture_layout(db: &impl Db, capture: ir::Entity) -> error::Result<sync::Arc<Layout>> {
-    db.entity_layout(capture)
+    db.layout(capture)
 }
 
 fn closure_layout(
@@ -395,7 +389,7 @@ fn closure_layout(
 ) -> error::Result<sync::Arc<Layout>> {
     let mut capture_layouts = captures
         .iter()
-        .map(|(n, f)| Ok((*n, db.entity_layout(*f)?)))
+        .map(|(n, f)| Ok((*n, db.layout(*f)?)))
         .collect::<error::Result<Vec<_>>>()?;
     let unnamed_fields = vec![Offset {
         offset: 0,
@@ -436,17 +430,9 @@ fn closure_layout(
 
 fn module_layout(
     db: &impl Db,
-    _variables: &collections::HashMap<ir::Ident, ir::Entity>,
+    variables: &collections::HashMap<ir::Ident, ir::Entity>,
 ) -> error::Result<sync::Arc<Layout>> {
-    // TODO
-    unimplemented!()
-    /*
-    variables
-        .iter()
-        .map(|(k, v)| types.get(*v).map(|t| (k.clone(), t.clone())))
-        .collect::<Option<collections::HashMap<_, _>>>()
-        .map(|fields| ty::Type::Record(ty::Record { fields }))
-        */
+    record_layout(db, variables)
 }
 
 #[allow(clippy::cast_sign_loss, clippy::cast_possible_wrap)]

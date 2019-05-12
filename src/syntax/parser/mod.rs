@@ -427,8 +427,10 @@ main = || -> i32 {
 
         let expected = Err(r#"error: invalid token
 - <test>:1:1
+  |
 1 | #+-
   | ^
+  |
 "#
         .to_owned());
         let actual = parse_module("test", r#"#+-"#);
@@ -441,8 +443,10 @@ main = || -> i32 {
 
         let expected = Err(r#"error: unexpected token
 - <test>:1:28
+  |
 1 | main = || -> u32 { 0u32 }; <-<
   |                            ^^^
+  |
 help: valid tokens at this point: [Comment, Identifier]
 "#
         .to_owned());
@@ -781,8 +785,10 @@ help: valid tokens at this point: [Comment, Identifier]
 
         let expected = Err(r##"error: unexpected token
 - <test>:1:2
+  |
 1 | (,)
   |  ^
+  |
 help: valid tokens at this point: ["!", "#$0", "#$1", "#0", "#1", "#^-", "#^0", "#^1", "(", ")", "^/", "{", "|", "~!", Identifier, NumberValue, StringValue, SymbolLabel]
 "##.to_owned());
         let actual = parse_expression("test", r#"(,)"#);
