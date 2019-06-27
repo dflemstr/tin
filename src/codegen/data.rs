@@ -2,7 +2,7 @@ use std::fmt;
 
 use cranelift::prelude::*;
 
-use crate::ir::component::layout;
+use crate::layout;
 use crate::value;
 
 pub struct Translator<'a> {

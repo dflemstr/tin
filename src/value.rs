@@ -2,7 +2,7 @@ use std::cmp;
 use std::collections;
 use std::sync;
 
-lazy_static! {
+lazy_static::lazy_static! {
     pub static ref NIL: Value = {
         Value::new(Case::Symbol(Symbol {
             label: sync::Arc::new("nil".to_owned()),

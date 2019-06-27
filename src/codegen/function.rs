@@ -8,13 +8,13 @@ use cranelift_simplejit;
 use crate::codegen::abi_type;
 use crate::codegen::builtin;
 use crate::codegen::util;
-use crate::ir::component::constexpr;
+use crate::db;
+use crate::ir;
 use crate::ir::element;
-use crate::ir::component::layout;
 use crate::ir::location;
-use crate::ir::symbol;
-use crate::ir::component::ty;
+use crate::layout;
 use crate::module;
+use crate::ty;
 use crate::value;
 
 pub struct Translator<'a, 'f>
@@ -23,12 +23,7 @@ where
 {
     module: &'a mut cranelift_module::Module<cranelift_simplejit::SimpleJITBackend>,
     builder: &'a mut FunctionBuilder<'f>,
-    constexprs: &'a specs::ReadStorage<'a, constexpr::Constexpr>,
-    elements: &'a specs::ReadStorage<'a, element::Element>,
-    layouts: &'a specs::ReadStorage<'a, layout::Layout>,
-    locations: &'a specs::ReadStorage<'a, location::Location>,
-    symbols: &'a specs::ReadStorage<'a, symbol::Symbol>,
-    types: &'a specs::ReadStorage<'a, ty::Type>,
+    db: &'a db::Db,
     ptr_type: Type,
     error_throw_ebb: Ebb,
     error_unwind_ebb: Ebb,
@@ -42,12 +37,7 @@ impl<'a, 'f> Translator<'a, 'f> {
     pub fn new(
         module: &'a mut cranelift_module::Module<cranelift_simplejit::SimpleJITBackend>,
         builder: &'a mut FunctionBuilder<'f>,
-        constexprs: &'a specs::ReadStorage<'a, constexpr::Constexpr>,
-        elements: &'a specs::ReadStorage<'a, element::Element>,
-        layouts: &'a specs::ReadStorage<'a, layout::Layout>,
-        locations: &'a specs::ReadStorage<'a, location::Location>,
-        symbols: &'a specs::ReadStorage<'a, symbol::Symbol>,
-        types: &'a specs::ReadStorage<'a, ty::Type>,
+        db: &'a db::Db,
         ptr_type: Type,
         error_throw_ebb: Ebb,
         error_unwind_ebb: Ebb,
@@ -58,12 +48,7 @@ impl<'a, 'f> Translator<'a, 'f> {
         Translator {
             module,
             builder,
-            constexprs,
-            elements,
-            layouts,
-            locations,
-            symbols,
-            types,
+            db,
             ptr_type,
             error_throw_ebb,
             error_unwind_ebb,
@@ -113,8 +98,8 @@ impl<'a, 'f> Translator<'a, 'f> {
         }
     }
 
-    fn eval_constexpr(&mut self, entity: ir::Entity, constexpr: &constexpr::Constexpr) -> Value {
-        if let value::Case::Number(ref n) = *constexpr.value.case() {
+    fn eval_value(&mut self, entity: ir::Entity, value: &value::Value) -> Value {
+        if let value::Case::Number(ref n) = *value.case() {
             match *n {
                 value::Number::U8(ref v) => self.builder.ins().iconst(types::I8, i64::from(*v)),
                 value::Number::U16(ref v) => self.builder.ins().iconst(types::I16, i64::from(*v)),
@@ -426,11 +411,7 @@ impl<'a, 'f> Translator<'a, 'f> {
             .load(field_abi_type, mem_flags, record, field_offset)
     }
 
-    pub fn eval_parameter(
-        &mut self,
-        entity: ir::Entity,
-        _parameter: &element::Parameter,
-    ) -> Value {
+    pub fn eval_parameter(&mut self, entity: ir::Entity, _parameter: &element::Parameter) -> Value {
         self.builder.use_var(self.variables[&entity])
     }
 
@@ -543,21 +524,6 @@ impl<'a, 'f> Translator<'a, 'f> {
         let col = self.builder.ins().iconst(types::I32, i64::from(col.0));
 
         (filename, filename_len, line, col)
-    }
-
-    fn get_symbol(&self, entity: ir::Entity) -> Option<&symbol::Symbol> {
-        if let Some(symbol) = self.symbols.get(entity) {
-            Some(symbol)
-        } else if let Some(element) = self.elements.get(entity) {
-            match element {
-                element::Element::Capture(element::Capture { captured, .. }) => {
-                    self.get_symbol(*captured)
-                }
-                _ => None,
-            }
-        } else {
-            None
-        }
     }
 
     pub fn builtin_alloc(&mut self, size: Value, align: Value) -> Value {

@@ -4,6 +4,7 @@ use std::slice;
 use std::str;
 
 use cranelift::prelude::types;
+use log::debug;
 
 use crate::codegen::abi_type;
 use crate::module;

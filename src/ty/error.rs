@@ -7,7 +7,7 @@ use crate::ir;
 use crate::ty;
 use crate::ty::class;
 
-#[derive(Clone, Debug, Eq, Fail, PartialEq)]
+#[derive(Clone, Debug, Eq, failure::Fail, PartialEq)]
 pub enum Error {
     #[fail(display = "type conflict: {}", _0)]
     Conflict(Conflict),

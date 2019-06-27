@@ -2,7 +2,7 @@ use crate::ir;
 use crate::ty;
 use std::result;
 
-#[derive(Clone, Debug, Eq, Fail, PartialEq)]
+#[derive(Clone, Debug, Eq, failure::Fail, PartialEq)]
 pub enum Error {
     #[fail(display = "semantic error: {}", _0)]
     Ir(#[cause] ir::error::Error),

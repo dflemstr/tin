@@ -7,7 +7,7 @@ use crate::ir;
 use crate::syntax::parser;
 
 /// An error that occurs while interacting with Tin.
-#[derive(Clone, Debug, Fail, PartialEq)]
+#[derive(Clone, Debug, failure::Fail, PartialEq)]
 pub enum Error {
     /// Interpreting the code failed.
     ///

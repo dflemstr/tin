@@ -14,7 +14,7 @@ pub struct Module {
 }
 
 /// An error that may happen at runtime.
-#[derive(Clone, Debug, Eq, Fail, PartialEq)]
+#[derive(Clone, Debug, Eq, failure::Fail, PartialEq)]
 #[fail(display = "{}{}", kind, backtrace)]
 pub struct Error {
     kind: ErrorKind,
@@ -43,7 +43,7 @@ pub struct Point {
 }
 
 /// The various kinds of allowed errors.
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Primitive)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, enum_primitive_derive::Primitive)]
 pub enum ErrorKind {
     /// An unknown error has occurred.
     ///

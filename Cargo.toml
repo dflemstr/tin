@@ -8,10 +8,10 @@ repository = "https://github.com/dflemstr/tin"
 edition = "2018"
 
 [build-dependencies]
-lalrpop = "0.17.0"
+lalrpop = "0.17.1"
 failure = "0.1.5"
-regex = "1.1.6"
-walkdir = "2.2.7"
+regex = "1.1.7"
+walkdir = "2.2.8"
 
 [dependencies]
 cranelift = "0.30.0"
@@ -20,21 +20,22 @@ cranelift-simplejit = "0.30.0"
 dot = "0.1.4"
 env_logger = "0.6.1"
 failure = "0.1.5"
-lalrpop-util = "0.17.0"
+lalrpop-util = "0.17.1"
 log = "0.4.6"
-regex = "1.1.6"
+regex = "1.1.7"
 pretty_env_logger = "0.3.0"
-structopt = "0.2.15"
+structopt = "0.2.16"
 lazy_static = "1.3.0"
-byteorder = "1.3.1"
+byteorder = "1.3.2"
 itertools = "0.8.0"
 codespan = "0.3.0"
 codespan-reporting = "0.3.0"
 enum-primitive-derive = "0.1.2"
-num-traits = "0.2.6"
-salsa = "0.12.0"
+num-traits = "0.2.8"
+salsa = "0.12.3"
 relative-path = "0.4.0"
 ordered-float = "1.0.2"
+cranelift-native = "0.30.0"
 
 [features]
 default = ["parallel"]
@@ -54,5 +55,5 @@ codegen-units = 1
 pretty_assertions = "0.6.1"
 
 [dev-dependencies.cargo-husky]
-version = "1.3.0"
+version = "1.4.0"
 features = ["prepush-hook", "precommit-hook", "run-for-all", "run-cargo-test", "run-cargo-check", "run-cargo-clippy", "run-cargo-fmt"]

@@ -8,7 +8,7 @@ use crate::syntax::ast;
 
 mod util;
 
-lalrpop_mod!(
+lalrpop_util::lalrpop_mod!(
     #[allow(clippy::all)]
     #[allow(clippy::pedantic)]
     #[allow(deprecated)]
@@ -29,7 +29,7 @@ pub struct Context {
 }
 
 /// An error that occurs while parsing Tin.
-#[derive(Clone, Debug, Eq, Fail, PartialEq)]
+#[derive(Clone, Debug, Eq, failure::Fail, PartialEq)]
 pub enum Error {
     /// There was an invalid token in the code.
     #[fail(display = "invalid token")]
@@ -166,7 +166,7 @@ fn handle_parse_result<A, T1, T2>(
 
 macro_rules! parser_impl {
     ($stat:ident, $parser:ident, $result:ty) => {
-        lazy_static! {
+        lazy_static::lazy_static! {
             static ref $stat: crate::syntax::parser::grammar::$parser =
                 { crate::syntax::parser::grammar::$parser::new() };
         }

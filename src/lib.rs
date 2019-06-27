@@ -43,21 +43,9 @@
     unused_qualifications
 )]
 
-#[macro_use]
-extern crate enum_primitive_derive;
-#[macro_use]
-extern crate failure;
-#[macro_use]
-extern crate lalrpop_util;
-#[macro_use]
-extern crate lazy_static;
-#[cfg(test)]
-#[macro_use]
-extern crate pretty_assertions;
-
 use std::fmt;
 
-// mod codegen;
+mod codegen;
 mod db;
 mod interpreter;
 mod ir;

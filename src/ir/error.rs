@@ -2,7 +2,7 @@ use crate::diagnostic;
 use std::result;
 
 /// Errors that may occur while building and interacting with an [`Ir`].
-#[derive(Clone, Debug, Eq, Fail, PartialEq)]
+#[derive(Clone, Debug, Eq, failure::Fail, PartialEq)]
 pub enum Error {
     /// The IR cannot be built because something refers to an identifier that is not defined.
     #[fail(display = "undefined reference to `{}`", reference)]
