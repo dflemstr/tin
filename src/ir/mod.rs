@@ -1,6 +1,7 @@
 //! Intermediate representation variables for the compiler and interpreter.
 use std::borrow;
 use std::collections;
+use std::fmt;
 use std::sync;
 
 use crate::source;

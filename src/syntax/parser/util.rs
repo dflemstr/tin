@@ -277,13 +277,13 @@ pub fn parse_escaped_string<T>(
                         // The +1 is for the initial quote char
                         unicode_start = codespan::ByteOffset((i + 1) as codespan::RawOffset);
                     }
-                    'a'...'f' => {
+                    'a'..='f' => {
                         unicode = (c as u32 - 'a' as u32 + 10) + 16 * unicode;
                     }
-                    'A'...'F' => {
+                    'A'..='F' => {
                         unicode = (c as u32 - 'A' as u32 + 10) + 16 * unicode;
                     }
-                    '0'...'9' => {
+                    '0'..='9' => {
                         unicode = (c as u32 - '0' as u32) + 16 * unicode;
                     }
                     '}' => {

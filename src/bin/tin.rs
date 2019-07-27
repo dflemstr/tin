@@ -1,11 +1,3 @@
-extern crate failure;
-#[macro_use]
-extern crate log;
-extern crate pretty_env_logger;
-#[macro_use]
-extern crate structopt;
-extern crate tin;
-
 use std::fs;
 use std::io;
 use std::path;
@@ -14,7 +6,7 @@ use std::sync::atomic;
 
 static REPORTED_DIAGNOSTICS: atomic::AtomicBool = atomic::AtomicBool::new(false);
 
-#[derive(Debug, StructOpt)]
+#[derive(Debug, structopt::StructOpt)]
 #[structopt(name = "tin")]
 struct Options {
     /// Source file to compile (that contains a main function); will use stdin if omitted.

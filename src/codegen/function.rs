@@ -7,6 +7,7 @@ use cranelift_simplejit;
 
 use crate::codegen::abi_type;
 use crate::codegen::builtin;
+use crate::codegen::error;
 use crate::codegen::util;
 use crate::db;
 use crate::ir;
@@ -17,33 +18,36 @@ use crate::module;
 use crate::ty;
 use crate::value;
 
-pub struct Translator<'a, 'f>
+pub struct Translator<'a, 'f, B, D>
 where
     'f: 'a,
+    B: cranelift_module::Backend,
 {
-    module: &'a mut cranelift_module::Module<cranelift_simplejit::SimpleJITBackend>,
+    module: &'a mut cranelift_module::Module<B>,
     builder: &'a mut FunctionBuilder<'f>,
-    db: &'a db::Db,
+    db: &'a D,
     ptr_type: Type,
     error_throw_ebb: Ebb,
     error_unwind_ebb: Ebb,
     variables: &'a collections::HashMap<ir::Entity, Variable>,
     defined_strings: &'a mut collections::HashMap<String, cranelift_module::DataId>,
-    codemap: &'a codespan::CodeMap,
 }
 
-impl<'a, 'f> Translator<'a, 'f> {
+impl<'a, 'f, B, D> Translator<'a, 'f, B, D>
+where
+    B: cranelift_module::Backend,
+    D: super::Db,
+{
     #[cfg_attr(feature = "cargo-clippy", allow(clippy::too_many_arguments))]
     pub fn new(
-        module: &'a mut cranelift_module::Module<cranelift_simplejit::SimpleJITBackend>,
+        module: &'a mut cranelift_module::Module<B>,
         builder: &'a mut FunctionBuilder<'f>,
-        db: &'a db::Db,
+        db: &'a D,
         ptr_type: Type,
         error_throw_ebb: Ebb,
         error_unwind_ebb: Ebb,
         variables: &'a collections::HashMap<ir::Entity, Variable>,
         defined_strings: &'a mut collections::HashMap<String, cranelift_module::DataId>,
-        codemap: &'a codespan::CodeMap,
     ) -> Self {
         Translator {
             module,
@@ -54,27 +58,44 @@ impl<'a, 'f> Translator<'a, 'f> {
             error_unwind_ebb,
             variables,
             defined_strings,
-            codemap,
         }
     }
 
-    pub fn exec_element(&mut self, entity: ir::Entity, element: &element::Element) {
+    pub fn exec_element(
+        &mut self,
+        entity: ir::Entity,
+        element: &element::Element,
+    ) -> error::Result<()> {
         if let element::Element::Variable(ref v) = element {
-            self.exec_variable(entity, v);
+            self.exec_variable(entity, v)?;
         } else {
-            self.eval_element(entity, element);
+            self.eval_element(entity, element)?;
         }
+        Ok(())
     }
 
-    pub fn exec_variable(&mut self, entity: ir::Entity, variable: &element::Variable) {
-        let initializer_element = self.elements.get(variable.initializer).unwrap();
-        let value = self.eval_element(variable.initializer, initializer_element);
+    pub fn exec_variable(
+        &mut self,
+        entity: ir::Entity,
+        variable: &element::Variable,
+    ) -> error::Result<()> {
+        use crate::ir::Db as _;
+
+        let initializer_element = self.db.element(variable.initializer)?;
+        let value = self.eval_element(variable.initializer, &*initializer_element)?;
         self.builder.def_var(self.variables[&entity], value);
+        Ok(())
     }
 
-    pub fn eval_element(&mut self, entity: ir::Entity, element: &element::Element) -> Value {
-        if let Some(constexpr) = self.constexprs.get(entity) {
-            self.eval_constexpr(entity, constexpr)
+    pub fn eval_element(
+        &mut self,
+        entity: ir::Entity,
+        element: &element::Element,
+    ) -> error::Result<Value> {
+        use crate::interpreter::Db as _;
+
+        if let Some(value) = self.db.value(entity)? {
+            self.eval_value(entity, &value)
         } else {
             match *element {
                 element::Element::Number(ref v) => self.eval_number_value(entity, v),
@@ -94,40 +115,55 @@ impl<'a, 'f> Translator<'a, 'f> {
                 element::Element::Capture(ref v) => self.eval_capture(entity, v),
                 element::Element::Closure(ref v) => self.eval_closure(entity, v),
                 element::Element::Module(ref v) => self.eval_module(entity, v),
+                element::Element::Reference(entity) => {
+                    self.eval_element(entity, &*self.db.element(entity)?)
+                }
             }
         }
     }
 
-    fn eval_value(&mut self, entity: ir::Entity, value: &value::Value) -> Value {
+    fn eval_value(&mut self, entity: ir::Entity, value: &value::Value) -> error::Result<Value> {
+        use crate::layout::Db as _;
+        use crate::ty::Db as _;
+
         if let value::Case::Number(ref n) = *value.case() {
             match *n {
-                value::Number::U8(ref v) => self.builder.ins().iconst(types::I8, i64::from(*v)),
-                value::Number::U16(ref v) => self.builder.ins().iconst(types::I16, i64::from(*v)),
-                value::Number::U32(ref v) => self.builder.ins().iconst(types::I32, i64::from(*v)),
+                value::Number::U8(ref v) => Ok(self.builder.ins().iconst(types::I8, i64::from(*v))),
+                value::Number::U16(ref v) => {
+                    Ok(self.builder.ins().iconst(types::I16, i64::from(*v)))
+                }
+                value::Number::U32(ref v) => {
+                    Ok(self.builder.ins().iconst(types::I32, i64::from(*v)))
+                }
                 value::Number::U64(ref v) => {
                     #[cfg_attr(
                         feature = "cargo-clippy",
                         allow(clippy::cast_possible_truncation, clippy::cast_possible_wrap)
                     )]
                     let value = *v as i64;
-                    self.builder.ins().iconst(types::I64, value)
+                    Ok(self.builder.ins().iconst(types::I64, value))
                 }
-                value::Number::I8(ref v) => self.builder.ins().iconst(types::I8, i64::from(*v)),
-                value::Number::I16(ref v) => self.builder.ins().iconst(types::I16, i64::from(*v)),
-                value::Number::I32(ref v) => self.builder.ins().iconst(types::I32, i64::from(*v)),
-                value::Number::I64(ref v) => self.builder.ins().iconst(types::I64, *v),
-                value::Number::F32(ref v) => self
+                value::Number::I8(ref v) => Ok(self.builder.ins().iconst(types::I8, i64::from(*v))),
+                value::Number::I16(ref v) => {
+                    Ok(self.builder.ins().iconst(types::I16, i64::from(*v)))
+                }
+                value::Number::I32(ref v) => {
+                    Ok(self.builder.ins().iconst(types::I32, i64::from(*v)))
+                }
+                value::Number::I64(ref v) => Ok(self.builder.ins().iconst(types::I64, *v)),
+                value::Number::F32(ref v) => Ok(self
                     .builder
                     .ins()
-                    .f32const(Ieee32::with_float(v.into_inner())),
-                value::Number::F64(ref v) => self
+                    .f32const(Ieee32::with_float(v.into_inner()))),
+                value::Number::F64(ref v) => Ok(self
                     .builder
                     .ins()
-                    .f64const(Ieee64::with_float(v.into_inner())),
+                    .f64const(Ieee64::with_float(v.into_inner()))),
             }
         } else {
-            let ty = self.types.get(entity).unwrap();
-            let abi_type = abi_type::AbiType::from_ir_type(ty).into_specific(self.ptr_type);
+            let ty = self.db.ty(entity)?;
+            let layout = self.db.layout(entity)?;
+            let abi_type = abi_type::AbiType::from_ir_type(&*ty).into_specific(self.ptr_type);
 
             assert_eq!(self.ptr_type, abi_type);
 
@@ -137,12 +173,13 @@ impl<'a, 'f> Translator<'a, 'f> {
                     &entity.id().to_string(),
                     cranelift_module::Linkage::Local,
                     false,
+                    Some(layout.alignment as u8),
                 )
                 .unwrap();
             let global_value = self
                 .module
                 .declare_data_in_func(data_id, &mut self.builder.func);
-            self.builder.ins().global_value(self.ptr_type, global_value)
+            Ok(self.builder.ins().global_value(self.ptr_type, global_value))
         }
     }
 
@@ -151,50 +188,65 @@ impl<'a, 'f> Translator<'a, 'f> {
         &mut self,
         _entity: ir::Entity,
         number_value: &element::Number,
-    ) -> Value {
+    ) -> error::Result<Value> {
         match *number_value {
-            element::Number::U8(v) => self.builder.ins().iconst(types::I8, i64::from(v)),
-            element::Number::U16(v) => self.builder.ins().iconst(types::I16, i64::from(v)),
-            element::Number::U32(v) => self.builder.ins().iconst(types::I32, i64::from(v)),
-            element::Number::U64(v) => self.builder.ins().iconst(types::I64, v as i64),
-            element::Number::I8(v) => self.builder.ins().iconst(types::I8, i64::from(v)),
-            element::Number::I16(v) => self.builder.ins().iconst(types::I16, i64::from(v)),
-            element::Number::I32(v) => self.builder.ins().iconst(types::I32, i64::from(v)),
-            element::Number::I64(v) => self.builder.ins().iconst(types::I64, v),
-            element::Number::F32(v) => self
+            element::Number::U8(v) => Ok(self.builder.ins().iconst(types::I8, i64::from(v))),
+            element::Number::U16(v) => Ok(self.builder.ins().iconst(types::I16, i64::from(v))),
+            element::Number::U32(v) => Ok(self.builder.ins().iconst(types::I32, i64::from(v))),
+            element::Number::U64(v) => Ok(self.builder.ins().iconst(types::I64, v as i64)),
+            element::Number::I8(v) => Ok(self.builder.ins().iconst(types::I8, i64::from(v))),
+            element::Number::I16(v) => Ok(self.builder.ins().iconst(types::I16, i64::from(v))),
+            element::Number::I32(v) => Ok(self.builder.ins().iconst(types::I32, i64::from(v))),
+            element::Number::I64(v) => Ok(self.builder.ins().iconst(types::I64, v)),
+            element::Number::F32(v) => Ok(self
                 .builder
                 .ins()
-                .f32const(Ieee32::with_float(v.into_inner())),
-            element::Number::F64(v) => self
+                .f32const(Ieee32::with_float(v.into_inner()))),
+            element::Number::F64(v) => Ok(self
                 .builder
                 .ins()
-                .f64const(Ieee64::with_float(v.into_inner())),
+                .f64const(Ieee64::with_float(v.into_inner()))),
         }
     }
 
-    pub fn eval_string_value(&mut self, entity: ir::Entity, _string_value: &str) -> Value {
+    pub fn eval_string_value(
+        &mut self,
+        entity: ir::Entity,
+        _string_value: &str,
+    ) -> error::Result<Value> {
+        use crate::layout::Db as _;
+
         // TODO: create data symbol
+        let layout = self.db.layout(entity)?;
         let symbol = self
             .module
             .declare_data(
                 &format!("__data_{}", entity.id()),
                 cranelift_module::Linkage::Local,
                 false,
+                Some(layout.alignment as u8),
             )
             .unwrap();
         let local_id = self
             .module
             .declare_data_in_func(symbol, &mut self.builder.func);
 
-        self.builder.ins().symbol_value(self.ptr_type, local_id)
+        Ok(self.builder.ins().symbol_value(self.ptr_type, local_id))
     }
 
     #[cfg_attr(
         feature = "cargo-clippy",
         allow(clippy::cast_possible_truncation, clippy::cast_possible_wrap)
     )]
-    pub fn eval_tuple(&mut self, entity: ir::Entity, tuple: &element::Tuple) -> Value {
-        let layout = self.layouts.get(entity).unwrap();
+    pub fn eval_tuple(
+        &mut self,
+        entity: ir::Entity,
+        tuple: &element::Tuple,
+    ) -> error::Result<Value> {
+        use crate::ir::Db as _;
+        use crate::layout::Db as _;
+
+        let layout = self.db.layout(entity)?;
         let alloc_size = self.builder.ins().iconst(self.ptr_type, layout.size as i64);
         let alloc_align = self
             .builder
@@ -208,16 +260,23 @@ impl<'a, 'f> Translator<'a, 'f> {
 
         for (idx, offset_layout) in layout.unnamed_fields.iter().enumerate() {
             let value = tuple.fields[idx];
-            let value = self.eval_element(value, self.elements.get(value).unwrap());
+            let value = self.eval_element(value, &*self.db.element(value)?)?;
             let offset = offset_layout.offset as i32;
             self.builder.ins().store(mem_flags, value, result, offset);
         }
 
-        result
+        Ok(result)
     }
 
-    pub fn eval_record(&mut self, entity: ir::Entity, record: &element::Record) -> Value {
-        let layout = self.layouts.get(entity).unwrap();
+    pub fn eval_record(
+        &mut self,
+        entity: ir::Entity,
+        record: &element::Record,
+    ) -> error::Result<Value> {
+        use crate::ir::Db as _;
+        use crate::layout::Db as _;
+
+        let layout = self.db.layout(entity)?;
 
         #[cfg_attr(
             feature = "cargo-clippy",
@@ -241,7 +300,7 @@ impl<'a, 'f> Translator<'a, 'f> {
 
         for named_field in &layout.named_fields {
             let value = record.fields[&named_field.field];
-            let value = self.eval_element(value, self.elements.get(value).unwrap());
+            let value = self.eval_element(value, &*self.db.element(value)?)?;
 
             #[cfg_attr(
                 feature = "cargo-clippy",
@@ -251,47 +310,59 @@ impl<'a, 'f> Translator<'a, 'f> {
             self.builder.ins().store(mem_flags, value, result, offset);
         }
 
-        result
+        Ok(result)
     }
 
-    pub fn eval_un_op(&mut self, _entity: ir::Entity, un_op: &element::UnOp) -> Value {
-        let element::UnOp { operator, operand } = un_op;
-        let operand = *operand;
+    pub fn eval_un_op(
+        &mut self,
+        _entity: ir::Entity,
+        un_op: &element::UnOp,
+    ) -> error::Result<Value> {
+        use crate::ir::Db as _;
 
-        let operand_value = self.eval_element(operand, self.elements.get(operand).unwrap());
+        let element::UnOp { operator, operand } = un_op;
+
+        let operand_value = self.eval_element(*operand, &*self.db.element(*operand)?)?;
 
         match operator {
             element::UnOperator::Not | element::UnOperator::BNot => {
-                self.builder.ins().bnot(operand_value)
+                Ok(self.builder.ins().bnot(operand_value))
             }
-            element::UnOperator::Cl0 => self.builder.ins().clz(operand_value),
+            element::UnOperator::Cl0 => Ok(self.builder.ins().clz(operand_value)),
             element::UnOperator::Cl1 => {
                 let inverted = self.builder.ins().bnot(operand_value);
-                self.builder.ins().clz(inverted)
+                Ok(self.builder.ins().clz(inverted))
             }
-            element::UnOperator::Cls => self.builder.ins().cls(operand_value),
-            element::UnOperator::Ct0 => self.builder.ins().ctz(operand_value),
+            element::UnOperator::Cls => Ok(self.builder.ins().cls(operand_value)),
+            element::UnOperator::Ct0 => Ok(self.builder.ins().ctz(operand_value)),
             element::UnOperator::Ct1 => {
                 let inverted = self.builder.ins().bnot(operand_value);
-                self.builder.ins().ctz(inverted)
+                Ok(self.builder.ins().ctz(inverted))
             }
             element::UnOperator::C0 => {
                 let inverted = self.builder.ins().bnot(operand_value);
-                self.builder.ins().popcnt(inverted)
+                Ok(self.builder.ins().popcnt(inverted))
             }
-            element::UnOperator::C1 => self.builder.ins().popcnt(operand_value),
-            element::UnOperator::Sqrt => self.builder.ins().sqrt(operand_value),
+            element::UnOperator::C1 => Ok(self.builder.ins().popcnt(operand_value)),
+            element::UnOperator::Sqrt => Ok(self.builder.ins().sqrt(operand_value)),
         }
     }
 
-    pub fn eval_bi_op(&mut self, entity: ir::Entity, bi_op: &element::BiOp) -> Value {
+    pub fn eval_bi_op(
+        &mut self,
+        entity: ir::Entity,
+        bi_op: &element::BiOp,
+    ) -> error::Result<Value> {
+        use crate::ir::Db as _;
+        use crate::ty::Db as _;
+
         let element::BiOp { lhs, operator, rhs } = bi_op;
         let lhs = *lhs;
         let rhs = *rhs;
 
         // TODO: support lazy evaluation
-        let lhs_value = self.eval_element(lhs, self.elements.get(lhs).unwrap());
-        let rhs_value = self.eval_element(rhs, self.elements.get(rhs).unwrap());
+        let lhs_value = self.eval_element(lhs, &*self.db.element(lhs)?)?;
+        let rhs_value = self.eval_element(rhs, &*self.db.element(rhs)?)?;
 
         match operator {
             element::BiOperator::Eq => unimplemented!(),
@@ -301,84 +372,97 @@ impl<'a, 'f> Translator<'a, 'f> {
             element::BiOperator::Gt => unimplemented!(),
             element::BiOperator::Le => unimplemented!(),
             element::BiOperator::Cmp => unimplemented!(),
-            element::BiOperator::Add => match self.types.get(lhs).unwrap().scalar_class() {
-                ty::class::Scalar::Integral(_) => self.builder.ins().iadd(lhs_value, rhs_value),
-                ty::class::Scalar::Fractional => self.builder.ins().fadd(lhs_value, rhs_value),
+            element::BiOperator::Add => match self.db.ty(lhs)?.scalar_class() {
+                ty::class::Scalar::Integral(_) => Ok(self.builder.ins().iadd(lhs_value, rhs_value)),
+                ty::class::Scalar::Fractional => Ok(self.builder.ins().fadd(lhs_value, rhs_value)),
                 _ => unreachable!(),
             },
-            element::BiOperator::Sub => match self.types.get(lhs).unwrap().scalar_class() {
-                ty::class::Scalar::Integral(_) => self.builder.ins().isub(lhs_value, rhs_value),
-                ty::class::Scalar::Fractional => self.builder.ins().fsub(lhs_value, rhs_value),
+            element::BiOperator::Sub => match self.db.ty(lhs)?.scalar_class() {
+                ty::class::Scalar::Integral(_) => Ok(self.builder.ins().isub(lhs_value, rhs_value)),
+                ty::class::Scalar::Fractional => Ok(self.builder.ins().fsub(lhs_value, rhs_value)),
                 _ => unreachable!(),
             },
-            element::BiOperator::Mul => match self.types.get(lhs).unwrap().scalar_class() {
-                ty::class::Scalar::Integral(_) => self.builder.ins().imul(lhs_value, rhs_value),
-                ty::class::Scalar::Fractional => self.builder.ins().fmul(lhs_value, rhs_value),
+            element::BiOperator::Mul => match self.db.ty(lhs)?.scalar_class() {
+                ty::class::Scalar::Integral(_) => Ok(self.builder.ins().imul(lhs_value, rhs_value)),
+                ty::class::Scalar::Fractional => Ok(self.builder.ins().fmul(lhs_value, rhs_value)),
                 _ => unreachable!(),
             },
-            element::BiOperator::Div => match self.types.get(lhs).unwrap().scalar_class() {
+            element::BiOperator::Div => match self.db.ty(lhs)?.scalar_class() {
                 ty::class::Scalar::Integral(ty::class::IntegralScalar::Unsigned) => {
-                    self.error_if_zero(entity, rhs_value, module::ErrorKind::IntegerDivisonByZero);
-                    self.builder.ins().udiv(lhs_value, rhs_value)
+                    self.error_if_zero(entity, rhs_value, module::ErrorKind::IntegerDivisonByZero)?;
+                    Ok(self.builder.ins().udiv(lhs_value, rhs_value))
                 }
                 ty::class::Scalar::Integral(ty::class::IntegralScalar::Signed) => {
-                    self.error_if_zero(entity, rhs_value, module::ErrorKind::IntegerDivisonByZero);
-                    self.builder.ins().sdiv(lhs_value, rhs_value)
+                    self.error_if_zero(entity, rhs_value, module::ErrorKind::IntegerDivisonByZero)?;
+                    Ok(self.builder.ins().sdiv(lhs_value, rhs_value))
                 }
-                ty::class::Scalar::Fractional => self.builder.ins().fdiv(lhs_value, rhs_value),
+                ty::class::Scalar::Fractional => Ok(self.builder.ins().fdiv(lhs_value, rhs_value)),
                 _ => unreachable!(),
             },
-            element::BiOperator::Rem => match self.types.get(lhs).unwrap().scalar_class() {
+            element::BiOperator::Rem => match self.db.ty(lhs)?.scalar_class() {
                 ty::class::Scalar::Integral(ty::class::IntegralScalar::Unsigned) => {
-                    self.error_if_zero(entity, rhs_value, module::ErrorKind::IntegerDivisonByZero);
-                    self.builder.ins().urem(lhs_value, rhs_value)
+                    self.error_if_zero(entity, rhs_value, module::ErrorKind::IntegerDivisonByZero)?;
+                    Ok(self.builder.ins().urem(lhs_value, rhs_value))
                 }
                 ty::class::Scalar::Integral(ty::class::IntegralScalar::Signed) => {
-                    self.error_if_zero(entity, rhs_value, module::ErrorKind::IntegerDivisonByZero);
-                    self.builder.ins().srem(lhs_value, rhs_value)
+                    self.error_if_zero(entity, rhs_value, module::ErrorKind::IntegerDivisonByZero)?;
+                    Ok(self.builder.ins().srem(lhs_value, rhs_value))
                 }
                 _ => unreachable!(),
             },
             element::BiOperator::And | element::BiOperator::BAnd => {
-                self.builder.ins().band(lhs_value, rhs_value)
+                Ok(self.builder.ins().band(lhs_value, rhs_value))
             }
             element::BiOperator::Or | element::BiOperator::BOr => {
-                self.builder.ins().bor(lhs_value, rhs_value)
+                Ok(self.builder.ins().bor(lhs_value, rhs_value))
             }
             element::BiOperator::Xor | element::BiOperator::BXor => {
-                self.builder.ins().bxor(lhs_value, rhs_value)
+                Ok(self.builder.ins().bxor(lhs_value, rhs_value))
             }
             element::BiOperator::AndNot | element::BiOperator::BAndNot => {
-                self.builder.ins().band_not(lhs_value, rhs_value)
+                Ok(self.builder.ins().band_not(lhs_value, rhs_value))
             }
             element::BiOperator::OrNot | element::BiOperator::BOrNot => {
-                self.builder.ins().bor_not(lhs_value, rhs_value)
+                Ok(self.builder.ins().bor_not(lhs_value, rhs_value))
             }
             element::BiOperator::XorNot | element::BiOperator::BXorNot => {
-                self.builder.ins().bxor_not(lhs_value, rhs_value)
+                Ok(self.builder.ins().bxor_not(lhs_value, rhs_value))
             }
-            element::BiOperator::RotL => self.builder.ins().rotl(lhs_value, rhs_value),
-            element::BiOperator::RotR => self.builder.ins().rotr(lhs_value, rhs_value),
-            element::BiOperator::ShL => self.builder.ins().ishl(lhs_value, rhs_value),
-            element::BiOperator::ShR => match self.types.get(lhs).unwrap().scalar_class() {
+            element::BiOperator::RotL => Ok(self.builder.ins().rotl(lhs_value, rhs_value)),
+            element::BiOperator::RotR => Ok(self.builder.ins().rotr(lhs_value, rhs_value)),
+            element::BiOperator::ShL => Ok(self.builder.ins().ishl(lhs_value, rhs_value)),
+            element::BiOperator::ShR => match self.db.ty(lhs)?.scalar_class() {
                 ty::class::Scalar::Integral(ty::class::IntegralScalar::Unsigned) => {
-                    self.builder.ins().ushr(lhs_value, rhs_value)
+                    Ok(self.builder.ins().ushr(lhs_value, rhs_value))
                 }
                 ty::class::Scalar::Integral(ty::class::IntegralScalar::Signed) => {
-                    self.builder.ins().sshr(lhs_value, rhs_value)
+                    Ok(self.builder.ins().sshr(lhs_value, rhs_value))
                 }
                 _ => unreachable!(),
             },
         }
     }
 
-    pub fn eval_variable(&mut self, entity: ir::Entity, _variable: &element::Variable) -> Value {
-        self.builder.use_var(self.variables[&entity])
+    pub fn eval_variable(
+        &mut self,
+        entity: ir::Entity,
+        _variable: &element::Variable,
+    ) -> error::Result<Value> {
+        Ok(self.builder.use_var(self.variables[&entity]))
     }
 
-    pub fn eval_select(&mut self, _entity: ir::Entity, select: &element::Select) -> Value {
-        let record_layout = self.layouts.get(select.record).unwrap();
-        let record_type = match self.types.get(select.record).unwrap() {
+    pub fn eval_select(
+        &mut self,
+        _entity: ir::Entity,
+        select: &element::Select,
+    ) -> error::Result<Value> {
+        use crate::ir::Db as _;
+        use crate::layout::Db as _;
+        use crate::ty::Db as _;
+
+        let record_layout = self.db.layout(select.record)?;
+        let ty = self.db.ty(select.record)?;
+        let record_type = match &*ty {
             ty::Type::Record(r) => r,
             _ => unreachable!(),
         };
@@ -394,7 +478,7 @@ impl<'a, 'f> Translator<'a, 'f> {
         let field_offset = record_layout
             .named_fields
             .iter()
-            .find(|f| *f.field == select.field)
+            .find(|f| f.field == select.field)
             .unwrap()
             .offset_layout
             .offset as i32;
@@ -404,35 +488,46 @@ impl<'a, 'f> Translator<'a, 'f> {
         mem_flags.set_aligned();
         mem_flags.set_readonly();
 
-        let record = self.eval_element(select.record, self.elements.get(select.record).unwrap());
+        let record = self.eval_element(select.record, &*self.db.element(select.record)?)?;
 
-        self.builder
+        Ok(self
+            .builder
             .ins()
-            .load(field_abi_type, mem_flags, record, field_offset)
+            .load(field_abi_type, mem_flags, record, field_offset))
     }
 
-    pub fn eval_parameter(&mut self, entity: ir::Entity, _parameter: &element::Parameter) -> Value {
-        self.builder.use_var(self.variables[&entity])
+    pub fn eval_parameter(
+        &mut self,
+        entity: ir::Entity,
+        _parameter: &element::Parameter,
+    ) -> error::Result<Value> {
+        Ok(self.builder.use_var(self.variables[&entity]))
     }
 
-    pub fn eval_apply(&mut self, entity: ir::Entity, apply: &element::Apply) -> Value {
+    pub fn eval_apply(
+        &mut self,
+        entity: ir::Entity,
+        apply: &element::Apply,
+    ) -> error::Result<Value> {
+        use crate::ir::Db as _;
+        use crate::ty::Db as _;
+
         let mut sig = self.module.make_signature();
 
         for parameter in &apply.parameters {
             sig.params.push(AbiParam::new(
-                abi_type::AbiType::from_ir_type(self.types.get(*parameter).unwrap())
+                abi_type::AbiType::from_ir_type(&*self.db.ty(*parameter)?)
                     .into_specific(self.ptr_type),
             ));
         }
         // Result
         sig.returns.push(AbiParam::new(
-            abi_type::AbiType::from_ir_type(self.types.get(entity).unwrap())
-                .into_specific(self.ptr_type),
+            abi_type::AbiType::from_ir_type(&*self.db.ty(entity)?).into_specific(self.ptr_type),
         ));
         // Error
         sig.returns.push(AbiParam::new(self.ptr_type));
 
-        let name = self.get_symbol(apply.function).unwrap().to_string();
+        let name = super::Symbol(self.db, apply.function).to_string();
         let callee = self
             .module
             .declare_function(&name, cranelift_module::Linkage::Import, &sig)
@@ -444,8 +539,8 @@ impl<'a, 'f> Translator<'a, 'f> {
         let parameter_values = apply
             .parameters
             .iter()
-            .map(|p| self.eval_element(*p, self.elements.get(*p).unwrap()))
-            .collect::<Vec<_>>();
+            .map(|p| Ok(self.eval_element(*p, &*self.db.element(*p)?)?))
+            .collect::<error::Result<Vec<_>>>()?;
 
         let call = self.builder.ins().call(local_callee, &parameter_values);
 
@@ -453,7 +548,7 @@ impl<'a, 'f> Translator<'a, 'f> {
         let result = results[0];
         let error = results[1];
 
-        let location = self.locations.get(entity).unwrap().0;
+        let location = self.db.location(entity)?;
         let (filename, filename_len, line, col) = self.immediate_location(location);
 
         self.builder.ins().brnz(
@@ -461,22 +556,41 @@ impl<'a, 'f> Translator<'a, 'f> {
             self.error_unwind_ebb,
             &[error, filename, filename_len, line, col],
         );
-        result
+
+        Ok(result)
     }
 
-    pub fn eval_capture(&mut self, entity: ir::Entity, _capture: &element::Capture) -> Value {
-        self.builder.use_var(self.variables[&entity])
+    pub fn eval_capture(
+        &mut self,
+        entity: ir::Entity,
+        _capture: &element::Capture,
+    ) -> error::Result<Value> {
+        Ok(self.builder.use_var(self.variables[&entity]))
     }
 
-    pub fn eval_closure(&mut self, _entity: ir::Entity, _closure: &element::Closure) -> Value {
+    pub fn eval_closure(
+        &mut self,
+        _entity: ir::Entity,
+        _closure: &element::Closure,
+    ) -> error::Result<Value> {
         unimplemented!()
     }
 
-    pub fn eval_module(&mut self, _entity: ir::Entity, _module: &element::Module) -> Value {
+    pub fn eval_module(
+        &mut self,
+        _entity: ir::Entity,
+        _module: &element::Module,
+    ) -> error::Result<Value> {
         unimplemented!()
     }
 
-    pub fn error_if_zero(&mut self, entity: ir::Entity, value: Value, kind: module::ErrorKind) {
+    pub fn error_if_zero(
+        &mut self,
+        entity: ir::Entity,
+        value: Value,
+        kind: module::ErrorKind,
+    ) -> error::Result<()> {
+        use crate::ir::Db as _;
         use num_traits::cast::ToPrimitive;
 
         let kind = self
@@ -484,7 +598,7 @@ impl<'a, 'f> Translator<'a, 'f> {
             .ins()
             .iconst(types::I32, i64::from(kind.to_u32().unwrap()));
 
-        let location = self.locations.get(entity).unwrap().0;
+        let location = self.db.location(entity)?;
 
         let (filename, filename_len, line, col) = self.immediate_location(location);
 
@@ -493,13 +607,23 @@ impl<'a, 'f> Translator<'a, 'f> {
             self.error_throw_ebb,
             &[kind, filename, filename_len, line, col],
         );
+
+        Ok(())
     }
 
     pub fn immediate_location(
         &mut self,
-        location: codespan::ByteSpan,
+        location: location::Location,
     ) -> (Value, Value, Value, Value) {
-        let filemap = self.codemap.find_file(location.start()).unwrap();
+        let location = location.0;
+
+        let filemap = self
+            .db
+            .code_map()
+            .raw
+            .find_file(location.start())
+            .unwrap()
+            .clone();
         let (line, col) = filemap.location(location.start()).unwrap();
         let filename = filemap.name().to_string();
         let filename_len = filename.len();
@@ -590,7 +714,10 @@ impl<'a, 'f> Translator<'a, 'f> {
     }
 }
 
-impl<'a, 'f> fmt::Debug for Translator<'a, 'f> {
+impl<'a, 'f, B, D> fmt::Debug for Translator<'a, 'f, B, D>
+where
+    B: cranelift_module::Backend,
+{
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_struct("Translator").finish()
     }

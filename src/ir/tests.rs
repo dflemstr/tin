@@ -138,9 +138,7 @@ fn check_module(name: &'static str, source: &str) -> Result<(), String> {
     use crate::ty::Db as _;
 
     let mut codemap = codespan::CodeMap::new();
-    let span = codemap
-        .add_filemap(codespan::FileName::Virtual(name.into()), source.to_owned())
-        .span();
+    codemap.add_filemap(codespan::FileName::Virtual(name.into()), source.to_owned());
 
     let root_id = source::RootId(1);
     let file_id = source::FileId(1);
@@ -152,7 +150,6 @@ fn check_module(name: &'static str, source: &str) -> Result<(), String> {
     let mut db = db::Db::new();
 
     db.set_file_text(file_id, sync::Arc::new(source.to_owned()));
-    db.set_file_span(file_id, span);
     db.set_file_relative_path(file_id, path);
     db.set_file_source_root(file_id, root_id);
     db.set_source_root(root_id, sync::Arc::new(root));
