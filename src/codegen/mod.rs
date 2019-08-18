@@ -36,20 +36,10 @@ mod util;
 pub trait Db: salsa::Database + interpreter::Db + ir::Db + layout::Db + ty::Db {
     #[salsa::dependencies]
     fn codegen(&self) -> error::Result<sync::Arc<module::Module>>;
-
-    fn codegen_ptr_type(&self) -> codegen::ir::Type;
-
-    #[salsa::dependencies]
-    fn codegen_isa(&self) -> Isa;
 }
 
 pub struct Data {
     ctx: cranelift_module::DataContext,
-}
-
-#[derive(Clone)]
-pub struct Isa {
-    raw: sync::Arc<dyn codegen::isa::TargetIsa>,
 }
 
 struct Symbol<'d, D>(&'d D, ir::Entity);
@@ -75,7 +65,7 @@ where
 }
 
 fn codegen(db: &impl Db) -> error::Result<sync::Arc<module::Module>> {
-    let ptr_type = db.codegen_ptr_type();
+    let ptr_type = codegen_ptr_type(db);
     let mut builder =
         cranelift_simplejit::SimpleJITBuilder::new(cranelift_module::default_libcall_names());
     builder.symbols(builtin::BUILTINS.iter().map(|b| (b.symbol, b.ptr)));
@@ -95,17 +85,6 @@ fn codegen_ptr_type(db: &impl Db) -> codegen::ir::Type {
         layout::PtrSize::Size32 => codegen::ir::types::I32,
         layout::PtrSize::Size64 => codegen::ir::types::I64,
     }
-}
-
-fn codegen_isa(db: &impl Db) -> Isa {
-    let flag_builder = codegen::settings::builder();
-    let isa_builder = cranelift_native::builder().unwrap_or_else(|msg| {
-        panic!("host machine is not supported: {}", msg);
-    });
-    let raw = isa_builder
-        .finish(codegen::settings::Flags::new(flag_builder))
-        .into();
-    Isa { raw }
 }
 
 impl<'m, 'd, B, D> Codegen<'m, 'd, B, D>
@@ -246,8 +225,7 @@ where
     ) -> error::Result<(String, codegen::Context)> {
         use cranelift::codegen::ir::InstBuilder;
 
-        let mut ctx = codegen::Context::new();
-        ctx.func.signature.call_conv = self.db.codegen_isa().default_call_conv();
+        let mut ctx = self.module.make_context();
         let ret_type = self.populate_function_signature(ty, &mut ctx, false);
 
         let mut builder_context = frontend::FunctionBuilderContext::new();
@@ -510,10 +488,9 @@ where
     fn codegen_data(&mut self, entity: ir::Entity) -> error::Result<Option<sync::Arc<Data>>> {
         if let Some(value) = self.db.value(entity)? {
             let layout = self.db.layout(entity)?;
-            let ptr_type = self.db.codegen_ptr_type();
             let mut ctx = cranelift_module::DataContext::new();
             let mut data = Vec::new();
-            data::Translator::new(&mut data, ptr_type).store_value(&*layout, &value);
+            data::Translator::new(&mut data, self.ptr_type).store_value(&*layout, &value);
             ctx.define(data.into_boxed_slice());
             Ok(Some(sync::Arc::new(Data { ctx })))
         } else {
@@ -586,20 +563,6 @@ impl fmt::Debug for Function {
 impl fmt::Debug for Data {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_struct("Data").finish()
-    }
-}
-
-impl fmt::Debug for Isa {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f.debug_struct("Isa").finish()
-    }
-}
-
-impl ops::Deref for Isa {
-    type Target = dyn codegen::isa::TargetIsa;
-
-    fn deref(&self) -> &Self::Target {
-        &*self.raw
     }
 }
 
