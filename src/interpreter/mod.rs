@@ -1,9 +1,9 @@
 use std::cmp;
 use std::collections;
 
-use specs;
-
-use crate::ir::component::element;
+use crate::interpreter;
+use crate::ir;
+use crate::ir::element;
 use crate::module;
 use crate::value;
 
@@ -11,47 +11,57 @@ pub mod error;
 #[macro_use]
 mod macros;
 
-pub fn eval<'a, F>(
-    element: &element::Element,
-    lookup: F,
-) -> Result<Option<value::Value>, error::Error>
-where
-    F: Fn(specs::Entity) -> Option<&'a value::Value>,
-{
+#[salsa::query_group(InterpreterStorage)]
+pub trait Db: salsa::Database + ir::Db {
+    fn value(&self, entity: ir::Entity) -> error::Result<Option<value::Value>>;
+}
+
+fn value(db: &impl Db, entity: ir::Entity) -> error::Result<Option<value::Value>> {
+    let element = db.element(entity)?;
+    let value = eval(db, &*element)?;
+    Ok(value)
+}
+
+fn eval(db: &impl Db, element: &element::Element) -> error::Result<Option<value::Value>> {
     match element {
         element::Element::Number(v) => Ok(Some(value::Value::number(eval_number(v)))),
         element::Element::String(ref v) => Ok(Some(value::Value::string(v.as_str()))),
-        element::Element::Symbol(element::Symbol { ref label }) => {
-            Ok(Some(value::Value::symbol(label.as_str())))
+        element::Element::Symbol(element::Symbol { label }) => {
+            Ok(Some(value::Value::symbol(db.lookup_ident(*label))))
         }
         element::Element::Tuple(element::Tuple { ref fields }) => Ok(fields
             .iter()
-            .map(|f| lookup(*f).cloned())
-            .collect::<Option<Vec<_>>>()
+            .map(|f| db.value(*f))
+            .collect::<Result<Option<Vec<_>>, error::Error>>()?
             .map(|fields| value::Value::tuple(value::Tuple { fields }))),
         element::Element::Record(element::Record { ref fields }) => Ok(fields
             .iter()
-            .map(|(k, f)| lookup(*f).map(|v| (k.clone(), v.clone())))
-            .collect::<Option<collections::HashMap<_, _>>>()
+            .map(|(k, f)| Ok(db.value(*f)?.map(|v| (db.lookup_ident(*k), v))))
+            .collect::<Result<Option<collections::HashMap<_, _>>, error::Error>>()?
             .map(|fields| value::Value::record(value::Record { fields }))),
-        element::Element::UnOp(element::UnOp { operator, operand }) => {
-            transpose(lookup(*operand).map(|operand| eval_un_op(*operator, &operand)))
+        element::Element::UnOp(element::UnOp { operator, operand }) => db
+            .value(*operand)?
+            .map(|operand| eval_un_op(*operator, &operand))
+            .transpose(),
+        element::Element::BiOp(element::BiOp { lhs, operator, rhs }) => {
+            let lhs_value = db.value(*lhs)?;
+            let rhs_value = db.value(*rhs)?;
+            match (lhs_value, rhs_value) {
+                (Some(ref lhs), Some(ref rhs)) => eval_bi_op(lhs, *operator, rhs).map(Some),
+                _ => Ok(None),
+            }
         }
-        element::Element::BiOp(element::BiOp { lhs, operator, rhs }) => transpose(
-            lookup(*lhs).and_then(|lhs| lookup(*rhs).map(|rhs| eval_bi_op(&lhs, *operator, &rhs))),
-        ),
-        element::Element::Variable(element::Variable { initializer, .. }) => {
-            Ok(lookup(*initializer).cloned())
-        }
-        element::Element::Select(element::Select { record, field }) => {
-            transpose(lookup(*record).map(|record| match record.case() {
-                value::Case::Record(r) => Ok(r.fields[field].clone()),
+        element::Element::Variable(element::Variable { initializer, .. }) => db.value(*initializer),
+        element::Element::Select(element::Select { record, field }) => db
+            .value(*record)?
+            .map(|record| match record.case() {
+                value::Case::Record(r) => Ok(r.fields[&db.lookup_ident(*field)].clone()),
                 other => Err(error::Error::RuntimeTypeConflict(format!(
                     "not a record: {:?}",
                     other
                 ))),
-            }))
-        }
+            })
+            .transpose(),
         _ => Ok(None), // TODO
     }
 }
@@ -103,7 +113,7 @@ fn eval_un_op(
     }
 }
 
-#[cfg_attr(feature = "cargo-clippy", allow(clippy::cyclomatic_complexity))]
+#[allow(clippy::cognitive_complexity)]
 fn eval_bi_op(
     lhs: &value::Value,
     operator: element::BiOperator,
@@ -133,25 +143,25 @@ fn eval_bi_op(
         element::BiOperator::Sub => match_number_value!("-", (lhs, rhs), |l, r| int: Ok(
             (l.wrapping_sub(*r)).into()
         ), frac: Ok(
-            (l - r).into()
+            (l.into_inner() - r.into_inner()).into()
         )),
         element::BiOperator::Mul => match_number_value!("*", (lhs, rhs), |l, r| int: Ok(
             (l.wrapping_mul(*r)).into()
         ), frac: Ok(
-            (l * r).into()
+            (l.into_inner() * r.into_inner()).into()
         )),
         element::BiOperator::Div => match_number_value!("/", (lhs, rhs), |l, r| int: if *r == 0 {
-            Err(error::Error::EvaluationError(module::Error::new(module::ErrorKind::IntegerDivisonByZero)))
+            Err(error::Error::Evaluation(module::Error::new(module::ErrorKind::IntegerDivisonByZero)))
         } else {
             Ok((l.wrapping_div(*r)).into())
-        }, frac: Ok((l / r).into()
+        }, frac: Ok((l.into_inner() / r.into_inner()).into()
         )),
         element::BiOperator::Rem => match_number_value!("%", (lhs, rhs), |l, r| int: if *r == 0 {
-            Err(error::Error::EvaluationError(module::Error::new(module::ErrorKind::IntegerDivisonByZero)))
+            Err(error::Error::Evaluation(module::Error::new(module::ErrorKind::IntegerDivisonByZero)))
         } else {
             Ok((l.wrapping_rem(*r)).into())
         }, frac: Ok(
-            (l % r).into()
+            (l.into_inner() % r.into_inner()).into()
         )),
         element::BiOperator::And => bool_op("&", lhs, rhs, |l, r| l & r),
         element::BiOperator::BAnd => {
@@ -315,9 +325,7 @@ fn add(lhs: &value::Value, rhs: &value::Value) -> Result<value::Value, error::Er
                 Ok(value::Value::string(lhsv.clone() + rhsv))
             }
         }
-        (value::Case::Number(lhs), value::Case::Number(rhs)) => {
-            match_number!("+", (lhs, rhs), |l, r| int: Ok((l.wrapping_add(*r)).into()), frac: Ok((l + r).into()))
-        }
+        (value::Case::Number(lhs), value::Case::Number(rhs)) => match_number!("+", (lhs, rhs), |l, r| int: Ok((l.wrapping_add(*r)).into()), frac: Ok((l.into_inner() + r.into_inner()).into())),
         other => Err(error::Error::RuntimeTypeConflict(format!(
             "operation + not supported on values {:?}",
             other
@@ -338,13 +346,4 @@ where
     let rhs = to_bool(rhs)?;
 
     Ok(op(lhs, rhs).into())
-}
-
-// TODO: awaits https://github.com/rust-lang/rust/issues/47338
-fn transpose<A, E>(option: Option<Result<A, E>>) -> Result<Option<A>, E> {
-    match option {
-        Some(Ok(x)) => Ok(Some(x)),
-        Some(Err(e)) => Err(e),
-        None => Ok(None),
-    }
 }

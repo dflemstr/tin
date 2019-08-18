@@ -2,43 +2,43 @@ use std::cmp;
 use std::collections;
 use std::sync;
 
-lazy_static! {
+lazy_static::lazy_static! {
     pub static ref NIL: Value = {
         Value::new(Case::Symbol(Symbol {
-            label: "nil".to_owned(),
+            label: sync::Arc::new("nil".to_owned()),
         }))
     };
     pub static ref FALSE: Value = {
         Value::new(Case::Symbol(Symbol {
-            label: "f".to_owned(),
+            label: sync::Arc::new("f".to_owned()),
         }))
     };
     pub static ref TRUE: Value = {
         Value::new(Case::Symbol(Symbol {
-            label: "t".to_owned(),
+            label: sync::Arc::new("t".to_owned()),
         }))
     };
     pub static ref LT: Value = {
         Value::new(Case::Symbol(Symbol {
-            label: "lt".to_owned(),
+            label: sync::Arc::new("lt".to_owned()),
         }))
     };
     pub static ref EQ: Value = {
         Value::new(Case::Symbol(Symbol {
-            label: "eq".to_owned(),
+            label: sync::Arc::new("eq".to_owned()),
         }))
     };
     pub static ref GT: Value = {
         Value::new(Case::Symbol(Symbol {
-            label: "gt".to_owned(),
+            label: sync::Arc::new("gt".to_owned()),
         }))
     };
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Value(sync::Arc<Case>);
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Case {
     Number(Number),
     String(String),
@@ -47,7 +47,7 @@ pub enum Case {
     Record(Record),
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, PartialOrd)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, PartialOrd)]
 pub enum Number {
     U8(u8),
     U16(u16),
@@ -57,23 +57,23 @@ pub enum Number {
     I16(i16),
     I32(i32),
     I64(i64),
-    F32(f32),
-    F64(f64),
+    F32(ordered_float::OrderedFloat<f32>),
+    F64(ordered_float::OrderedFloat<f64>),
 }
 
 #[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub struct Symbol {
-    pub label: String,
+    pub label: sync::Arc<String>,
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Tuple {
     pub fields: Vec<Value>,
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Record {
-    pub fields: collections::HashMap<String, Value>,
+    pub fields: collections::HashMap<sync::Arc<String>, Value>,
 }
 
 impl Value {
@@ -92,11 +92,7 @@ impl Value {
         Value(sync::Arc::new(Case::String(string.into())))
     }
 
-    pub fn symbol<S>(label: S) -> Self
-    where
-        S: Into<String>,
-    {
-        let label = label.into();
+    pub fn symbol(label: sync::Arc<String>) -> Self {
         Value::new(Case::Symbol(Symbol { label }))
     }
 
@@ -173,13 +169,13 @@ impl From<i64> for Value {
 
 impl From<f32> for Value {
     fn from(v: f32) -> Self {
-        Value::new(Case::Number(Number::F32(v)))
+        Value::new(Case::Number(Number::F32(ordered_float::OrderedFloat(v))))
     }
 }
 
 impl From<f64> for Value {
     fn from(v: f64) -> Self {
-        Value::new(Case::Number(Number::F64(v)))
+        Value::new(Case::Number(Number::F64(ordered_float::OrderedFloat(v))))
     }
 }
 

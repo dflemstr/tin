@@ -1,9 +1,13 @@
 use env_logger;
 use failure;
+use std::collections;
+use std::sync;
 
-use super::*;
-use crate::ast;
+use crate::db;
+use crate::layout;
+use crate::source;
 use crate::test_util;
+use std::any::Any;
 
 #[test]
 fn entity_assignments() -> Result<(), failure::Error> {
@@ -59,8 +63,10 @@ a = || -> u32 {
 "#;
     let expected = Err(r#"error: undefined reference to `c`
 - <lexically_scoped_closure_vars>:7:3
+  |
 7 |   c
   |   ^
+  |
 "#
     .to_owned());
     let actual = check_module("lexically_scoped_closure_vars", source);
@@ -83,8 +89,10 @@ a = || -> u32 {
 "#;
     let expected = Err(r#"error: undefined reference to `c`
 - <ordered_local_vars>:3:7
+  |
 3 |   b = c;
   |       ^
+  |
 "#
     .to_owned());
     let actual = check_module("ordered_local_vars", source);
@@ -103,16 +111,17 @@ a = || -> u32 {
   1f32 + 2f64
 };
 "#;
-    let expected = Err(r#"error: type error
-- <type_error>:3:3
-3 |   1f32 + 2f64
-  |   ^^^^^^^^^^^
+    let expected = Err(r#"error: expected `f32` but got `f64`
 - <type_error>:3:10
+  |
 3 |   1f32 + 2f64
   |          ^^^^ expected `f32` but got `f64`
+  |
 - <type_error>:3:3
+  |
 3 |   1f32 + 2f64
   |   ---- other operand has type `f32`
+  |
 "#
     .to_owned());
     let actual = check_module("type_error", source);
@@ -123,22 +132,40 @@ a = || -> u32 {
 }
 
 fn check_module(name: &'static str, source: &str) -> Result<(), String> {
-    use crate::parser::Parse;
+    use crate::ir::Db as _;
+    use crate::layout::Db as _;
+    use crate::source::Db as _;
+    use crate::ty::Db as _;
 
     let mut codemap = codespan::CodeMap::new();
-    let span = codemap
-        .add_filemap(codespan::FileName::Virtual(name.into()), source.to_owned())
-        .span();
-    let ast_module =
-        ast::Module::parse(span, source).map_err(|e| crate::diagnostic::to_string(&codemap, &e))?;
+    codemap.add_filemap(codespan::FileName::Virtual(name.into()), source.to_owned());
 
-    let mut ir = Ir::new();
-    ir.load(&ast_module)
-        .map_err(|e| crate::diagnostic::to_string(&codemap, &e))?;
-    ir.check_types()
+    let root_id = source::RootId(1);
+    let file_id = source::FileId(1);
+    let path = relative_path::RelativePath::new(name).to_owned();
+    let mut files = collections::HashMap::new();
+    files.insert(path.clone(), file_id);
+    let root = source::Root { files };
+
+    let mut db = db::Db::new();
+
+    db.set_file_text(file_id, sync::Arc::new(source.to_owned()));
+    db.set_file_relative_path(file_id, path);
+    db.set_file_source_root(file_id, root_id);
+    db.set_source_root(root_id, sync::Arc::new(root));
+    db.set_all_source_roots(sync::Arc::new(vec![root_id]));
+    db.set_ptr_size(layout::PtrSize::Size64);
+
+    let entities = db
+        .entities()
         .map_err(|e| crate::diagnostic::to_string(&codemap, &e))?;
 
-    test_util::render_graph(&format!(concat!(module_path!(), "::{}"), name), &ir).unwrap();
+    for entity in entities.all() {
+        db.ty(entity)
+            .map_err(|e| crate::diagnostic::to_string(&codemap, &e))?;
+    }
+
+    test_util::render_graph(&format!(concat!(module_path!(), "::{}"), name), &db).unwrap();
 
     Ok(())
 }

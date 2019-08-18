@@ -1,11 +1,4 @@
-extern crate failure;
-#[macro_use]
-extern crate log;
-extern crate pretty_env_logger;
-#[macro_use]
-extern crate structopt;
-extern crate tin;
-
+use log::error;
 use std::fs;
 use std::io;
 use std::path;
@@ -14,7 +7,7 @@ use std::sync::atomic;
 
 static REPORTED_DIAGNOSTICS: atomic::AtomicBool = atomic::AtomicBool::new(false);
 
-#[derive(Debug, StructOpt)]
+#[derive(Debug, structopt::StructOpt)]
 #[structopt(name = "tin")]
 struct Options {
     /// Source file to compile (that contains a main function); will use stdin if omitted.
@@ -67,7 +60,7 @@ fn run() -> Result<i32, failure::Error> {
         .map_err(|e| report_diagnostics(tin.codemap(), e))?;
 
     let entrypoint = module
-        .function::<tin::module::Function0<i32>>("main")
+        .function::<tin::module::Function0<i32>, _>("TODO", "main")
         .ok_or_else(|| failure::err_msg("missing a main function"))?;
 
     let result = entrypoint.call()?;

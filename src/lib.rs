@@ -29,7 +29,9 @@
 //! # Ok(())
 //! # }
 //! ```
-#![deny(nonstandard_style, warnings, unused)]
+#![feature(const_fn, const_vec_new)]
+#![deny(nonstandard_style, warnings)]
+#![allow(unused)]
 #![deny(
     missing_docs,
     missing_debug_implementations,
@@ -40,36 +42,17 @@
     unused_import_braces,
     unused_qualifications
 )]
-#![feature(const_vec_new)]
-#![cfg_attr(feature = "cargo-clippy", deny(clippy::all, clippy::pedantic))]
-#![cfg_attr(feature = "cargo-clippy", allow(clippy::use_self))]
-
-#[macro_use]
-extern crate enum_primitive_derive;
-#[macro_use]
-extern crate failure;
-#[macro_use]
-extern crate lalrpop_util;
-#[macro_use]
-extern crate lazy_static;
-#[macro_use]
-extern crate log;
-#[macro_use]
-extern crate specs_derive;
-#[macro_use]
-extern crate specs_visitor_derive;
-#[cfg(test)]
-#[macro_use]
-extern crate pretty_assertions;
 
 use std::fmt;
 
-mod ast;
-mod best_iter;
 mod codegen;
+mod db;
 mod interpreter;
 mod ir;
-mod parser;
+mod layout;
+mod source;
+mod syntax;
+mod ty;
 mod value;
 
 #[cfg(test)]
@@ -85,25 +68,15 @@ pub use crate::error::Result;
 
 /// An instance of the Tin runtime.
 pub struct Tin {
-    ir: ir::Ir,
-    codemap: codespan::CodeMap,
-    parser: <ast::Module<parser::Context> as parser::Parse>::Parser,
+    db: db::Db,
 }
 
 impl Tin {
     /// Creates a new instance of the Tin runtime.
     pub fn new() -> Tin {
-        use crate::parser::Parse;
+        let db = db::Db::new();
 
-        let ir = ir::Ir::new();
-        let codemap = codespan::CodeMap::new();
-        let parser = ast::Module::new_parser();
-
-        Tin {
-            ir,
-            codemap,
-            parser,
-        }
+        Tin { db }
     }
 
     /// Loads the specified source code as a module.
@@ -143,26 +116,31 @@ impl Tin {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn load<F>(&mut self, file_name: F, source: &str) -> Result<()>
+    pub fn load<F>(&mut self, _file_name: F, _source: &str) -> Result<()>
     where
         F: Into<codespan::FileName>,
     {
+        unimplemented!()
+        /*
         let span = self
             .codemap
             .add_filemap(file_name.into(), source.to_owned())
             .span();
-        let module = parser::Parser::parse(&mut self.parser, span, source)?;
+        let module = syntax::parser::Parser::parse(&mut self.parser, span, source)?;
         self.ir.load(&module)?;
 
         Ok(())
+        */
     }
 
+    /*
     /// Creates a graph representation of the current IR of this Tin instance.
     ///
     /// This can be used to for example visualize the code using GraphViz or other tools.
     pub fn graph(&self) -> graph::Graph {
         graph::Graph::new(&self.ir)
     }
+        */
 
     /// Compiles the code loaded so far into a stand-alone module.
     ///
@@ -190,15 +168,21 @@ impl Tin {
     /// # }
     /// ```
     pub fn compile(&mut self) -> Result<module::Module> {
+        unimplemented!()
+        /*
         self.ir.check_types()?;
         let module = codegen::Codegen::new(&self.ir, &self.codemap).compile();
         Ok(module)
+        */
     }
 
     /// Returns a reference to the current code map, which contains location mapping for all source
     /// code loaded so far.
     pub fn codemap(&self) -> &codespan::CodeMap {
+        unimplemented!()
+        /*
         &self.codemap
+        */
     }
 }
 

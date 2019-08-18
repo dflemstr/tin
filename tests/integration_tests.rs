@@ -35,7 +35,7 @@ fn test_ok(path: &str) -> Result<(), failure::Error> {
 
     let main = module
         .unwrap()
-        .function::<tin::module::Function0<i32>>("main")
+        .function::<tin::module::Function0<i32>, _>("TODO", "main")
         .unwrap();
 
     assert_eq!(Ok(0), main.call());
@@ -68,7 +68,7 @@ fn test_err(path: &str, err: &str) -> Result<(), failure::Error> {
             .map_err(|e| report_diagnostics(tin.codemap(), e, &mut err_actual))
         {
             let _ = module
-                .function::<tin::module::Function0<i32>>("main")
+                .function::<tin::module::Function0<i32>, _>("TODO", "main")
                 .unwrap()
                 .call()
                 .map_err(|e| report_error(e, &mut err_actual));

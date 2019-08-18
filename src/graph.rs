@@ -6,234 +6,59 @@ use std::borrow;
 use std::fmt;
 
 use dot;
-use specs;
 
+use crate::db;
 use crate::ir;
-use crate::ir::component::element;
-use crate::ir::component::layout;
-use crate::ir::component::symbol;
-use crate::ir::component::ty;
+use crate::ir::element;
 
 /// A graph representation of IR.
 pub struct Graph<'a> {
-    entities: specs::Entities<'a>,
-    elements: specs::ReadStorage<'a, element::Element>,
-    layouts: specs::ReadStorage<'a, layout::Layout>,
-    symbols: specs::ReadStorage<'a, symbol::Symbol>,
-    types: specs::ReadStorage<'a, ty::Type>,
+    db: &'a db::Db,
 }
 
 /// A node in the IR graph.
 #[derive(Clone, Copy, Debug)]
-pub struct Node(specs::Entity);
+pub struct Node(ir::Entity);
 
 /// An edge in the IR graph.
 #[derive(Clone, Copy, Debug)]
-pub struct Edge<'a> {
+pub struct Edge {
     source: Node,
     target: Node,
-    label: Label<'a>,
-}
-
-#[derive(Clone, Copy, Debug)]
-enum Label<'a> {
-    RecordField(&'a str),
-    TupleField(usize),
-    VariableInitializer,
-    SelectField(&'a str),
-    AppliedFunction,
-    AppliedParameter(usize),
-    ParameterSignature,
-    ClosureCaptureDefinition(&'a str),
-    ClosureCaptureUsage(&'a str),
-    ClosureParameter(usize),
-    ClosureStatement(usize),
-    ClosureSignature,
-    ClosureResult,
-    ModuleDefinition(&'a str),
-    UnOperand,
-    BiLhs,
-    BiRhs,
+    role: ir::EntityRole,
 }
 
 impl<'a> Graph<'a> {
     /// Creates a new IR graph based on the supplied intermediate representation.
-    pub(crate) fn new(ir: &'a ir::Ir) -> Graph<'a> {
-        let world = &ir.world;
-        let entities = world.entities();
-        let elements = world.read_storage();
-        let layouts = world.read_storage();
-        let symbols = world.read_storage();
-        let types = world.read_storage();
-
-        Graph {
-            entities,
-            elements,
-            layouts,
-            symbols,
-            types,
-        }
+    pub(crate) fn new(db: &'a db::Db) -> Graph<'a> {
+        Graph { db }
     }
 }
 
-impl<'a> dot::GraphWalk<'a, Node, Edge<'a>> for Graph<'a> {
+impl<'a> dot::GraphWalk<'a, Node, Edge> for Graph<'a> {
     fn nodes(&'a self) -> borrow::Cow<'a, [Node]> {
-        use specs::Join;
+        use crate::ir::Db;
 
-        borrow::Cow::Owned(
-            self.entities
-                .join()
-                .filter_map(|e| {
-                    if self.elements.contains(e) {
-                        Some(Node(e))
-                    } else {
-                        None
-                    }
-                })
-                .collect::<Vec<_>>(),
-        )
+        let entities = self.db.entities().unwrap();
+        borrow::Cow::Owned(entities.all().map(Node).collect())
     }
 
-    fn edges(&'a self) -> borrow::Cow<'a, [Edge<'a>]> {
-        use specs::Join;
+    fn edges(&'a self) -> borrow::Cow<'a, [Edge]> {
+        use crate::ir::Db;
 
         let mut edges = Vec::new();
 
-        for entity in self.entities.join() {
-            if let Some(element) = self.elements.get(entity) {
-                match element {
-                    element::Element::Number(_)
-                    | element::Element::String(_)
-                    | element::Element::Symbol(_) => {}
-                    element::Element::Tuple(element::Tuple { fields }) => {
-                        for (idx, field) in fields.iter().enumerate() {
-                            edges.push(Edge {
-                                source: Node(entity),
-                                target: Node(*field),
-                                label: Label::TupleField(idx),
-                            });
-                        }
-                    }
-                    element::Element::Record(element::Record { fields }) => {
-                        for (name, field) in fields {
-                            edges.push(Edge {
-                                source: Node(entity),
-                                target: Node(*field),
-                                label: Label::RecordField(name),
-                            });
-                        }
-                    }
-                    element::Element::UnOp(element::UnOp { operand, .. }) => {
-                        edges.push(Edge {
-                            source: Node(entity),
-                            target: Node(*operand),
-                            label: Label::UnOperand,
-                        });
-                    }
-                    element::Element::BiOp(element::BiOp { lhs, rhs, .. }) => {
-                        edges.push(Edge {
-                            source: Node(entity),
-                            target: Node(*lhs),
-                            label: Label::BiLhs,
-                        });
-                        edges.push(Edge {
-                            source: Node(entity),
-                            target: Node(*rhs),
-                            label: Label::BiRhs,
-                        });
-                    }
-                    element::Element::Variable(element::Variable { initializer, .. }) => edges
-                        .push(Edge {
-                            source: Node(entity),
-                            target: Node(*initializer),
-                            label: Label::VariableInitializer,
-                        }),
-                    element::Element::Select(element::Select { record, field }) => {
-                        edges.push(Edge {
-                            source: Node(entity),
-                            target: Node(*record),
-                            label: Label::SelectField(field),
-                        });
-                    }
-                    element::Element::Apply(element::Apply {
-                        function,
-                        parameters,
-                    }) => {
-                        edges.push(Edge {
-                            source: Node(entity),
-                            target: Node(*function),
-                            label: Label::AppliedFunction,
-                        });
-                        for (idx, parameter) in parameters.iter().enumerate() {
-                            edges.push(Edge {
-                                source: Node(entity),
-                                target: Node(*parameter),
-                                label: Label::AppliedParameter(idx),
-                            });
-                        }
-                    }
-                    element::Element::Parameter(element::Parameter { signature, .. }) => {
-                        edges.push(Edge {
-                            source: Node(entity),
-                            target: Node(*signature),
-                            label: Label::ParameterSignature,
-                        });
-                    }
-                    element::Element::Capture(element::Capture { ref name, captured }) => edges
-                        .push(Edge {
-                            source: Node(entity),
-                            target: Node(*captured),
-                            label: Label::ClosureCaptureDefinition(name),
-                        }),
-                    element::Element::Closure(element::Closure {
-                        captures,
-                        parameters,
-                        statements,
-                        signature,
-                        result,
-                    }) => {
-                        for (name, capture) in captures {
-                            edges.push(Edge {
-                                source: Node(entity),
-                                target: Node(*capture),
-                                label: Label::ClosureCaptureUsage(name),
-                            });
-                        }
-                        for (idx, parameter) in parameters.iter().enumerate() {
-                            edges.push(Edge {
-                                source: Node(entity),
-                                target: Node(*parameter),
-                                label: Label::ClosureParameter(idx),
-                            });
-                        }
-                        for (idx, statement) in statements.iter().enumerate() {
-                            edges.push(Edge {
-                                source: Node(entity),
-                                target: Node(*statement),
-                                label: Label::ClosureStatement(idx),
-                            });
-                        }
-                        edges.push(Edge {
-                            source: Node(entity),
-                            target: Node(*signature),
-                            label: Label::ClosureSignature,
-                        });
-                        edges.push(Edge {
-                            source: Node(entity),
-                            target: Node(*result),
-                            label: Label::ClosureResult,
-                        });
-                    }
-                    element::Element::Module(element::Module { variables }) => {
-                        for (name, variable) in variables {
-                            edges.push(Edge {
-                                source: Node(entity),
-                                target: Node(*variable),
-                                label: Label::ModuleDefinition(name),
-                            });
-                        }
-                    }
-                }
+        let entities = self.db.entities().unwrap();
+        for child in entities.all() {
+            let (parent, role) = self.db.lookup_entity(child);
+            if let Some(parent) = parent {
+                let source = Node(parent);
+                let target = Node(child);
+                edges.push(Edge {
+                    source,
+                    target,
+                    role,
+                });
             }
         }
 
@@ -249,7 +74,7 @@ impl<'a> dot::GraphWalk<'a, Node, Edge<'a>> for Graph<'a> {
     }
 }
 
-impl<'a> dot::Labeller<'a, Node, Edge<'a>> for Graph<'a> {
+impl<'a> dot::Labeller<'a, Node, Edge> for Graph<'a> {
     fn graph_id(&'a self) -> dot::Id<'a> {
         dot::Id::new("ir").unwrap()
     }
@@ -263,16 +88,20 @@ impl<'a> dot::Labeller<'a, Node, Edge<'a>> for Graph<'a> {
     }
 
     fn node_label(&'a self, n: &Node) -> dot::LabelText<'a> {
+        use crate::ir::Db as _;
+        use crate::layout::Db as _;
+        use crate::ty::Db as _;
         use std::fmt::Write;
 
         let mut result = format!("({}) ", n.0.id());
 
-        if let Some(element) = self.elements.get(n.0) {
-            match element {
+        if let Ok(element) = self.db.element(n.0) {
+            match &*element {
+                element::Element::Reference(e) => write!(result, "ref <b>{:?}</b>", e).unwrap(),
                 element::Element::Number(n) => write!(result, "num <b>{:?}</b>", n).unwrap(),
                 element::Element::String(s) => write!(result, "str <b>{:?}</b>", s).unwrap(),
-                element::Element::Symbol(element::Symbol { ref label }) => {
-                    write!(result, "sym <b>{:?}</b>", label).unwrap()
+                element::Element::Symbol(element::Symbol { label }) => {
+                    write!(result, "sym <b>{:?}</b>", self.db.lookup_ident(*label)).unwrap()
                 }
                 element::Element::Tuple(element::Tuple { fields }) => {
                     write!(result, "tuple <br/> <b>{:?}</b> fields", fields.len()).unwrap()
@@ -287,7 +116,7 @@ impl<'a> dot::Labeller<'a, Node, Edge<'a>> for Graph<'a> {
                     write!(result, "bi op <b>{}</b>", operator).unwrap()
                 }
                 element::Element::Variable(element::Variable { name, .. }) => {
-                    write!(result, "variable <b>{:?}</b>", name).unwrap()
+                    write!(result, "variable <b>{:?}</b>", self.db.lookup_ident(*name)).unwrap()
                 }
                 element::Element::Select(element::Select { .. }) => {
                     write!(result, "select").unwrap()
@@ -296,10 +125,10 @@ impl<'a> dot::Labeller<'a, Node, Edge<'a>> for Graph<'a> {
                     write!(result, "apply <br/> <b>{:?}</b> params", parameters.len()).unwrap()
                 }
                 element::Element::Parameter(element::Parameter { name, .. }) => {
-                    write!(result, "param <b>{:?}</b>", name).unwrap()
+                    write!(result, "param <b>{:?}</b>", self.db.lookup_ident(*name)).unwrap()
                 }
                 element::Element::Capture(element::Capture { name, .. }) => {
-                    write!(result, "capture <b>{:?}</b>", name).unwrap()
+                    write!(result, "capture <b>{:?}</b>", self.db.lookup_ident(*name)).unwrap()
                 }
                 element::Element::Closure(element::Closure {
                     captures,
@@ -324,82 +153,69 @@ impl<'a> dot::Labeller<'a, Node, Edge<'a>> for Graph<'a> {
             write!(result, "(unknown)").unwrap();
         };
 
-        if let Some(ty) = self.types.get(n.0) {
+        if let Ok(ty) = self.db.ty(n.0) {
             write!(result, "<br/> <font color=\"blue\">{}</font>", ty).unwrap();
         }
 
-        if let Some(layout) = self.layouts.get(n.0) {
+        if let Ok(layout) = self.db.layout(n.0) {
             write!(result, "<br/> <font color=\"brown\">{}</font>", layout).unwrap();
-        }
-
-        if let Some(symbol) = self.symbols.get(n.0) {
-            if symbol.is_empty() {
-                write!(result, "<br/> <font color=\"purple\">(root)</font>").unwrap();
-            } else {
-                write!(result, "<br/> <font color=\"purple\">{}</font>", symbol).unwrap();
-            }
         }
 
         dot::LabelText::HtmlStr(result.into())
     }
 
-    fn edge_label(&'a self, e: &Edge<'a>) -> dot::LabelText<'a> {
-        match e.label {
-            Label::RecordField(ref name) => {
-                dot::LabelText::HtmlStr(format!("field <b>{}</b>", name).into())
+    fn edge_label(&'a self, e: &Edge) -> dot::LabelText<'a> {
+        use crate::ir::Db as _;
+        use crate::source::Db as _;
+
+        match e.role {
+            ir::EntityRole::File(file_id) => dot::LabelText::HtmlStr(
+                format!("file <b>{:?}</b>", self.db.file_relative_path(file_id)).into(),
+            ),
+            ir::EntityRole::RecordField(ident) => dot::LabelText::HtmlStr(
+                format!("field <b>{:?}</b>", self.db.lookup_ident(ident)).into(),
+            ),
+            ir::EntityRole::TupleField(idx) => {
+                dot::LabelText::HtmlStr(format!("field <b>{:?}</b>", idx).into())
             }
-            Label::TupleField(idx) => {
-                dot::LabelText::HtmlStr(format!("field <b>{}</b>", idx).into())
+            ir::EntityRole::VariableDefinition(ident) => dot::LabelText::HtmlStr(
+                format!("def <b>{:?}</b>", self.db.lookup_ident(ident)).into(),
+            ),
+            ir::EntityRole::VariableInitializer => dot::LabelText::HtmlStr("init".into()),
+            ir::EntityRole::SelectField(ident) => dot::LabelText::HtmlStr(
+                format!("select <b>{:?}</b>", self.db.lookup_ident(ident)).into(),
+            ),
+            ir::EntityRole::AppliedFunction => dot::LabelText::HtmlStr("fun".into()),
+            ir::EntityRole::AppliedParameter(idx) => {
+                dot::LabelText::HtmlStr(format!("param <b>{:?}</b>", idx).into())
             }
-            Label::VariableInitializer => dot::LabelText::LabelStr("initializer".into()),
-            Label::SelectField(ref name) => {
-                dot::LabelText::HtmlStr(format!("select <b>{}</b>", name).into())
+            ir::EntityRole::ParameterSignature => dot::LabelText::HtmlStr("sig".into()),
+            ir::EntityRole::ClosureCaptureDefinition(ident) => dot::LabelText::HtmlStr(
+                format!("capture <b>{:?}</b>", self.db.lookup_ident(ident)).into(),
+            ),
+            ir::EntityRole::ClosureParameter(ident) => dot::LabelText::HtmlStr(
+                format!("param <b>{:?}</b>", self.db.lookup_ident(ident)).into(),
+            ),
+            ir::EntityRole::ClosureStatement(idx) => {
+                dot::LabelText::HtmlStr(format!("stmt <b>{:?}</b>", idx).into())
             }
-            Label::AppliedFunction => dot::LabelText::LabelStr("func".into()),
-            Label::AppliedParameter(idx) => {
-                dot::LabelText::HtmlStr(format!("apply param <b>{}</b>", idx).into())
-            }
-            Label::ParameterSignature => dot::LabelText::LabelStr("param sig".into()),
-            Label::ClosureCaptureDefinition(ref name) => {
-                dot::LabelText::HtmlStr(format!("capture definition <b>{}</b>", name).into())
-            }
-            Label::ClosureCaptureUsage(idx) => {
-                dot::LabelText::HtmlStr(format!("capture usage <b>{}</b>", idx).into())
-            }
-            Label::ClosureParameter(idx) => {
-                dot::LabelText::HtmlStr(format!("closure param <b>{}</b>", idx).into())
-            }
-            Label::ClosureStatement(idx) => {
-                dot::LabelText::HtmlStr(format!("closure stmt <b>{}</b>", idx).into())
-            }
-            Label::ClosureResult => dot::LabelText::HtmlStr("closure result".into()),
-            Label::ClosureSignature => dot::LabelText::LabelStr("closure sig".into()),
-            Label::ModuleDefinition(ref name) => {
-                dot::LabelText::HtmlStr(format!("def <b>{}</b>", name).into())
-            }
-            Label::UnOperand => dot::LabelText::LabelStr("operand".into()),
-            Label::BiLhs => dot::LabelText::LabelStr("lhs".into()),
-            Label::BiRhs => dot::LabelText::LabelStr("rhs".into()),
+            ir::EntityRole::ClosureSignature => dot::LabelText::HtmlStr("sig".into()),
+            ir::EntityRole::ClosureResult => dot::LabelText::HtmlStr("result".into()),
+            ir::EntityRole::UnOperand => dot::LabelText::HtmlStr("op".into()),
+            ir::EntityRole::BiLhs => dot::LabelText::HtmlStr("lhs".into()),
+            ir::EntityRole::BiRhs => dot::LabelText::HtmlStr("rhs".into()),
         }
     }
 
-    fn edge_style(&'a self, e: &Edge<'a>) -> dot::Style {
-        match e.label {
-            Label::RecordField(_)
-            | Label::TupleField(_)
-            | Label::VariableInitializer
-            | Label::SelectField(_)
-            | Label::AppliedFunction
-            | Label::AppliedParameter(_)
-            | Label::ClosureCaptureUsage(_)
-            | Label::ClosureParameter(_)
-            | Label::ClosureResult
-            | Label::ModuleDefinition(_)
-            | Label::UnOperand
-            | Label::BiLhs
-            | Label::BiRhs => dot::Style::None,
-            Label::ParameterSignature | Label::ClosureSignature => dot::Style::Dotted,
-            Label::ClosureCaptureDefinition(_) | Label::ClosureStatement(_) => dot::Style::Dashed,
+    fn edge_style(&'a self, e: &Edge) -> dot::Style {
+        match e.role {
+            ir::EntityRole::ParameterSignature | ir::EntityRole::ClosureSignature => {
+                dot::Style::Dotted
+            }
+            ir::EntityRole::ClosureCaptureDefinition(_) | ir::EntityRole::ClosureStatement(_) => {
+                dot::Style::Dashed
+            }
+            _ => dot::Style::None,
         }
     }
 }

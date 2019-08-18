@@ -2,7 +2,7 @@ use std::fmt;
 
 use cranelift::prelude::*;
 
-use crate::ir::component::layout;
+use crate::layout;
 use crate::value;
 
 pub struct Translator<'a> {
@@ -58,11 +58,11 @@ impl<'a> Translator<'a> {
                 .unwrap(),
             value::Number::F32(v) => self
                 .storage
-                .write_f32::<byteorder::NativeEndian>(v)
+                .write_f32::<byteorder::NativeEndian>(v.into_inner())
                 .unwrap(),
             value::Number::F64(v) => self
                 .storage
-                .write_f64::<byteorder::NativeEndian>(v)
+                .write_f64::<byteorder::NativeEndian>(v.into_inner())
                 .unwrap(),
         }
     }
