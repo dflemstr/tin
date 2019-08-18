@@ -1,3 +1,4 @@
+use log::error;
 use std::fs;
 use std::io;
 use std::path;
@@ -59,7 +60,7 @@ fn run() -> Result<i32, failure::Error> {
         .map_err(|e| report_diagnostics(tin.codemap(), e))?;
 
     let entrypoint = module
-        .function::<tin::module::Function0<i32>>("main")
+        .function::<tin::module::Function0<i32>, _>("TODO", "main")
         .ok_or_else(|| failure::err_msg("missing a main function"))?;
 
     let result = entrypoint.call()?;

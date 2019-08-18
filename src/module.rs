@@ -3,14 +3,18 @@ use std::collections;
 use std::fmt;
 use std::mem;
 use std::ptr;
+use std::sync;
 
 use cranelift_module;
 use cranelift_simplejit;
 
 /// A compiled module, the result of an invocation of `Tin::compile`.
+#[derive(Clone)]
 pub struct Module {
-    compiled: cranelift_module::Module<cranelift_simplejit::SimpleJITBackend>,
-    function_ids: collections::HashMap<String, cranelift_module::FuncId>,
+    compiled:
+        sync::Arc<sync::Mutex<cranelift_module::Module<cranelift_simplejit::SimpleJITBackend>>>,
+    function_ids:
+        collections::HashMap<(relative_path::RelativePathBuf, String), cranelift_module::FuncId>,
 }
 
 /// An error that may happen at runtime.
@@ -166,8 +170,12 @@ define_function!(
 impl Module {
     pub(crate) fn new(
         compiled: cranelift_module::Module<cranelift_simplejit::SimpleJITBackend>,
-        function_ids: collections::HashMap<String, cranelift_module::FuncId>,
+        function_ids: collections::HashMap<
+            (relative_path::RelativePathBuf, String),
+            cranelift_module::FuncId,
+        >,
     ) -> Self {
+        let compiled = sync::Arc::new(sync::Mutex::new(compiled));
         Module {
             compiled,
             function_ids,
@@ -177,13 +185,18 @@ impl Module {
     /// Fetches the specified function with the specified signature.
     ///
     /// Returns `None` if the signature does not match the compiled function.
-    pub fn function<F>(&mut self, name: &str) -> Option<F>
+    pub fn function<F, P>(&mut self, module: P, name: &str) -> Option<F>
     where
         F: Function,
+        P: AsRef<relative_path::RelativePath>,
     {
-        if let Some(id) = self.function_ids.get(name) {
+        if let Some(id) = self
+            .function_ids
+            .get(&(module.as_ref().to_owned(), name.to_owned()))
+        {
+            let mut compiled = self.compiled.lock().unwrap();
             // TODO: type check
-            Some(unsafe { F::from_ptr(self.compiled.get_finalized_function(*id)) })
+            Some(unsafe { F::from_ptr(compiled.get_finalized_function(*id)) })
         } else {
             None
         }

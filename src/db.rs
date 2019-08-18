@@ -1,3 +1,4 @@
+use crate::codegen;
 use crate::interpreter;
 use crate::ir;
 use crate::layout;
@@ -6,6 +7,7 @@ use crate::syntax;
 use crate::ty;
 
 #[salsa::database(
+    codegen::CodegenStorage,
     interpreter::InterpreterStorage,
     ir::IrStorage,
     layout::LayoutStorage,

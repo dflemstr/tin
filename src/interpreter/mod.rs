@@ -325,9 +325,7 @@ fn add(lhs: &value::Value, rhs: &value::Value) -> Result<value::Value, error::Er
                 Ok(value::Value::string(lhsv.clone() + rhsv))
             }
         }
-        (value::Case::Number(lhs), value::Case::Number(rhs)) => {
-            match_number!("+", (lhs, rhs), |l, r| int: Ok((l.wrapping_add(*r)).into()), frac: Ok((l.into_inner() + r.into_inner()).into()))
-        }
+        (value::Case::Number(lhs), value::Case::Number(rhs)) => match_number!("+", (lhs, rhs), |l, r| int: Ok((l.wrapping_add(*r)).into()), frac: Ok((l.into_inner() + r.into_inner()).into())),
         other => Err(error::Error::RuntimeTypeConflict(format!(
             "operation + not supported on values {:?}",
             other

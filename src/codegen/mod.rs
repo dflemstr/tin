@@ -1,7 +1,9 @@
 //! A JIT compiler implementation based on the IR.
 use log::debug;
+use log::trace;
 use std::collections;
 use std::fmt;
+use std::mem;
 use std::ops;
 use std::sync;
 
@@ -25,8 +27,8 @@ mod builtin;
 mod data;
 pub mod error;
 mod function;
-// #[cfg(test)]
-// mod tests;
+#[cfg(test)]
+mod tests;
 mod util;
 
 /// A codegen system, that can be used for JIT compilation.
@@ -41,10 +43,6 @@ pub trait Db: salsa::Database + interpreter::Db + ir::Db + layout::Db + ty::Db {
     fn codegen_isa(&self) -> Isa;
 }
 
-pub struct Function {
-    ctx: codegen::Context,
-}
-
 pub struct Data {
     ctx: cranelift_module::DataContext,
 }
@@ -56,6 +54,13 @@ pub struct Isa {
 
 struct Symbol<'d, D>(&'d D, ir::Entity);
 
+struct Function {
+    ctx: codegen::Context,
+    name: String,
+    entity: ir::Entity,
+    is_public: bool,
+}
+
 struct Codegen<'m, 'd, B, D>
 where
     B: cranelift_module::Backend,
@@ -63,22 +68,24 @@ where
     ptr_type: codegen::ir::Type,
     module: &'m mut cranelift_module::Module<B>,
     db: &'d D,
+    functions: Vec<Function>,
     defined_strings: collections::HashMap<String, cranelift_module::DataId>,
+    exposed_functions:
+        collections::HashMap<(relative_path::RelativePathBuf, String), cranelift_module::FuncId>,
 }
 
 fn codegen(db: &impl Db) -> error::Result<sync::Arc<module::Module>> {
     let ptr_type = db.codegen_ptr_type();
     let mut builder =
         cranelift_simplejit::SimpleJITBuilder::new(cranelift_module::default_libcall_names());
+    builder.symbols(builtin::BUILTINS.iter().map(|b| (b.symbol, b.ptr)));
     let mut module: cranelift_module::Module<cranelift_simplejit::SimpleJITBackend> =
         cranelift_module::Module::new(builder);
     let mut codegen = Codegen::new(ptr_type, &mut module, db);
     codegen.codegen_all()?;
+    let function_ids = codegen.exposed_functions;
 
-    Ok(sync::Arc::new(module::Module::new(
-        module,
-        collections::HashMap::new(),
-    )))
+    Ok(sync::Arc::new(module::Module::new(module, function_ids)))
 }
 
 fn codegen_ptr_type(db: &impl Db) -> codegen::ir::Type {
@@ -112,40 +119,123 @@ where
         db: &'d D,
     ) -> Self {
         let defined_strings = collections::HashMap::new();
+        let exposed_functions = collections::HashMap::new();
+        let functions = Vec::new();
         Self {
             ptr_type,
             module,
             db,
             defined_strings,
+            exposed_functions,
+            functions,
         }
     }
 
     fn codegen_all(&mut self) -> error::Result<()> {
-        for module_entity in self.db.entities()?.modules() {
-            match &*self.db.element(module_entity)? {
-                ir::element::Element::Module(ir::element::Module { variables }) => {
-                    for value in variables.values() {
-                        self.codegen_definition(*value)?;
+        for entity in self.db.entities()?.all() {
+            self.codegen_entity(entity)?;
+        }
+
+        for Function {
+            name,
+            entity,
+            ctx,
+            is_public,
+        } in &mut self.functions
+        {
+            let linkage = if *is_public {
+                cranelift_module::Linkage::Export
+            } else {
+                cranelift_module::Linkage::Local
+            };
+            let func_id = self
+                .module
+                .declare_function(name, linkage, &ctx.func.signature)
+                .unwrap();
+
+            self.module.define_function(func_id, ctx).unwrap();
+            self.module.clear_context(ctx);
+
+            if *is_public {
+                if let (Some(parent_id), ir::EntityRole::VariableDefinition(func_ident)) =
+                    self.db.lookup_entity(*entity)
+                {
+                    let (_, parent_role) = self.db.lookup_entity(parent_id);
+                    if let ir::EntityRole::File(file_id) = parent_role {
+                        let func_ident = (*self.db.lookup_ident(func_ident)).clone();
+                        let file_path = (*self.db.file_relative_path(file_id)).to_owned();
+                        self.exposed_functions
+                            .insert((file_path, func_ident), func_id);
+                    } else {
+                        debug!(
+                                "not exposing function `{}` because it is not at module level (parent role is {:?})",
+                                name,
+                                parent_role,
+                            );
                     }
+                } else {
+                    debug!("not exposing function `{}` because it is not directly a variable definition", name);
                 }
-                _ => unreachable!(),
             }
+        }
+        self.module.finalize_definitions();
+
+        Ok(())
+    }
+
+    fn codegen_entity(&mut self, entity: ir::Entity) -> error::Result<()> {
+        match &*self.db.element(entity)? {
+            ir::element::Element::Module(ir::element::Module { variables }) => {
+                for value in variables.values() {
+                    self.codegen_definition(*value, true)?;
+                }
+            }
+            ir::element::Element::Closure(ir::element::Closure { statements, .. }) => {
+                for statement in statements {
+                    self.codegen_definition(*statement, false)?;
+                }
+            }
+            _ => (),
         }
         Ok(())
     }
 
-    fn codegen_definition(&mut self, entity: ir::Entity) -> error::Result<()> {
-        match (
-            &*self.db.element(entity)?,
-            &*self.db.ty(entity)?,
-            self.db.value(entity)?,
-        ) {
-            (element::Element::Closure(ref closure), ty::Type::Function(ref ty), _) => {
-                self.codegen_function(entity, closure, ty)?;
-                Ok(())
+    fn codegen_definition(&mut self, entity: ir::Entity, top_level: bool) -> error::Result<()> {
+        match &*self.db.element(entity)? {
+            element::Element::Variable(ref variable) => {
+                let initializer = self.db.element(variable.initializer)?;
+                match (&*initializer, &*self.db.ty(entity)?) {
+                    (element::Element::Closure(ref closure), ty::Type::Function(ref ty)) => {
+                        let (name, ctx) = self.codegen_function(entity, closure, ty)?;
+
+                        if top_level {
+                            let (name, ctx) = self.codegen_public_wrapper_function(
+                                entity, closure, ty, &name, &ctx,
+                            )?;
+                            let is_public = true;
+                            self.functions.push(Function {
+                                name,
+                                entity,
+                                ctx,
+                                is_public,
+                            });
+                        }
+
+                        let is_public = false;
+                        self.functions.push(Function {
+                            name,
+                            entity,
+                            ctx,
+                            is_public,
+                        });
+                    }
+                    _ => (),
+                }
             }
-            _ => Ok(()), // TODO logic error
+            _ => (),
         }
+
+        Ok(())
     }
 
     fn codegen_function(
@@ -153,12 +243,12 @@ where
         entity: ir::Entity,
         closure: &element::Closure,
         ty: &ty::Function,
-    ) -> error::Result<sync::Arc<Function>> {
+    ) -> error::Result<(String, codegen::Context)> {
         use cranelift::codegen::ir::InstBuilder;
 
         let mut ctx = codegen::Context::new();
         ctx.func.signature.call_conv = self.db.codegen_isa().default_call_conv();
-        let ret_type = self.populate_function_signature(ty, &mut ctx);
+        let ret_type = self.populate_function_signature(ty, &mut ctx, false);
 
         let mut builder_context = frontend::FunctionBuilderContext::new();
         let mut builder =
@@ -170,7 +260,7 @@ where
             self.module,
             &mut self.defined_strings,
             &format!("funcname:{}", name),
-            name,
+            name.clone(),
         );
         let name_global_value = self.module.declare_data_in_func(name_data_id, builder.func);
 
@@ -252,8 +342,8 @@ where
         builder.switch_to_block(error_unwind_ebb);
         builder.seal_block(error_unwind_ebb);
 
-        let name = builder.ins().global_value(self.ptr_type, name_global_value);
-        let name_len = builder.ins().iconst(self.ptr_type, name_len as i64);
+        let name_value = builder.ins().global_value(self.ptr_type, name_global_value);
+        let name_len_value = builder.ins().iconst(self.ptr_type, name_len as i64);
 
         {
             let mut translation_ctx = function::Translator::new(
@@ -268,8 +358,8 @@ where
             );
             translation_ctx.builtin_unwind_frame(
                 error,
-                name,
-                name_len,
+                name_value,
+                name_len_value,
                 error_filename,
                 error_filename_len,
                 error_line,
@@ -277,7 +367,101 @@ where
             );
         };
 
-        let null_result = if ret_type.is_int() {
+        let null_result = <Codegen<'m, 'd, B, D>>::default_value(ret_type, &mut builder);
+        builder.ins().return_(&[null_result, error]);
+
+        builder.finalize();
+
+        debug!(
+            "generated function `{}`:\n\n{}",
+            name,
+            builder.display(None)
+        );
+        Ok((name, ctx))
+    }
+
+    fn codegen_public_wrapper_function(
+        &mut self,
+        entity: ir::Entity,
+        closure: &element::Closure,
+        ty: &ty::Function,
+        wrapped_name: &str,
+        wrapped: &codegen::Context,
+    ) -> error::Result<(String, codegen::Context)> {
+        use cranelift::codegen::ir::InstBuilder;
+
+        let mut ctx: codegen::Context = self.module.make_context();
+        let mut builder_context = frontend::FunctionBuilderContext::new();
+
+        let name = format!("public:{}", Symbol(self.db, entity));
+        let ret_type = self.populate_function_signature(ty, &mut ctx, true);
+
+        let mut builder =
+            cranelift::frontend::FunctionBuilder::new(&mut ctx.func, &mut builder_context);
+        let entry_ebb = builder.create_ebb();
+        builder.append_ebb_params_for_function_params(entry_ebb);
+
+        let error_ebb = builder.create_ebb();
+
+        builder.switch_to_block(entry_ebb);
+        builder.seal_block(entry_ebb);
+
+        let callee = self
+            .module
+            .declare_function(
+                wrapped_name,
+                cranelift_module::Linkage::Local,
+                &wrapped.func.signature,
+            )
+            .unwrap();
+        let local_callee = self.module.declare_func_in_func(callee, &mut builder.func);
+
+        let (error_out_ptr, parameter_values) = builder.ebb_params(entry_ebb).split_last().unwrap();
+        let error_out_ptr = *error_out_ptr;
+        let parameter_values = parameter_values.to_vec();
+
+        let call = builder.ins().call(local_callee, &parameter_values);
+
+        let results = builder.inst_results(call);
+        let result = results[0];
+        let error = results[1];
+
+        builder
+            .ins()
+            .brnz(error, error_ebb, &[error, error_out_ptr]);
+        builder.ins().return_(&[result]);
+
+        let error = builder.append_ebb_param(error_ebb, self.ptr_type);
+        let error_out_ptr = builder.append_ebb_param(error_ebb, self.ptr_type);
+        builder.switch_to_block(error_ebb);
+        builder.seal_block(error_ebb);
+
+        let null_result = <Codegen<'m, 'd, B, D>>::default_value(ret_type, &mut builder);
+
+        let mut mem_flags = codegen::ir::MemFlags::new();
+        mem_flags.set_notrap();
+        mem_flags.set_aligned();
+        builder.ins().store(mem_flags, error, error_out_ptr, 0_i32);
+        builder.ins().return_(&[null_result]);
+
+        builder.finalize();
+
+        debug!(
+            "generated public wrapper function `{}`:\n\n{}",
+            name,
+            builder.display(None)
+        );
+
+        Ok((name, ctx))
+    }
+
+    fn default_value(
+        ret_type: codegen::ir::Type,
+        builder: &mut frontend::FunctionBuilder,
+    ) -> codegen::ir::Value {
+        use cranelift::codegen::ir::InstBuilder;
+
+        if ret_type.is_int() {
             builder.ins().iconst(ret_type, 0)
         } else if ret_type == types::F32 {
             builder.ins().f32const(immediates::Ieee32::with_float(0.0))
@@ -285,19 +469,14 @@ where
             builder.ins().f64const(immediates::Ieee64::with_float(0.0))
         } else {
             unimplemented!()
-        };
-        builder.ins().return_(&[null_result, error]);
-
-        builder.finalize();
-
-        debug!("generated function: {}", builder.display(None));
-        Ok(sync::Arc::new(Function { ctx }))
+        }
     }
 
     fn populate_function_signature(
         &mut self,
         ty: &ty::Function,
         ctx: &mut codegen::Context,
+        is_public: bool,
     ) -> codegen::ir::Type {
         for parameter in &ty.parameters {
             ctx.func.signature.params.push(codegen::ir::AbiParam::new(
@@ -306,12 +485,24 @@ where
         }
 
         let ret_type = abi_type::AbiType::from_ir_type(&ty.result).into_specific(self.ptr_type);
+        // Result
+        ctx.func
+            .signature
+            .returns
+            .push(codegen::ir::AbiParam::new(ret_type));
 
-        // Result, error
-        ctx.func.signature.returns.extend(&[
-            codegen::ir::AbiParam::new(ret_type),
-            codegen::ir::AbiParam::new(self.ptr_type),
-        ]);
+        // Error: if the function is public, pass in error pointer; else, use multiple return values
+        if is_public {
+            ctx.func
+                .signature
+                .params
+                .push(codegen::ir::AbiParam::new(self.ptr_type));
+        } else {
+            ctx.func
+                .signature
+                .returns
+                .push(codegen::ir::AbiParam::new(self.ptr_type))
+        }
 
         ret_type
     }
@@ -448,9 +639,6 @@ fn symbol_fmt_impl(entity: ir::Entity, f: &mut fmt::Formatter, db: &impl Db) -> 
         ir::EntityRole::ClosureStatement(idx) => write!(f, "(statement {})", idx),
         ir::EntityRole::ClosureSignature => write!(f, "(signature)"),
         ir::EntityRole::ClosureResult => write!(f, "(result expression)"),
-        ir::EntityRole::ModuleDefinition(ident) => {
-            write!(f, "(parameter definition {})", db.lookup_ident(ident))
-        }
         ir::EntityRole::UnOperand => write!(f, "(operand)"),
         ir::EntityRole::BiLhs => write!(f, "(left operand)"),
         ir::EntityRole::BiRhs => write!(f, "(right operand)"),

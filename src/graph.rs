@@ -201,9 +201,6 @@ impl<'a> dot::Labeller<'a, Node, Edge> for Graph<'a> {
             }
             ir::EntityRole::ClosureSignature => dot::LabelText::HtmlStr("sig".into()),
             ir::EntityRole::ClosureResult => dot::LabelText::HtmlStr("result".into()),
-            ir::EntityRole::ModuleDefinition(ident) => dot::LabelText::HtmlStr(
-                format!("mod <b>{:?}</b>", self.db.lookup_ident(ident)).into(),
-            ),
             ir::EntityRole::UnOperand => dot::LabelText::HtmlStr("op".into()),
             ir::EntityRole::BiLhs => dot::LabelText::HtmlStr("lhs".into()),
             ir::EntityRole::BiRhs => dot::LabelText::HtmlStr("rhs".into()),

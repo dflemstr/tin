@@ -57,7 +57,6 @@ pub enum EntityRole {
     ClosureStatement(usize),
     ClosureSignature,
     ClosureResult,
-    ModuleDefinition(Ident),
     UnOperand,
     BiLhs,
     BiRhs,
